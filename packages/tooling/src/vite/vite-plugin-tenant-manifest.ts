@@ -9,6 +9,7 @@
 import type { Plugin } from 'vite';
 
 import { themeVariablesFor } from '../../../contracts/src/tenant/theme.js';
+import { activeSiteId } from '../root.js';
 import { loadTenantConfig, siteById } from '../tenants/tenant-config.js';
 
 const MANIFEST_PATH = '/manifest.webmanifest';
@@ -40,7 +41,7 @@ async function manifestJson(siteId: string): Promise<string> {
 }
 
 export function tenantManifestPlugin(): Plugin {
-    const siteId = process.env.VITE_STOR_TENANT?.trim() || 'st';
+    const siteId = activeSiteId();
     return {
         name: 'tenant-manifest',
         configureServer(server) {

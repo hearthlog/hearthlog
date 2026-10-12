@@ -17,7 +17,7 @@
  *
  *   pnpm build:generated [--site <id>] [--all-modules] [--check] [--force]
  *
- * The site defaults to VITE_STOR_TENANT, then "st". `--all-modules` writes the catalog of every installed
+ * The site defaults to VITE_STOR_TENANT, then the host's only site, then "st". `--all-modules` writes the catalog of every installed
  * module and nothing else (`pnpm lock:modules` reads it). `--check` fails when the outputs are stale.
  */
 
@@ -29,7 +29,7 @@ import { fileURLToPath } from "node:url";
 
 import { generateCatalog, GENERATED_DIRECTORY, loadModules, modulesInLock, siteDirectory } from "../compose/compose-modules.js";
 import { packageDirectory } from "../host/write-host.js";
-import { hostRoot } from "../root.js";
+import { activeSiteId, hostRoot } from "../root.js";
 
 const ROOT = hostRoot();
 const STATE_PATH = join(GENERATED_DIRECTORY, ".build.json");
@@ -153,7 +153,7 @@ export async function build(options: BuildOptions): Promise<"built" | "current">
 
 async function main(argv: string[]): Promise<void> {
     const site = argv.indexOf("--site");
-    const siteId = (site >= 0 ? argv[site + 1] : undefined) ?? (process.env.VITE_STOR_TENANT?.trim() || "st");
+    const siteId = (site >= 0 ? argv[site + 1] : undefined) ?? activeSiteId();
     const outcome = await build({ siteId, all: argv.includes("--all-modules"), check: argv.includes("--check"), force: argv.includes("--force") });
     if (outcome === "current" && !argv.includes("--quiet")) console.log(`Generated files are current for ${siteId}.`);
 }

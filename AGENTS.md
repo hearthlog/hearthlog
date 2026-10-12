@@ -41,7 +41,7 @@ proxies `/api/ledger` to Ledger through a service binding.
 | `examples/` | `empty` (the core only): committed `hearthlog init --workspace` output from `packages/tooling/templates/tenant/`; `pnpm check:examples` fails on drift, `pnpm examples:update` rewrites it; not a workspace member, and built from tarballs by `pnpm check:tarballs examples/empty` |
 | `scripts/` | What only this repository needs: releasing (`release-version.ts`, `publish-packages.ts`), package checks (`check-packages.ts`, `tarball-equivalence.ts` and `tarball-support.ts`), `integration.ts` (`pnpm test:integration`), and `layers.json` (the package graph `check:layers` enforces); the shared tools are in `packages/tooling` |
 | `integration/` | `st.tenant.json`: the development site with every module's features, swapped in by `pnpm test:integration` |
-| `tenants/` | Two module-less sites: `st`, the development site on the shared stack (`VITE_STOR_TENANT` defaults to `st`), and `solo`, a fixture on its own stack (`deployment.json`) that the tooling tests and `check:tenants` use for the dedicated topology |
+| `tenants/` | Two module-less sites: `st`, the development site on the shared stack (with two sites here, `VITE_STOR_TENANT` defaults to `st`), and `solo`, a fixture on its own stack (`deployment.json`) that the tooling tests and `check:tenants` use for the dedicated topology |
 | `tests/` | Playwright: a few app journeys and `tests/worker/` |
 | `.github/workflows/` | `ci.yml` (checks, the integration run, browser journeys, the tarball build, the secret scan) and `release.yml` (publishes the packages on a `v*` tag). Nothing here deploys: a site deploys from its own repository |
 
@@ -114,7 +114,8 @@ Notes:
   query you need does not exist, extend the repository; do not fetch a
   superset and narrow it client-side.
 - **Generated files are off-limits and not committed.** `pnpm build:generated` writes everything the
-  build generates, for one site (`VITE_STOR_TENANT`, default `st`), into the gitignored `.generated/`: the
+  build generates, for one site (`VITE_STOR_TENANT`; unset, the host's only site, else `st`: `activeSiteId()` in
+  `packages/tooling/src/root.ts`), into the gitignored `.generated/`: the
   module catalog, icons, repositories, entity types, schema, data APIs, and Ledger event schemas in
   `.generated/src/` (the package `@hearthlog/generated`), and the tenant module, boot shell, and gateway
   table in `.generated/sites/<id>/`. A site's modules are the ones in its `tenants/<id>/modules.lock.json`.

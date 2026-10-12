@@ -10,6 +10,7 @@ import { readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { join, resolve } from 'node:path';
 import { localGatewayOriginAllowed, readLocalLedgerCredentialSync } from '../dev/local-development.js';
+import { activeSiteId } from '../root.js';
 import {
 	e2eLedgerStubPlugin,
 	localAiDecisionsPlugin,
@@ -75,7 +76,10 @@ const buildTimestamp = process.env.STOR_BUILD_TIMESTAMP?.trim() || new Date().to
 // Tenant build selection: VITE_STOR_TENANT=bravo writes the site into
 // build/bravo (matching wrangler env.bravo assets.directory). The default
 // tenant keeps the historical ./build output used by the top-level Worker.
-const tenantId = process.env.VITE_STOR_TENANT?.trim() || 'st';
+// Without VITE_STOR_TENANT a host with one site builds that site; the value is
+// set here so the plugins and `import.meta.env` (the service worker) agree.
+const tenantId = activeSiteId();
+process.env.VITE_STOR_TENANT = tenantId;
 const buildDirectory = process.env.STOR_BUILD_OUTPUT_ROOT?.trim() ||
 	(tenantId === 'st' ? 'build' : `build/${tenantId}`);
 const svelteKitOutDir = process.env.STOR_SVELTEKIT_OUT_DIR?.trim() || '.svelte-kit';

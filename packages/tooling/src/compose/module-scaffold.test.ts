@@ -68,11 +68,21 @@ test('a module that reaches into the core is caught', () => {
     }
 });
 
-test('an exported module is a repository of its own: a valid manifest, peer ranges, and a license', needsModules, () => {
+/** A module in its source form, as `module:new` writes it, with one third-party dependency. */
+function sourceModule(space: ReturnType<typeof workspace>, name: string): void {
+    scaffoldModule(space.modules, { name });
+    const path = join(space.modules, name, 'package.json');
+    const manifest = JSON.parse(readFileSync(path, 'utf8')) as { dependencies: Record<string, string> };
+    manifest.dependencies['date-fns'] = '^4.4.0';
+    writeFileSync(path, JSON.stringify(manifest));
+}
+
+test('an exported module is a repository of its own: a valid manifest, peer ranges, and a license', () => {
     const space = workspace();
-    const out = join(space.root, 'out', 'calc');
+    const out = join(space.root, 'out', 'notes');
     try {
-        const files = exportModule(space.modules, 'calc', out);
+        sourceModule(space, 'notes');
+        const files = exportModule(space.modules, 'notes', out);
         assert.ok(files.includes('LICENSE') && files.includes('hearthlog.module.json') && files.includes('package.json'));
         assert.doesNotThrow(() => validateManifest(JSON.parse(readFileSync(join(out, 'hearthlog.module.json'), 'utf8'))));
         const manifest = JSON.parse(readFileSync(join(out, 'package.json'), 'utf8'));
@@ -83,24 +93,25 @@ test('an exported module is a repository of its own: a valid manifest, peer rang
         assert.equal(manifest.dependencies['date-fns'], '^4.4.0', 'third-party dependencies stay');
         assert.deepEqual(manifest.files, ['src', 'hearthlog.module.json', '!**/*.test.ts'], 'the tests stay out of the package');
         assert.deepEqual(manifest.publishConfig, { access: 'public', provenance: true });
-        assert.match(manifest.repository.url, /hearthlog-module-calc\.git$/);
+        assert.match(manifest.repository.url, /hearthlog-module-notes\.git$/);
         assert.equal(manifest.scripts.test, 'hearthlog check-module');
         assert.match(manifest.packageManager, /^pnpm@10/);
         assert.match(readFileSync(join(out, 'pnpm-workspace.yaml'), 'utf8'), /esbuild/);
         assert.equal(manifest.devDependencies['@hearthlog/tooling'], manifest.peerDependencies['@hearthlog/sdk'], 'tested against the platform range it accepts');
         assert.ok(files.includes('.gitignore') && files.includes('.gitleaks.toml') && files.includes('.github/workflows/ci.yml') && files.includes('.github/workflows/release.yml'));
         assert.match(readFileSync(join(out, '.github/workflows/release.yml'), 'utf8'), /environment: npm/);
-        assert.throws(() => exportModule(space.modules, 'calc', out), /not empty/);
+        assert.throws(() => exportModule(space.modules, 'notes', out), /not empty/);
     } finally {
         space.cleanup();
     }
 });
 
-test('an export refuses a module whose sources import a platform package it does not declare', needsModules, () => {
+test('an export refuses a module whose sources import a platform package it does not declare', () => {
     const space = workspace();
     try {
-        writeFileSync(join(space.modules, 'calc', 'src', 'extra.ts'), "import { x } from '@hearthlog/ui/state/commands.js';\nexport { x };\n");
-        assert.throws(() => exportModule(space.modules, 'calc', join(space.root, 'out', 'calc')), /imports @hearthlog\/ui without declaring it/);
+        sourceModule(space, 'notes');
+        writeFileSync(join(space.modules, 'notes', 'src', 'extra.ts'), "import { x } from '@hearthlog/ui/state/commands.js';\nexport { x };\n");
+        assert.throws(() => exportModule(space.modules, 'notes', join(space.root, 'out', 'notes')), /imports @hearthlog\/ui without declaring it/);
     } finally {
         space.cleanup();
     }

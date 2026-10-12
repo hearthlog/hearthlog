@@ -19,7 +19,7 @@ import { createRequire } from "node:module";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { hostRoot } from "../root.js";
+import { activeSiteId, hostRoot } from "../root.js";
 import { CORE_ROUTE_FILES } from "./core-routes.js";
 
 const ROOT = hostRoot();
@@ -112,7 +112,7 @@ export async function writeHost(siteId: string): Promise<void> {
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-    writeHost(process.env.VITE_STOR_TENANT?.trim() || "st").catch((error: unknown) => {
+    writeHost(activeSiteId()).catch((error: unknown) => {
         console.error(error instanceof Error ? error.message : String(error));
         process.exitCode = 1;
     });

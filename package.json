@@ -61,7 +61,7 @@
     "apple:mac": "node packages/tooling/bin/hearthlog.mjs apple:mac",
     "apple:test": "node packages/tooling/bin/hearthlog.mjs apple:test",
     "apple:resign": "node packages/tooling/bin/hearthlog.mjs apple:resign",
-    "check:all": "pnpm check:scripts && pnpm test:scripts && pnpm check:examples && pnpm check:packages && pnpm check:ts && pnpm test:unit --run && pnpm build && pnpm frontend:worker:check && pnpm calendar:public:check && pnpm ledger:check && pnpm ledger:test",
+    "check:all": "pnpm check:scripts && pnpm test:scripts && pnpm check:examples && pnpm check:packages && pnpm check:ts && pnpm test:unit --run && pnpm build && pnpm frontend:worker:typecheck && pnpm calendar:public:check && pnpm ledger:check && pnpm ledger:test",
     "build:generated": "tsx packages/tooling/src/generate/build-generated.ts",
     "postinstall": "tsx packages/tooling/src/generate/build-generated.ts --quiet || echo 'The generated files were not built; run pnpm build:generated'",
     "check:packages": "tsx scripts/check-packages.ts",

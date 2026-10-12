@@ -6,9 +6,10 @@
  * its tarball; a first install writes the lockfile, a second runs `--frozen-lockfile` from nothing), build it,
  * and compare what it ships with the same site built in this workspace.
  *
- * A site is a tenant id of this repository (`jst`: its `tenants.json`, `tenants/<id>/`, and icons are laid over a
- * fresh `hearthlog init`) or `examples/empty` / `examples/calc-only` (a fresh `init`, no workspace build to compare
- * with; the empty one must ship no module code). The default is `jst examples/empty examples/calc-only`.
+ * A site is a tenant id of this repository (`solo`: its `tenants.json`, `tenants/<id>/`, and icons are laid over a
+ * fresh `hearthlog init`, or exported when it has its own stack) or `examples/empty` (a fresh `init`, no workspace
+ * build to compare with; it must ship no module code, and it builds without `VITE_STOR_TENANT`, as a new site does).
+ * The default is `examples/empty solo`.
  *
  * Compared, structurally: the route set, the chunk names without their content hashes, the precache list, the
  * gateway table (`server-modules.ts`), and the Ledger event contracts (`event-schemas.generated.ts`). Hashes and
@@ -25,7 +26,6 @@ import { compareFingerprints, fingerprint, type Fingerprint } from '../packages/
 
 const EXAMPLES: Record<string, { id: string; modules: string[] }> = {
     'examples/empty': { id: 'empty', modules: [] },
-    'examples/calc-only': { id: 'calc-only', modules: ['calc'] },
 };
 
 function walk(directory: string): string[] {
@@ -70,7 +70,7 @@ async function main(): Promise<void> {
     const argv = process.argv.slice(2);
     const flag = (name: string) => { const index = argv.indexOf(name); return index >= 0 ? argv[index + 1] : undefined; };
     const sites = argv.filter((argument, index) => !argument.startsWith('--') && argv[index - 1] !== '--work');
-    const targets = sites.length > 0 ? sites : ['jst', 'examples/empty', 'examples/calc-only'];
+    const targets = sites.length > 0 ? sites : ['examples/empty', 'solo'];
     const work = resolve(flag('--work') ?? join(tmpdir(), `hearthlog-tarballs-${process.pid}`));
     mkdirSync(work, { recursive: true });
     console.log(`Working in ${work}`);
@@ -103,8 +103,10 @@ async function main(): Promise<void> {
         installTwice(directory);
 
         step(`${id}: build from tarballs`);
-        run('pnpm', ['exec', 'hearthlog', 'build'], { cwd: directory, env: { VITE_STOR_TENANT: id } });
-        run('pnpm', ['exec', 'vite', 'build'], { cwd: directory, env: { VITE_STOR_TENANT: id } });
+        // A new site builds its only site without being told which (an empty value counts as unset).
+        const siteEnv = { VITE_STOR_TENANT: example ? '' : id };
+        run('pnpm', ['exec', 'hearthlog', 'build'], { cwd: directory, env: siteEnv });
+        run('pnpm', ['exec', 'vite', 'build'], { cwd: directory, env: siteEnv });
         const installed = await fingerprint(directory, id);
         console.log(`${id}: ${installed.routes.length} routes, ${installed.chunks.length} chunks, ${installed.precache.length} precache entries`);
 

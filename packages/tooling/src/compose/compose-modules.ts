@@ -12,7 +12,7 @@
  *              gitignored `.generated/` by `pnpm build:generated`, which runs
  *              this first because everything else reads it. A site's modules
  *              are the ones in its `tenants/<id>/modules.lock.json`.
- *   (default)  The routes of one tenant (VITE_STOR_TENANT, default "st"):
+ *   (default)  The routes of one tenant (VITE_STOR_TENANT, default the host's only site, else "st"):
  *              thin wrappers in the gitignored `src/routes/(modules)/` for
  *              the modules whose features the tenant enables, so a tenant
  *              without a module ships none of its pages.
@@ -27,7 +27,7 @@ import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { isDeepStrictEqual } from "node:util";
 import { CORE_ROUTE_PATHS } from "../host/core-routes.js";
-import { hostRoot } from "../root.js";
+import { activeSiteId, hostRoot } from "../root.js";
 
 import { findCollisions, validateManifest, type ModuleManifest } from "@hearthlog/contracts";
 
@@ -448,7 +448,7 @@ export async function generateCatalog({ siteId, all = false, check = false }: Ca
 async function composeRoutes(): Promise<void> {
     const modules = loadModules();
     checkComposition(modules);
-    const siteId = process.env.VITE_STOR_TENANT?.trim() || "st";
+    const siteId = activeSiteId();
     const { loadTenantConfig, siteById } = await import("../tenants/tenant-config.js");
     const { sites } = await loadTenantConfig(undefined, { only: siteId });
     const site = siteById(sites, siteId);
@@ -477,7 +477,7 @@ async function composeRoutes(): Promise<void> {
 
 export async function main(argv = process.argv.slice(2)): Promise<void> {
     const site = argv.indexOf("--site");
-    const siteId = (site >= 0 ? argv[site + 1] : undefined) ?? (process.env.VITE_STOR_TENANT?.trim() || "st");
+    const siteId = (site >= 0 ? argv[site + 1] : undefined) ?? activeSiteId();
     if (argv.includes("--catalog")) await generateCatalog({ siteId, all: argv.includes("--all"), check: argv.includes("--check") });
     else await composeRoutes();
 }

@@ -4,7 +4,7 @@
  *
  * Resolves one site from tenants.json and emits the runtime module the
  * browser app consumes, plus the tenant-branded app shell. The site is
- * selected with VITE_STOR_TENANT (default: "st").
+ * selected with VITE_STOR_TENANT (default: the host's only site, else "st").
  *
  * Usage: VITE_STOR_TENANT=bravo pnpm build:generated
  *
@@ -27,6 +27,7 @@ import {
 } from "../tenants/tenant-config.js";
 import { generateHostConfigs } from "../tenants/host-configs.js";
 import { generateTenantWranglerConfigs } from "../tenants/wrangler-config.js";
+import { activeSiteId } from "../root.js";
 import { brandMarkMaskUrl, wordmarkParts } from "@hearthlog/contracts/tenant/brand";
 import {
     themeVariablesCss,
@@ -137,7 +138,7 @@ if (/%%BRAND_[A-Z_]+%%/.test(brandable)) {
 }
 
 if (process.env.STOR_SKIP_TENANT_GENERATION !== "1") {
-    await generateTenant(process.env.VITE_STOR_TENANT?.trim() || "st", {
+    await generateTenant(activeSiteId(), {
         generateWranglerConfigs: process.env.STOR_WRANGLER_CONFIGS !== "0",
     });
 }
