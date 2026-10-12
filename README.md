@@ -141,10 +141,11 @@ pnpm test         # browser journeys, hermetic (no Ledger needed)
 pnpm test:worker  # the Ledger Worker protocol under wrangler dev
 ```
 
-This repository installs no module, and its `st` site enables none. The tests that need modules
-run with `pnpm test:integration`. It installs the published `@hearthlog/module-*` packages for one
-run, switches `st` to [`integration/st.tenant.json`](integration/st.tenant.json), runs the unit
-tests, type checks, and Ledger tests, and then restores everything.
+This repository installs no module. Its two sites enable none: `st` is the development site on
+the shared stack, and `solo` is a fixture on its own stack for the deployment tooling. The tests
+that need modules run with `pnpm test:integration`. It installs the published `@hearthlog/module-*`
+packages for one run, switches `st` to [`integration/st.tenant.json`](integration/st.tenant.json),
+runs the unit and tooling tests, type checks, and Ledger tests, and then restores everything.
 
 Read [`AGENTS.md`](AGENTS.md) before changing anything. It holds the conventions, the
 architecture invariants, and the definition of done. [`CONTRIBUTING.md`](CONTRIBUTING.md) explains
