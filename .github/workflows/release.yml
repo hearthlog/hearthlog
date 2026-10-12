@@ -1,7 +1,7 @@
 name: Release
 
 # `pnpm release:version <x.y.z>`, commit, then push the tag `v<x.y.z>`. The publish job waits for approval in the
-# protected `npm` environment, which holds the registry credential.
+# protected `npm` environment; the packages are published through npm's trusted publishing, so no registry token is stored.
 on:
   push:
     tags: ["v*"]
@@ -41,11 +41,11 @@ jobs:
           node-version: 24
           cache: pnpm
           registry-url: https://registry.npmjs.org
+      # npm's trusted publishing (OIDC) needs npm 11.5.1 or later; no token is stored anywhere.
+      - run: npm install --global npm@11
       - run: pnpm install --frozen-lockfile
-      # Publishes every package whose version is not on the registry yet, with provenance (publishConfig).
-      - run: pnpm -r publish --no-git-checks
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      # Publishes every package whose version is not on the registry yet, with provenance.
+      - run: pnpm publish:packages
 
   release:
     needs: publish

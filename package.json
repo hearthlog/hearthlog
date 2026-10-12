@@ -70,6 +70,7 @@
     "postinstall": "tsx packages/tooling/src/generate/build-generated.ts --quiet || echo 'The generated files were not built; run pnpm build:generated'",
     "check:packages": "tsx scripts/check-packages.ts",
     "release:version": "tsx scripts/release-version.ts",
+    "publish:packages": "tsx scripts/publish-packages.ts",
     "check:tarballs": "tsx scripts/tarball-equivalence.ts",
     "check:examples": "node packages/tooling/bin/hearthlog.mjs init examples/empty --id empty --modules none --workspace --check",
     "examples:update": "node packages/tooling/bin/hearthlog.mjs init examples/empty --id empty --modules none --workspace --force"

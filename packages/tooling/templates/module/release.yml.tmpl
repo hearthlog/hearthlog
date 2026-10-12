@@ -1,7 +1,7 @@
 name: Release
 
 # Set "version" in package.json, commit, then push the tag `v<version>`. The publish job waits for approval in the
-# protected `npm` environment; the registry credential is the organization secret NPM_TOKEN.
+# protected `npm` environment; the package is published through npm's trusted publishing, so no registry token is stored.
 on:
   push:
     tags: ["v*"]
@@ -37,10 +37,16 @@ jobs:
         with:
           node-version: 24
           registry-url: https://registry.npmjs.org
+      # npm's trusted publishing (OIDC) needs npm 11.5.1 or later; no token is stored anywhere.
+      - run: npm install --global npm@11
       - run: pnpm install
-      - run: pnpm publish --no-git-checks
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Publish the version in package.json unless the registry has it
+        run: |
+          name=$(node -p "require('./package.json').name")
+          version=$(node -p "require('./package.json').version")
+          if [ "$(npm view "$name@$version" version 2>/dev/null)" = "$version" ]; then echo "$name@$version is already published"; exit 0; fi
+          pnpm pack --pack-destination "$RUNNER_TEMP/pack"
+          npm publish "$RUNNER_TEMP/pack/"*.tgz --access public --provenance
 
   release:
     needs: publish
