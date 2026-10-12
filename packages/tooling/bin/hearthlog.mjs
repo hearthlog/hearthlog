@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// The `hearthlog` command: runs the TypeScript tools through tsx. `build`, `init`, `export`, `check-module`, `artifact`, and
+// The `hearthlog` command: runs the TypeScript tools through tsx. `build`, `init`, `export`, `check-module`, `lock`, `artifact`, and
 // `gallery-public:build` start before a site has generated files (or write their own), so they run alone; the
 // `apple:*` commands run the build and then the tools of `@hearthlog/native` (a dependency of the site, not of this
 // package); `ensure`, `deploy`, `deploy-ledger`, and `split` run the build and then a deploy tool; every other
@@ -46,7 +46,8 @@ if (deployTools[command]) {
 if (command === 'plan') {
     const site = rest[rest.indexOf('--site') + 1];
     const env = { ...process.env, ...(rest.includes('--site') && site ? { VITE_STOR_TENANT: site } : {}) };
-    const built = spawnSync(process.execPath, [tsx, source('generate/build-generated.ts'), '--quiet'], { stdio: 'inherit', env }).status ?? 1;
+    // The build's messages go to stderr: `plan --json` writes only the plan to stdout.
+    const built = spawnSync(process.execPath, [tsx, source('generate/build-generated.ts'), '--quiet'], { stdio: ['inherit', 2, 'inherit'], env }).status ?? 1;
     if (built !== 0) process.exit(built);
 }
 
@@ -55,6 +56,7 @@ const entry = {
     init: 'init/init.ts',
     export: 'init/export-tenant.ts',
     'check-module': 'init/check-module.ts',
+    lock: 'tenants/module-lock.ts',
     'gallery-public:build': 'public-workers/build-gallery-public.ts',
     artifact: 'deploy/artifact.ts',
 }[command];

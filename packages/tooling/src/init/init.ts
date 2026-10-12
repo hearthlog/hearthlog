@@ -100,6 +100,7 @@ export function renderSite(options: InitOptions): Array<[string, string]> {
         ["pnpm-workspace.yaml", template("pnpm-workspace.yaml.tmpl")],
         ["patches/sqlocal@0.18.0.patch", template("patches/sqlocal@0.18.0.patch")],
         [".github/workflows/deploy.yml", renderWorkflow(id)],
+        [".github/dependabot.yml", template("dependabot.yml.tmpl")],
         [".gitignore", template("gitignore.tmpl")],
         ["README.md", render(template("README.md.tmpl"), values)],
     ];

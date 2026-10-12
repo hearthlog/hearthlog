@@ -1,60 +1,24 @@
 # GitHub deployment
 
-The application deploys from GitHub Actions. This document lists the repository
-configuration required for the pipeline to work, the Cloudflare API-token
-permissions it needs, and the runbooks for bootstrap, rotation, and rollback.
+A site deploys from GitHub Actions in **its own repository** ([handing a site over](tenant-handover.md)); this repository
+deploys nothing. The shared pipeline (`deploy.yml`, one workflow deploying every site of the shared stack, its Ledger, its
+admin console and its public Workers) was retired together with the shared stack
+(retiring it). This document lists the configuration a tenant repository needs, the Cloudflare
+API-token permissions, and the runbooks for rotation and rollback. Sections marked *shared pipeline* describe what the retired
+pipeline did and are kept for the history of the settings they explain.
 
-## Pipelines
+## Pipelines in this repository
 
 | Workflow | Trigger | Purpose |
 | --- | --- | --- |
 | `.github/workflows/st-ci.yml` | pull request | Full frontend gate, including the browser suite |
 | `.github/workflows/ledger-ci.yml` | pull request | Ledger types, contracts, bundle, startup, and worker browser checks |
-| `.github/workflows/deploy.yml` | push to `main`, manual dispatch | Validate, deploy Ledger when changed, deploy tenant frontends, then deploy and probe the public Gallery Worker when changed |
-
-`main` has exactly one pipeline: `deploy.yml`. It runs its own quality gate
-before touching Cloudflare, so the pull-request workflows stay focused on the
-full, browser-inclusive test suite.
-
-Inside `deploy.yml`:
-
-1. `quality` — `check:scripts`, script unit tests, `check:ts`, `check:tenants`,
-   unit tests, `ledger:check`, `ledger:test`.
-2. `changes` — detects whether `ledger/**` and/or frontend inputs changed.
-3. `matrix` — resolves the tenant list from `tenants.json` via
-   `pnpm list:sites`. Sites on their own stack (`tenants/<id>/deployment.json`)
-   are left out; they are deployed from a machine (see
-   [Copying a tenant](tenant-copy.md)).
-4. `deploy-ledger` — deploys `st-ledger` (only when `ledger/**` changed, or on
-   manual dispatch).
-5. `deploy-ledger-admin` — verifies Access and deploys `st-ledger-admin`
-   (production only, skipped on dry runs).
-6. `deploy-tenants` — one matrix job per site: `ensure:tenant` then
-   `deploy:tenant`.
-7. `deploy-gallery-public` — after tenant provisioning, deploy the isolated
-   public Gallery Worker once and verify its anonymous production route.
-8. `deploy-calendar-public` — after the tenant jobs (the feed Worker binds every
-   site Worker's renderer entrypoint), deploy the public calendar feed Worker
-   once and verify its anonymous route.
-
-Backend-first ordering is enforced with `needs:`; when the backend is
-intentionally skipped, the tenant jobs still run. Each tenant job is
-independent (`fail-fast: false`), so one site's failure does not stop the
-others. The workflow uses `concurrency: deploy-production` with
-`cancel-in-progress: false`, so overlapping pushes queue instead of racing.
-The public Gallery job runs for public Worker/config changes or a manual run
-without a single-site filter.
-Its dry run bundles without upload or a live probe. A real deploy fails if
-Cloudflare serves a placeholder, Access redirect, or another response instead
-of the Gallery Worker. A link is only usable after this job passes; the private
-publication endpoint's successful R2 write alone cannot verify public routing.
 
 ## Tenant workflow (a site on its own stack)
 
 `packages/tooling/templates/tenant/github-workflows/deploy.yml.tmpl` is the workflow a tenant repository gets
 (`hearthlog init` and `hearthlog export` write it to `.github/workflows/deploy.yml`). A site on its own stack deploys from that
-repository, not from this one ([handing a site over](tenant-handover.md)); this repository's `deploy.yml` deploys only the sites
-of the shared stack. It has two jobs.
+repository, not from this one ([handing a site over](tenant-handover.md)); this repository deploys no site. It has two jobs.
 
 - **`build`** has no secrets, and runs on pull requests too. It installs the locked dependencies, prints the read-only
   plan, builds the site and its public Gallery Worker, and seals the result: `hearthlog artifact manifest` writes
@@ -146,7 +110,7 @@ pnpm exec wrangler secret put LEDGER_ADMIN_TOKEN          # admin site Worker
 pnpm exec wrangler secret put LEDGER_ADMIN_TOKEN --config wrangler.bravo.jsonc
 ```
 
-## Bootstrap and new tenants
+## Bootstrap and new tenants (shared pipeline)
 
 Everything in the tenant lifecycle is idempotent; a new site needs no dashboard
 work beyond adding it to `tenants.json`.
@@ -183,7 +147,7 @@ pnpm ensure:tenant -- --site <id>
 pnpm deploy:tenant -- --site <id>
 ```
 
-## Manual runs
+## Manual runs (shared pipeline)
 
 **Actions → Deploy → Run workflow** exposes:
 

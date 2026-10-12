@@ -90,8 +90,10 @@ test('a malformed account id or workers.dev domain is rejected', async () => {
 });
 
 test('the module lock names what a site ships and fails when the site changed', async () => {
-    assert.deepEqual(await moduleLockProblems({ id: 'bravo', features: ['calories', 'bmi', 'activities', 'calendar'] }), []);
-    const problems = await moduleLockProblems({ id: 'bravo', features: ['calc', 'calendar'] });
+    const { sites } = await loadTenantConfig();
+    const st = sites.find((site) => site.id === 'st')!;
+    assert.deepEqual(await moduleLockProblems({ id: 'st', features: st.features }), []);
+    const problems = await moduleLockProblems({ id: 'st', features: ['calc', 'calendar'] });
     assert.equal(problems.length, 1);
     assert.match(problems[0]!, /stale/);
     assert.match((await moduleLockProblems({ id: 'unlocked', features: ['calendar'] }))[0]!, /missing/);
@@ -100,9 +102,9 @@ test('the module lock names what a site ships and fails when the site changed', 
 test('a site\'s event policy names the modules it ships and whether it may define entity types', async () => {
     const { siteEventPolicy } = await import('../deploy/event-policy.js');
     const { sites } = await loadTenantConfig();
-    const bravo = sites.find((site) => site.id === 'bravo')!;
-    assert.deepEqual(siteEventPolicy(bravo), { contracts: ['org.stor.health'], dynamicEvents: false, validation: 'enforce' });
     const st = sites.find((site) => site.id === 'st')!;
+    // A site that lists only Health features ships only Health's contracts and defines no entity types.
+    assert.deepEqual(siteEventPolicy({ ...st, features: ['calories', 'bmi', 'activities', 'calendar'], dynamicEntities: false }), { contracts: ['org.stor.health'], dynamicEvents: false, validation: 'enforce' });
     assert.equal(siteEventPolicy(st).dynamicEvents, true);
     assert.ok(siteEventPolicy(st).contracts.includes('org.stor.invoices'));
 });
@@ -230,4 +232,13 @@ test('a build checks only its own site against the modules it holds', async () =
         else process.env.VITE_STOR_TENANT = before;
         space.cleanup();
     }
+});
+
+test('a module lock names no version, and is current for its site', async () => {
+    const { sites } = await loadTenantConfig();
+    const st = sites.find((site) => site.id === 'st')!;
+    const { readFileSync } = await import('node:fs');
+    const lock = JSON.parse(readFileSync(new URL('../../../../tenants/st/modules.lock.json', import.meta.url), 'utf8')) as { modules: Array<Record<string, unknown>> };
+    assert.equal(lock.modules.every((entry) => !('version' in entry)), true, 'new locks name no version');
+    assert.deepEqual(await moduleLockProblems({ id: 'st', features: st.features }), []);
 });

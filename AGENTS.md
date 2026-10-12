@@ -42,7 +42,7 @@ proxies `/api/ledger` to Ledger through a service binding.
 | `scripts/` | What only this repository needs: publishing the public snapshot and its identity audit (`build-snapshot.ts`, `snapshot-policy.json`, and `public-overlay/`, the files laid over the copy to make the public root a platform workspace with a module-less `st` site, its workflows, and its test configuration), `release-version.ts` (`pnpm release:version`), `check-packages.ts`, the Apple build scripts, preview fixtures, and `layers.json`; the shared tools are in `packages/tooling` |
 | `tests/` | Playwright: a few app journeys, `tests/worker/`, `production/` |
 | `docs/` | Design docs and how-tos; `packages/ledger/docs/` holds OpenAPI contracts |
-| `.github/workflows/` | `st-ci.yml`, `ledger-ci.yml`, `deploy.yml` |
+| `.github/workflows/` | `st-ci.yml`, `ledger-ci.yml` (nothing here deploys: a site deploys from its own repository) |
 
 ## Commands
 

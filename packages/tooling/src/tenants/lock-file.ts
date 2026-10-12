@@ -1,5 +1,8 @@
 /**
- * The lock file's content: which modules a site ships and the exact manifest each was composed from. It
+ * The lock file's content: which modules a site ships and the exact manifest each was composed from. It names no version:
+ * a release that keeps a module's manifest changes nothing here (the package manager's lockfile adopts it), and a release
+ * that moves the contract changes `manifestSha256`, so `hearthlog lock --check` fails until the lock is regenerated and the
+ * diff names the module. It
  * imports nothing generated, so `hearthlog init` can write one before a site has any generated files.
  */
 
@@ -14,7 +17,6 @@ import { modulesForFeatures, type LoadedModule } from "../compose/compose-module
 export interface ModuleLockEntry {
     id: string;
     package: string;
-    version: string;
     /** The site's enabled features this module provides. */
     features: string[];
     /** SHA-256 of the module's `hearthlog.module.json`. */
@@ -32,7 +34,6 @@ export function lockFor(modules: readonly LoadedModule[], features: readonly str
     const entries: ModuleLockEntry[] = modulesForFeatures(modules, features).map(({ directory, manifest }) => ({
         id: manifest.id,
         package: manifest.package,
-        version: manifest.version,
         features: manifest.features.map((feature) => feature.id).filter((id) => features.includes(id)),
         manifestSha256: createHash("sha256").update(readFileSync(join(directory, "hearthlog.module.json"))).digest("hex"),
     }));

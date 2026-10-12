@@ -33,8 +33,17 @@ export async function buildModuleLock(site: Pick<ResolvedSite, "features">): Pro
 export async function moduleLockProblems(site: Pick<ResolvedSite, "id" | "features">): Promise<string[]> {
     const expected = renderModuleLock(await buildModuleLock(site));
     const current = await readFile(moduleLockPath(site.id), "utf8").catch(() => null);
-    if (current === null) return [`tenants/${site.id}/modules.lock.json is missing; run pnpm lock:modules`];
-    return current === expected ? [] : [`tenants/${site.id}/modules.lock.json is stale; run pnpm lock:modules`];
+    if (current === null) return [`tenants/${site.id}/modules.lock.json is missing; run pnpm lock:modules (hearthlog lock)`];
+    // Older locks also recorded each module's version; it is not part of the contract.
+    const withoutVersions = (text: string) => {
+        try {
+            const lock = JSON.parse(text) as { modules?: Array<Record<string, unknown>> };
+            return renderModuleLock({ ...lock, modules: (lock.modules ?? []).map(({ version: _version, ...entry }) => entry) } as unknown as ModuleLock);
+        } catch {
+            return text;
+        }
+    };
+    return withoutVersions(current) === expected ? [] : [`tenants/${site.id}/modules.lock.json is stale; run pnpm lock:modules (hearthlog lock)`];
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

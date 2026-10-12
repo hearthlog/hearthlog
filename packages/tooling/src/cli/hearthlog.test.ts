@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import { buildPlan, checkProtected, executorsFor, receiptPath } from './hearthlog.js';
 
 test('every site in tenants.json plans without problems', async () => {
-    for (const id of ['st', 'bravo', 'delta', 'alpha', 'jst']) {
+    for (const id of ['st', 'jst']) {
         const plan = await buildPlan(id);
         assert.deepEqual(plan.problems, [], id);
         // Only a site on its own stack deploys a Ledger of its own.
@@ -12,8 +12,6 @@ test('every site in tenants.json plans without problems', async () => {
     }
     const jst = await buildPlan('jst');
     assert.ok(jst.resources.some((resource) => resource.name === 'jst-prod-invoice-pdfs'));
-    const bravo = await buildPlan('bravo');
-    assert.ok(!bravo.resources.some((resource) => /invoice|gallery/.test(resource.name)), 'bravo ships neither Invoices nor Gallery');
 });
 
 test('the origin must send a visitor to sign in', async () => {
