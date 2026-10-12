@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "id": "solo",
+  "ledgerAppName": "solo",
+  "title": "solo",
+  "features": [],
+  "authorizedEmails": [
+    "owner@example.com"
+  ]
+}

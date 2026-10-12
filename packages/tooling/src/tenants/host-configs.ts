@@ -81,7 +81,7 @@ export async function generateHostConfigs(stack: Stack): Promise<string[]> {
         infrastructure = infrastructureFor(site, shared);
         ledgerAccount = site.deployment.accountId;
         calendarSites = [site.id];
-        gallery = site.features.includes("gallery");
+        gallery = (site.features as readonly string[]).includes("gallery");
     } else if (calendarSites.length === 0) {
         return written;
     }

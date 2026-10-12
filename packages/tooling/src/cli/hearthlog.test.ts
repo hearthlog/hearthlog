@@ -4,14 +4,16 @@ import { test } from 'node:test';
 import { buildPlan, checkProtected, executorsFor, receiptPath } from './hearthlog.js';
 
 test('every site in tenants.json plans without problems', async () => {
-    for (const id of ['st', 'jst']) {
+    for (const id of ['st', 'solo']) {
         const plan = await buildPlan(id);
         assert.deepEqual(plan.problems, [], id);
         // Only a site on its own stack deploys a Ledger of its own.
         assert.equal(plan.steps.some((step) => step.id === 'ledger'), plan.topology === 'dedicated', id);
     }
-    const jst = await buildPlan('jst');
-    assert.ok(jst.resources.some((resource) => resource.name === 'jst-prod-invoice-pdfs'));
+    // A site on its own stack names its resources after its prefix.
+    const solo = await buildPlan('solo');
+    assert.equal(solo.topology, 'dedicated');
+    assert.ok(solo.resources.some((resource) => resource.name === 'solo-prod-calendar-feeds'));
 });
 
 test('the origin must send a visitor to sign in', async () => {
@@ -23,8 +25,8 @@ test('the origin must send a visitor to sign in', async () => {
 });
 
 test('the receipt lives in protected state and the executors never rotate a token', () => {
-    assert.match(receiptPath('jst'), /\.wrangler\/tenants\/jst\/receipt\.json$/);
-    const source = Object.values(executorsFor('jst', true)).map(String).join('\n');
+    assert.match(receiptPath('solo'), /\.wrangler\/tenants\/solo\/receipt\.json$/);
+    const source = Object.values(executorsFor('solo', true)).map(String).join('\n');
     assert.doesNotMatch(source, /rotate-token/);
 });
 

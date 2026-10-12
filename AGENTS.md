@@ -41,7 +41,7 @@ proxies `/api/ledger` to Ledger through a service binding.
 | `examples/` | `empty` (the core only): committed `hearthlog init --workspace` output from `packages/tooling/templates/tenant/`; `pnpm check:examples` fails on drift, `pnpm examples:update` rewrites it; not a workspace member, and built from tarballs by `pnpm check:tarballs examples/empty` |
 | `scripts/` | What only this repository needs: releasing (`release-version.ts`, `publish-packages.ts`), package checks (`check-packages.ts`, `tarball-equivalence.ts` and `tarball-support.ts`), `integration.ts` (`pnpm test:integration`), and `layers.json` (the package graph `check:layers` enforces); the shared tools are in `packages/tooling` |
 | `integration/` | `st.tenant.json`: the development site with every module's features, swapped in by `pnpm test:integration` |
-| `tenants/st/` | The module-less development site (`VITE_STOR_TENANT` defaults to `st`) |
+| `tenants/` | Two module-less sites: `st`, the development site on the shared stack (`VITE_STOR_TENANT` defaults to `st`), and `solo`, a fixture on its own stack (`deployment.json`) that the tooling tests and `check:tenants` use for the dedicated topology |
 | `tests/` | Playwright: a few app journeys and `tests/worker/` |
 | `.github/workflows/` | `ci.yml` (checks, the integration run, browser journeys, the tarball build, the secret scan) and `release.yml` (publishes the packages on a `v*` tag). Nothing here deploys: a site deploys from its own repository |
 
@@ -79,13 +79,15 @@ Notes:
   `ledger:dry-run`; then `test:integration`, the browser journeys
   (`pnpm test`), `check:tarballs examples/empty`, and a gitleaks scan, each in
   its own job. Match CI.
-- This repository installs no module, so `pnpm test:unit` skips the tests that
-  need one (the list is `needModules` in `vite.config.ts`), and
-  `pnpm check:scripts` reports type errors in tooling tests that name module
-  features. `pnpm test:integration` installs the published
-  `@hearthlog/module-*` for one run, swaps in `integration/st.tenant.json`,
-  runs the unit tests, the type check, the Worker `Env` check, and the Ledger
-  checks, then restores `package.json`, the lockfile, and the site.
+- This repository installs no module, so the tests that need one are skipped
+  here: in `pnpm test:unit` through `needModules` in `vite.config.ts`, in
+  `pnpm test:scripts` through a `needsModules` skip option on the test. Module
+  feature ids are not in a catalog without modules, so tooling code and tests
+  compare them as strings (`ids(...)` in the tests). `pnpm test:integration`
+  installs the published `@hearthlog/module-*` for one run, swaps in
+  `integration/st.tenant.json`, runs the unit and tooling tests, the type
+  checks, the Worker `Env` check, and the Ledger checks, then restores
+  `package.json`, the lockfile, and the site.
 - `pnpm test` is hermetic and needs no `pnpm ledger:dev`: `VITE_E2E=1`
   disables network sync and realtime, and the dev server stubs the Ledger
   contract. It is a handful of journeys that CI runs in one job.

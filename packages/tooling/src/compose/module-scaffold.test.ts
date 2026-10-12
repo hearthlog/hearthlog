@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -10,13 +10,17 @@ import { checkBoundaries } from '../check/check-modules.js';
 import { checkComposition, loadModules, modulesForFeatures, renderRoute } from './compose-modules.js';
 import { renderSite } from '../init/init.js';
 import { exportModule, moduleTemplate, scaffoldModule } from './module-scaffold.js';
-import { REPOSITORY_ROOT } from '../tenants/tenant-config.js';
+/** Calc and Health as installed (`pnpm test:integration` installs the published modules; this repository has none). */
+const REAL_MODULES = loadModules().filter(({ manifest }) => ['@hearthlog/module-calc', '@hearthlog/module-health'].includes(manifest.package));
+const needsModules = { skip: REAL_MODULES.length < 2 && 'needs the modules: pnpm test:integration' };
 
-/** A scratch platform: the real modules, plus whatever a test adds. */
+/** A scratch platform: the real modules when they are installed, plus whatever a test adds. */
 function workspace() {
     const root = mkdtempSync(join(tmpdir(), 'stor-scaffold-'));
     mkdirSync(join(root, 'modules'), { recursive: true });
-    for (const name of ['calc', 'health']) cpSync(join(REPOSITORY_ROOT, 'modules', name), join(root, 'modules', name), { recursive: true });
+    for (const { manifest, directory } of REAL_MODULES) {
+        cpSync(realpathSync(directory), join(root, 'modules', manifest.package.replace('@hearthlog/module-', '')), { recursive: true, dereference: true });
+    }
     return { root, modules: join(root, 'modules'), cleanup: () => rmSync(root, { recursive: true, force: true }) };
 }
 
@@ -64,7 +68,7 @@ test('a module that reaches into the core is caught', () => {
     }
 });
 
-test('an exported module is a repository of its own: a valid manifest, peer ranges, and a license', () => {
+test('an exported module is a repository of its own: a valid manifest, peer ranges, and a license', needsModules, () => {
     const space = workspace();
     const out = join(space.root, 'out', 'calc');
     try {
@@ -92,7 +96,7 @@ test('an exported module is a repository of its own: a valid manifest, peer rang
     }
 });
 
-test('an export refuses a module whose sources import a platform package it does not declare', () => {
+test('an export refuses a module whose sources import a platform package it does not declare', needsModules, () => {
     const space = workspace();
     try {
         writeFileSync(join(space.modules, 'calc', 'src', 'extra.ts'), "import { x } from '@hearthlog/ui/state/commands.js';\nexport { x };\n");
@@ -102,7 +106,7 @@ test('an export refuses a module whose sources import a platform package it does
     }
 });
 
-test('a site depends on each module at the module\'s own version, not the platform\'s', () => {
+test('a site depends on each module at the module\'s own version, not the platform\'s', needsModules, () => {
     const space = workspace();
     const calc = loadModules(space.modules).find(({ manifest }) => manifest.package === '@hearthlog/module-calc');
     assert.ok(calc);

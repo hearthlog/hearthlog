@@ -9,6 +9,9 @@ import { findCollisions, ManifestError, validateManifest, type ModuleManifest } 
 import { coreNamesNoDomain, directGeneratedImports, moduleImportProblem } from '../check/check-modules.js';
 import { loadModules, modulesForFeatures, renderRoute } from './compose-modules.js';
 
+/** Tests that need the real modules run in `pnpm test:integration`, which installs them. */
+const needsModules = { skip: loadModules().length === 0 && 'needs the modules: pnpm test:integration' };
+
 const manifest = (overrides: Partial<ModuleManifest> = {}): ModuleManifest => ({
     manifestVersion: 1,
     id: 'org.example.notes',
@@ -40,7 +43,7 @@ test('a manifest cannot point outside its module or declare unknown keys', () =>
     assert.throws(() => validateManifest(manifest({ compatibility: { moduleApi: 2 } })), ManifestError);
 });
 
-test('a tenant composes only modules whose features it enables', () => {
+test('a tenant composes only modules whose features it enables', needsModules, () => {
     const modules = loadModules();
     assert.ok(modules.some(({ manifest }) => manifest.id === 'org.stor.calc'));
     assert.deepEqual(modulesForFeatures(modules, ['invoices']).map(({ manifest }) => manifest.id), ['org.stor.invoices']);

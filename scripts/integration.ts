@@ -6,6 +6,7 @@
  * `integration/st.tenant.json` (every module's features), locks the modules, generates the site, and runs
  *
  *   - the unit tests, including the ones that need modules (route access, entity scope, module projections, sync invalidation),
+ *   - the tooling tests and their type check, including the ones that need modules (composition, init, the module lock, integrations),
  *   - the type check and the frontend Worker's `Env` declaration check (it holds the bindings of every module),
  *   - the Ledger's type check and tests (its event contracts come from the modules),
  *
@@ -23,6 +24,8 @@ const MODULES = ['calc', 'finance', 'gallery', 'health', 'invoices'];
 const TOUCHED = ['package.json', 'pnpm-lock.yaml', 'tenants/st/tenant.json', 'tenants/st/modules.lock.json'];
 const COMMANDS: string[][] = [
     ['test:unit', '--run'],
+    ['test:scripts'],
+    ['check:scripts'],
     ['check:ts'],
     ['frontend:worker:check'],
     ['ledger:check'],

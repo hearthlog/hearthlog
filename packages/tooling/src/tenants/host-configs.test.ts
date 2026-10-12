@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
 import { generateHostConfigs, hostWorkerConfigPath, hostWorkerDirectory } from './host-configs.js';
@@ -20,13 +20,15 @@ test('the Ledger keeps its Durable Object classes and takes only its name and ac
 
 test('the shared stack and a site on its own stack each get their Workers in their own folders', async () => {
     assert.match(hostWorkerDirectory('shared', 'ledger'), /\.generated\/shared\/ledger$/);
-    assert.match(hostWorkerDirectory('jst', 'gallery-public'), /\.generated\/sites\/jst\/gallery-public$/);
+    assert.match(hostWorkerDirectory('solo', 'gallery-public'), /\.generated\/sites\/solo\/gallery-public$/);
     await generateHostConfigs('shared');
-    await generateHostConfigs('jst');
-    assert.equal(read('jst', 'ledger').name, 'jst-prod-ledger');
-    assert.deepEqual(read('jst', 'calendar-public').services.map((service: { service: string }) => service.service), ['jst']);
-    assert.equal(read('jst', 'gallery-public').r2_buckets[0].bucket_name, 'jst-prod-gallery-public');
+    await generateHostConfigs('solo');
+    assert.equal(read('solo', 'ledger').name, 'solo-prod-ledger');
+    assert.deepEqual(read('solo', 'calendar-public').services.map((service: { service: string }) => service.service), ['solo']);
+    // A site on its own stack gets a public Gallery Worker only when it ships the Gallery; the shared stack always has one.
+    assert.equal(existsSync(hostWorkerConfigPath('solo', 'gallery-public')), false);
+    assert.ok(read('shared', 'gallery-public').name);
     assert.equal(read('shared', 'ledger').main, './index.ts');
-    assert.ok(!read('shared', 'calendar-public').services.some((service: { service: string }) => service.service === 'jst'));
+    assert.ok(!read('shared', 'calendar-public').services.some((service: { service: string }) => service.service === 'solo'));
     await assert.rejects(generateHostConfigs('alpha'), /no tenants\/alpha\/deployment\.json/);
 });

@@ -186,7 +186,7 @@ for (const stack of stackNames) {
     if (JSON.stringify(feedSites) !== JSON.stringify(expectedSites)) problems.push(`${label}: the feed Worker should bind ${expectedSites.join(", ")}`);
     // A site on its own stack has a public Gallery Worker only when it ships the Gallery; the shared stack always has one.
     const ownSite = stack === "shared" ? undefined : sites.find((site) => site.id === stack)!;
-    if ((!ownSite || ownSite.features.includes("gallery")) && read("gallery-public").name !== siteInfrastructure.galleryPublicWorker) problems.push(`${label}: the public Gallery Worker should be named ${siteInfrastructure.galleryPublicWorker}`);
+    if ((!ownSite || (ownSite.features as readonly string[]).includes("gallery")) && read("gallery-public").name !== siteInfrastructure.galleryPublicWorker) problems.push(`${label}: the public Gallery Worker should be named ${siteInfrastructure.galleryPublicWorker}`);
 }
 
 for (const site of sites) problems.push(...(await moduleLockProblems(site)));

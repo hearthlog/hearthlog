@@ -4,6 +4,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 
+import type { FeatureId } from '../../../contracts/src/features/registry.js';
+import { loadModules } from '../compose/compose-modules.js';
 import { moduleLockProblems } from './module-lock.js';
 import { infrastructureFor, loadTenantConfig, TenantConfigError, TENANTS_FILE } from './tenant-config.js';
 
@@ -21,13 +23,16 @@ function workspace(sites: unknown[] = []) {
 }
 
 const owner = ['owner@example.com'];
+/** Module features are unknown to a catalog without modules; these tests run in `pnpm test:integration`. */
+const needsModules = { skip: loadModules().length === 0 && 'needs the modules: pnpm test:integration' };
+const ids = (...values: string[]) => values as FeatureId[];
 
 test('a site may live in tenants/<id>/tenant.json instead of tenants.json', async () => {
     const space = workspace();
     try {
-        space.write('notes', 'tenant.json', { schemaVersion: 1, id: 'notes', authorizedEmails: owner, features: ['calc'] });
+        space.write('notes', 'tenant.json', { schemaVersion: 1, id: 'notes', authorizedEmails: owner, features: [] });
         const { sites } = await loadTenantConfig(space.file);
-        assert.deepEqual(sites.map((site) => [site.id, site.fromTenantFile, site.features]), [['notes', true, ['calc', 'calendar']]]);
+        assert.deepEqual(sites.map((site) => [site.id, site.fromTenantFile, site.features]), [['notes', true, ['calendar']]]);
     } finally {
         space.cleanup();
     }
@@ -89,22 +94,22 @@ test('a malformed account id or workers.dev domain is rejected', async () => {
     }
 });
 
-test('the module lock names what a site ships and fails when the site changed', async () => {
+test('the module lock names what a site ships and fails when the site changed', needsModules, async () => {
     const { sites } = await loadTenantConfig();
     const st = sites.find((site) => site.id === 'st')!;
     assert.deepEqual(await moduleLockProblems({ id: 'st', features: st.features }), []);
-    const problems = await moduleLockProblems({ id: 'st', features: ['calc', 'calendar'] });
+    const problems = await moduleLockProblems({ id: 'st', features: ids('calc', 'calendar') });
     assert.equal(problems.length, 1);
     assert.match(problems[0]!, /stale/);
     assert.match((await moduleLockProblems({ id: 'unlocked', features: ['calendar'] }))[0]!, /missing/);
 });
 
-test('a site\'s event policy names the modules it ships and whether it may define entity types', async () => {
+test('a site\'s event policy names the modules it ships and whether it may define entity types', needsModules, async () => {
     const { siteEventPolicy } = await import('../deploy/event-policy.js');
     const { sites } = await loadTenantConfig();
     const st = sites.find((site) => site.id === 'st')!;
     // A site that lists only Health features ships only Health's contracts and defines no entity types.
-    assert.deepEqual(siteEventPolicy({ ...st, features: ['calories', 'bmi', 'activities', 'calendar'], dynamicEntities: false }), { contracts: ['org.stor.health'], dynamicEvents: false, validation: 'enforce' });
+    assert.deepEqual(siteEventPolicy({ ...st, features: ids('calories', 'bmi', 'activities', 'calendar'), dynamicEntities: false }), { contracts: ['org.stor.health'], dynamicEvents: false, validation: 'enforce' });
     assert.equal(siteEventPolicy(st).dynamicEvents, true);
     assert.ok(siteEventPolicy(st).contracts.includes('org.stor.invoices'));
 });
@@ -113,13 +118,13 @@ test('a deployment that names its account pins the generated Worker configs to i
     const { buildLedgerConfig } = await import('./ledger-config.js');
     const { buildTenantWranglerConfig } = await import('./wrangler-config.js');
     const { infrastructure, sites } = await loadTenantConfig();
-    const jst = sites.find((site) => site.id === 'jst')!;
-    const pinned = { ...jst, deployment: { ...jst.deployment!, accountId: 'b'.repeat(32) } };
+    const solo = sites.find((site) => site.id === 'solo')!;
+    const pinned = { ...solo, deployment: { ...solo.deployment!, accountId: 'b'.repeat(32) } };
     const own = infrastructureFor(pinned, infrastructure);
     assert.equal(buildLedgerConfig(own, pinned.deployment.accountId).account_id, 'b'.repeat(32));
     assert.equal('account_id' in buildLedgerConfig(own), false);
     assert.equal(buildTenantWranglerConfig(pinned, own).account_id, 'b'.repeat(32));
-    assert.equal('account_id' in buildTenantWranglerConfig(jst, infrastructureFor(jst, infrastructure)), false);
+    assert.equal('account_id' in buildTenantWranglerConfig(solo, infrastructureFor(solo, infrastructure)), false);
 });
 
 const OWN_ACCOUNT = {
@@ -195,7 +200,7 @@ test('a build checks only its own site against the modules it holds', async () =
     const space = workspace();
     const before = process.env.VITE_STOR_TENANT;
     try {
-        space.write('mine', 'tenant.json', { schemaVersion: 1, id: 'mine', authorizedEmails: owner, features: ['calc'] });
+        space.write('mine', 'tenant.json', { schemaVersion: 1, id: 'mine', authorizedEmails: owner, features: [] });
         space.write('theirs', 'tenant.json', { schemaVersion: 1, id: 'theirs', authorizedEmails: owner, features: ['not-in-this-catalog'], ai: ['unknown-capability'], home: '/somewhere' });
         process.env.VITE_STOR_TENANT = 'mine';
         const { sites } = await loadTenantConfig(space.file);

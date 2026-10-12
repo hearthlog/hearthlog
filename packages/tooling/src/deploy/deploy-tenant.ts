@@ -130,7 +130,7 @@ export async function deploySite(options: Options): Promise<void> {
 async function deployOwnPublicWorkers(site: ResolvedSite, dryRun: boolean, skipBuild: boolean): Promise<void> {
 	if (!site.deployment) return;
 	const args = ["deploy", ...(dryRun ? ["--dry-run"] : [])];
-	if (site.features.includes("gallery")) {
+	if ((site.features as readonly string[]).includes("gallery")) {
 		if (skipBuild) {
 			// A release built elsewhere carries its Worker bundle; only the configs are written here.
 			await generateHostConfigs(site.id);
