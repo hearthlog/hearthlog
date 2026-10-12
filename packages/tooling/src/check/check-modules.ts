@@ -17,7 +17,7 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
-import { hostRoot } from "../root.js";
+import { hostRoot, PLATFORM_ROOT } from "../root.js";
 
 const ROOT = hostRoot();
 const SOURCE = /\.(ts|svelte|js)$/;
@@ -89,6 +89,15 @@ export async function loadModuleDomain(root = ROOT): Promise<ModuleDomain> {
     };
 }
 
+/**
+ * The directories a check reads, each with the root it is under: the given ones under the host, or by default the host's
+ * own and the platform's (which are the same checkout unless the host is a site beside the platform's packages).
+ */
+function scanned(root: string, platform: string, given: string[] | undefined, host: string[], platformDirectories: string[]): Array<[string, string]> {
+    if (given) return given.map((directory) => [root, directory]);
+    return [...host.map((directory): [string, string] => [root, directory]), ...platformDirectories.map((directory): [string, string] => [platform, directory])];
+}
+
 const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 /**
@@ -99,8 +108,10 @@ const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\
  */
 export function coreNamesNoDomain(
     root = ROOT,
-    directories = ["worker", "ledger/src", "packages/tooling/src/host", "packages/cloudflare/src", "packages/ledger/src", "packages/ledger-admin/src", "packages/contracts/src", "packages/runtime/src", "packages/ui/src"],
+    directories?: string[],
     domain: ModuleDomain = { names: [], eventTypes: [] },
+    /** The platform checkout, when it is not the host (`directories` are then the host's, under `root`). */
+    platform = root,
 ): string[] {
     const modulesDirectory = join(root, "modules");
     const featureIds = (existsSync(modulesDirectory) ? readdirSync(modulesDirectory) : []).flatMap((name) => {
@@ -113,16 +124,16 @@ export function coreNamesNoDomain(
     const quoted = quotedNames.length ? new RegExp(`(["'\`])(${quotedNames.map(escapeRegExp).join("|")})\\1`) : null;
     const events = domain.eventTypes.length ? new RegExp(`\\b(${domain.eventTypes.map(escapeRegExp).join("|")})\\b`) : null;
     const problems: string[] = [];
-    for (const directory of directories) {
-        for (const file of files(join(root, directory))) {
+    for (const [base, directory] of scanned(root, platform, directories, ["ledger/src"], ["packages/tooling/src/host", "packages/cloudflare/src", "packages/ledger/src", "packages/contracts/src", "packages/runtime/src", "packages/ui/src"])) {
+        for (const file of files(join(base, directory))) {
             if (/\.generated\.ts$|\.test\.ts$|\.d\.ts$|[\\/]generated\.ts$|worker-configuration/.test(file) || file.includes(`${sep}generated${sep}`) || file.includes(`${sep}(modules)${sep}`)) continue;
             readFileSync(file, "utf8").split("\n").forEach((line, index) => {
                 // Comments may use a domain as an example.
                 if (/^\s*(\*|\/\/|\/\*)/.test(line)) return;
                 const name = quoted?.exec(line);
-                if (name) problems.push(`${relative(root, file)}:${index + 1}: the core names ${name[1]}${name[2]}${name[1]}`);
+                if (name) problems.push(`${relative(base, file)}:${index + 1}: the core names ${name[1]}${name[2]}${name[1]}`);
                 const event = events?.exec(line);
-                if (event) problems.push(`${relative(root, file)}:${index + 1}: the core names the event type ${event[1]}`);
+                if (event) problems.push(`${relative(base, file)}:${index + 1}: the core names the event type ${event[1]}`);
             });
         }
     }
@@ -135,16 +146,16 @@ export function coreNamesNoDomain(
  * to one would break the day the file is no longer in this tree. The SDK facade, which still reaches
  * into `src/lib` by relative path, and the generated files themselves are exempt.
  */
-export function directGeneratedImports(root = ROOT, directories = ["src", "worker", "ledger", "scripts", "calendar-public", "packages/tooling/src", "packages/cloudflare/src", "packages/ledger/src", "packages/ledger-admin/src", "packages/contracts/src", "packages/runtime/src", "packages/ui/src"]): string[] {
+export function directGeneratedImports(root = ROOT, directories?: string[], platform = root): string[] {
     const problems: string[] = [];
     const generatedFile = /(^|[\\/])[\w-]+\.generated(\.js|\.ts)?$|(^|[\\/])tenant[\\/]generated(\.js|\.ts)?$/;
-    for (const directory of directories) {
-        for (const file of files(join(root, directory))) {
+    for (const [base, directory] of scanned(root, platform, directories, ["src", "ledger"], ["scripts", "packages/tooling/src", "packages/cloudflare/src", "packages/ledger/src", "packages/contracts/src", "packages/runtime/src", "packages/ui/src"])) {
+        for (const file of files(join(base, directory))) {
             // The scripts' own tests write fixture files whose text looks like imports, and the generators emit import lines.
             if (/\.generated\.ts$|[\\/]generated\.ts$/.test(file) || file.includes(`${sep}generated${sep}`) || file.includes(`${sep}(modules)${sep}`) || ((directory === "scripts" || directory === "packages/tooling/src") && /\.test\.ts$|(compose-modules|generate-[a-z-]+)\.ts$/.test(file))) continue;
             for (const specifier of specifiers(file)) {
                 if ((specifier.startsWith(".") || specifier.startsWith("#lib")) && generatedFile.test(specifier)) {
-                    problems.push(`${relative(root, file)}: "${specifier}" is a generated file (import it through #generated/*)`);
+                    problems.push(`${relative(base, file)}: "${specifier}" is a generated file (import it through #generated/*)`);
                 }
             }
         }
@@ -152,7 +163,7 @@ export function directGeneratedImports(root = ROOT, directories = ["src", "worke
     return problems;
 }
 
-export function checkBoundaries(root = ROOT, domain?: ModuleDomain): string[] {
+export function checkBoundaries(root = ROOT, domain?: ModuleDomain, platform = root): string[] {
     const problems: string[] = [];
     const modulesDirectory = join(root, "modules");
     // A platform workspace or a tenant repository has no modules directory.
@@ -174,21 +185,22 @@ export function checkBoundaries(root = ROOT, domain?: ModuleDomain): string[] {
         }
     }
     const generated = /\.generated\.ts$|[\\/]\(modules\)[\\/]/;
-    for (const directory of ["src", "worker", "packages"]) {
-        for (const file of files(join(root, directory))) {
+    for (const [base, directory] of scanned(root, platform, undefined, ["src"], ["packages"])) {
+        for (const file of files(join(base, directory))) {
             if (generated.test(file)) continue;
             for (const specifier of specifiers(file)) {
-                if (specifier.startsWith("@hearthlog/module-")) problems.push(`${relative(root, file)}: the core imports a module ("${specifier}")`);
+                if (specifier.startsWith("@hearthlog/module-")) problems.push(`${relative(base, file)}: the core imports a module ("${specifier}")`);
             }
         }
     }
-    problems.push(...coreNamesNoDomain(root, undefined, domain));
-    problems.push(...directGeneratedImports(root));
+    problems.push(...coreNamesNoDomain(root, undefined, domain, platform));
+    problems.push(...directGeneratedImports(root, undefined, platform));
     return problems;
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-    const problems = checkBoundaries(ROOT, await loadModuleDomain(ROOT));
+    // The host (its modules, its own code, the generated catalog) and the platform's packages may be different checkouts.
+    const problems = checkBoundaries(ROOT, await loadModuleDomain(ROOT), PLATFORM_ROOT);
     if (problems.length) {
         console.error(`Module boundaries are broken:\n  - ${problems.join("\n  - ")}`);
         process.exitCode = 1;

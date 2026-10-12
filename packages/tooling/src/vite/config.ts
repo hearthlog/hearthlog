@@ -22,7 +22,7 @@ import {
 	localReceivedInvoiceFilesPlugin,
 } from './dev-plugins.js';
 
-import { defineConfig, type ProxyOptions, type UserConfig } from 'vite';
+import { defineConfig, searchForWorkspaceRoot, type ProxyOptions, type UserConfig } from 'vite';
 
 /** The `@hearthlog/*` packages the site depends on (the platform and its modules). */
 function hearthlogDependencies(): string[] {
@@ -242,8 +242,9 @@ return defineConfig(({ command, mode }): UserConfig => {
 		},
 		server: {
 			...devServerProxy,
-			// Module and SDK sources live outside src/; Kit's default list omits them.
-			fs: { allow: [resolve('modules'), resolve('packages')] }
+			// Module and SDK sources live outside src/; Kit's default list omits them. In a workspace the platform's packages
+			// are linked from outside the site, so the workspace root is allowed too.
+			fs: { allow: [resolve('modules'), resolve('packages'), searchForWorkspaceRoot(process.cwd())] }
 		},
 		resolve: {
 			alias: {

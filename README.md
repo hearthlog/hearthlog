@@ -113,8 +113,8 @@ The workflow has a build job without secrets and a deploy job in a protected env
 ## Writing a module
 
 ```bash
-pnpm module:new -- notes --feature notes                    # a working module in modules/notes/
-pnpm module:export -- notes --out ../hearthlog-module-notes  # lay it out as its own repository
+pnpm -C dev module:new -- notes --feature notes                       # a working module in dev/modules/notes/
+pnpm -C dev module:export -- notes --out ../../hearthlog-module-notes  # lay it out as its own repository
 ```
 
 A module imports only `@hearthlog/sdk/*`, `svelte`, `$app/*`, `~icons/*`, its declared
@@ -129,25 +129,33 @@ module tests itself with `hearthlog check-module`, which builds a throwaway site
 
 Prerequisites: Node.js 24 and pnpm 10.32.1 (pinned in `package.json`).
 
+| Folder | What it is |
+| --- | --- |
+| `packages/` | The platform: the `@hearthlog/*` packages |
+| `dev/` | The development site: a site like one `hearthlog init` writes, built from the packages in this workspace. The packages' generated code (`@hearthlog/generated`) comes from its build, so type checks, unit tests, and the local app run here |
+| `tests/` | Everything only tests use: the browser journeys and their Playwright configs, the Ledger Worker suite, the fixture site of the tooling tests (`tests/fixture-host/`), and the integration variant of the development site |
+| `examples/empty` | What `hearthlog init` writes for a site without modules |
+| `scripts/` | Releasing, the package and tarball checks, and the integration run |
+
 ```bash
 pnpm install
-pnpm ledger:dev   # terminal 1: the local Ledger Worker on port 8787
-pnpm dev          # terminal 2: the SvelteKit dev server for the development site `st`
+pnpm -C dev ledger:dev   # terminal 1: the local Ledger Worker on port 8787
+pnpm -C dev dev          # terminal 2: the SvelteKit dev server for the development site
 ```
 
 ```bash
 pnpm check:all    # everything; AGENTS.md lists the narrower check for each area
-pnpm test         # browser journeys, hermetic (no Ledger needed)
+pnpm test         # browser journeys against the development site, hermetic (no Ledger needed)
 pnpm test:worker  # the Ledger Worker protocol under wrangler dev
 ```
 
-This repository installs no module. Its two sites enable none: `st` is the development site on
-the shared stack, and `solo` is a fixture on its own stack for the deployment tooling. The tests
-that need modules run with `pnpm test:integration`. It installs the published `@hearthlog/module-*`
+This repository installs no module, and the development site enables none. The tests that need
+modules run with `pnpm test:integration`. It installs the published `@hearthlog/module-*`
 packages into a throwaway project outside the repository and links them in for the run. It then
-switches `st` to [`integration/st.tenant.json`](integration/st.tenant.json), runs the unit and
-tooling tests, type checks, and Ledger tests, and removes the links. The root `package.json` and
-lockfile never name a module.
+switches the development site to
+[`tests/integration/st.tenant.json`](tests/integration/st.tenant.json), runs the unit and tooling
+tests, type checks, and Ledger tests, and removes the links. No `package.json` or lockfile in the
+repository ever names a module.
 
 Read [`AGENTS.md`](AGENTS.md) before changing anything. It holds the conventions, the
 architecture invariants, and the definition of done. [`CONTRIBUTING.md`](CONTRIBUTING.md) explains

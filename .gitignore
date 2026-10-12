@@ -85,12 +85,12 @@ dist/
 
 # Cloudflare Wrangler
 .wrangler/
-# Stray output of a bare `wrangler types` run from the repo root; the committed
-# types live in ledger/ and packages/cloudflare/types/.
-/worker-configuration.d.ts
+# Stray output of a bare `wrangler types` run from a site's root; the committed
+# types live in dev/ledger/ and packages/cloudflare/types/.
+/dev/worker-configuration.d.ts
 
 # Local design-review and verification artifacts
-/.svelte-kit-*/
+.svelte-kit-*/
 /output/
 /tmp/
 
@@ -102,10 +102,10 @@ dist/
 .DS_Store
 
 # Playwright
-/test-results/
-/playwright-report/
-/blob-report/
-/playwright/.cache/
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
 
 .gemini/
 gha-creds-*.json
@@ -116,11 +116,15 @@ gha-creds-*.json
 resign.local.json
 
 # What `pnpm build:generated` writes (the catalog, entity code, and per-site files); only its package.json is committed
-/.generated/*
-!/.generated/package.json
+**/.generated/*
+!**/.generated/package.json
 
 # The seal of a tenant release build (hearthlog artifact manifest)
-/artifact-manifest.json
+/dev/artifact-manifest.json
 
 # The short-lived copy Worker of a tenant move (hearthlog split files)
-/wrangler.tenant-move.jsonc
+/dev/wrangler.tenant-move.jsonc
+
+# Modules linked in for one run of pnpm test:integration
+/dev/modules/
+/tests/fixture-host/modules/

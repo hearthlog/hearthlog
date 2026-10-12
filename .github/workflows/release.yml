@@ -22,9 +22,9 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm release:version --check "$GITHUB_REF_NAME"
       - run: pnpm check:packages
-      - run: pnpm check:ts
-      - run: pnpm test:unit --run
-      - run: pnpm ledger:test
+      - run: pnpm -C dev check:ts
+      - run: pnpm -C dev test:unit --run
+      - run: pnpm -C dev ledger:test
 
   publish:
     needs: verify

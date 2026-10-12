@@ -7,7 +7,7 @@ if (!Number.isInteger(workerPort) || workerPort < 1 || workerPort > 65_535) {
 const workerOrigin = `http://127.0.0.1:${workerPort}`;
 
 export default defineConfig({
-    testDir: './tests/worker',
+    testDir: './worker',
     fullyParallel: false,
     forbidOnly: Boolean(process.env.CI),
     retries: process.env.CI ? 1 : 0,
@@ -30,6 +30,8 @@ export default defineConfig({
             'cp ledger/.dev.vars.example .generated/shared/ledger/.dev.vars && ' +
             'pnpm exec wrangler dev --config .generated/shared/ledger/wrangler.jsonc --env="" ' +
             `--var ALLOWED_ORIGINS:http://127.0.0.1:5173 --port ${workerPort}`,
+        // The development site holds the generated Ledger config and the example secrets.
+        cwd: '../dev',
         url: `${workerOrigin}/health`,
         reuseExistingServer: !process.env.CI,
         timeout: 120_000,

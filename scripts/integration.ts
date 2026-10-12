@@ -3,8 +3,8 @@
  *
  * Runs the checks that need modules, against the published ones, without making them part of this repository: neither the
  * root `package.json` nor the lockfile names a module, and this script never writes either. For the run it installs
- * `@hearthlog/module-*` from npm into a throwaway project outside the repository, links them in, swaps the development site for
- * the one in `integration/st.tenant.json` (every module's features), locks the modules, generates the site, and runs
+ * `@hearthlog/module-*` from npm into a throwaway project outside the repository, links them in, swaps the development site
+ * (`dev/`) for the one in `tests/integration/st.tenant.json` (every module's features), locks the modules, generates the site, and runs
  *
  *   - the unit tests, including the ones that need modules (route access, entity scope, module projections, sync invalidation),
  *   - the tooling tests and their type check, including the ones that need modules (composition, init, the module lock, integrations),
@@ -16,8 +16,9 @@
  *
  * The throwaway project overrides every package this repository already installs with a link to the repository's own copy
  * (the platform packages to `packages/*`), so the modules run against the code under test and share its Svelte and the rest;
- * only what the modules need beyond that is downloaded. Each module is then linked twice: into `modules/<name>`, where the
- * composer finds the modules of a checkout, and into `node_modules/@hearthlog/`, where the generated files import it by name.
+ * only what the modules need beyond that is downloaded. Each module is then linked into `dev/modules/<name>`, where the
+ * composer finds the modules of a checkout, into `dev/node_modules/@hearthlog/`, where the generated files import it by
+ * name, and into the tooling tests' fixture host (`tests/fixture-host/modules/`).
  */
 
 import { spawnSync } from 'node:child_process';
@@ -27,12 +28,15 @@ import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = resolve(fileURLToPath(import.meta.url), '../..');
+const site = join(root, 'dev');
+const fixtureHost = join(root, 'tests', 'fixture-host');
 const MODULES = ['calc', 'finance', 'gallery', 'health', 'invoices'];
-const TOUCHED = ['tenants/st/tenant.json', 'tenants/st/modules.lock.json'];
+const TOUCHED = ['dev/tenants/st/tenant.json', 'dev/tenants/st/modules.lock.json'];
+// Each runs in the development site, or (`-w`) at the repository root.
 const COMMANDS: string[][] = [
     ['test:unit', '--run'],
-    ['test:scripts'],
-    ['check:scripts'],
+    ['-w', 'test:scripts'],
+    ['-w', 'check:scripts'],
     ['check:ts'],
     ['frontend:worker:check'],
     ['ledger:check'],
@@ -46,12 +50,12 @@ function run(cwd: string, args: string[]): void {
 
 const readJson = (path: string) => JSON.parse(readFileSync(path, 'utf8')) as Record<string, any>;
 
-/** `link:` overrides for every package the repository installs: the platform's own packages and the root's dependencies. */
+/** `link:` overrides for every package the development site installs, and the platform's own packages. */
 function sharedPackages(): Record<string, string> {
     const links: Record<string, string> = {};
-    const manifest = readJson(join(root, 'package.json'));
+    const manifest = readJson(join(site, 'package.json'));
     for (const name of Object.keys({ ...manifest.dependencies, ...manifest.devDependencies })) {
-        const installed = join(root, 'node_modules', name);
+        const installed = join(site, 'node_modules', name);
         if (existsSync(installed)) links[name] = `link:${realpathSync(installed)}`;
     }
     for (const folder of readdirSync(join(root, 'packages'))) {
@@ -70,14 +74,15 @@ for (const file of TOUCHED) {
     if (existsSync(join(root, file))) copyFileSync(join(root, file), join(saved, file.replaceAll('/', '__')));
 }
 
-const modulesDirectory = join(root, 'modules');
-const createdModulesDirectory = !existsSync(modulesDirectory);
+const modulesDirectories = [join(site, 'modules'), join(fixtureHost, 'modules')];
+const createdDirectories = modulesDirectories.filter((directory) => !existsSync(directory));
+const linkPaths = (name: string) => [...modulesDirectories.map((directory) => join(directory, name)), join(site, 'node_modules/@hearthlog', `module-${name}`)];
 const links: string[] = [];
 let failed = false;
 try {
     // The links must not replace a module checkout or an installed module.
     for (const name of MODULES) {
-        for (const path of [join(modulesDirectory, name), join(root, 'node_modules/@hearthlog', `module-${name}`)]) {
+        for (const path of linkPaths(name)) {
             if (existsSync(path)) throw new Error(`${path} already exists; remove it before running the integration checks`);
         }
     }
@@ -93,7 +98,7 @@ try {
     writeFileSync(join(project, 'pnpm-workspace.yaml'), `overrides:\n${Object.entries(shared).map(([name, link]) => `  ${JSON.stringify(name)}: ${JSON.stringify(link)}`).join('\n')}\n`);
     run(project, ['install', '--ignore-scripts']);
 
-    mkdirSync(modulesDirectory, { recursive: true });
+    for (const directory of modulesDirectories) mkdirSync(directory, { recursive: true });
     for (const name of MODULES) {
         const installed = realpathSync(join(project, 'node_modules/@hearthlog', `module-${name}`));
         // pnpm keeps a package's dependencies beside it, not inside it. TypeScript resolves the files it reads through
@@ -107,30 +112,35 @@ try {
             mkdirSync(resolve(link, '..'), { recursive: true });
             symlinkSync(realpathSync(target), link, 'dir');
         }
-        for (const path of [join(modulesDirectory, name), join(root, 'node_modules/@hearthlog', `module-${name}`)]) {
+        for (const path of linkPaths(name)) {
             symlinkSync(installed, path, 'dir');
             links.push(path);
         }
     }
 
-    copyFileSync(join(root, 'integration', 'st.tenant.json'), join(root, 'tenants/st/tenant.json'));
-    run(root, ['lock:modules']);
-    run(root, ['build:generated']);
-    // `pnpm test:integration <script> [args]` runs only that script in the integration state.
+    copyFileSync(join(root, 'tests', 'integration', 'st.tenant.json'), join(site, 'tenants/st/tenant.json'));
+    run(site, ['lock:modules']);
+    run(site, ['build:generated']);
+    // `pnpm test:integration <script> [args]` runs only that script (of the development site) in the integration state.
     const only = process.argv.slice(2).filter((argument) => argument !== '--');
-    for (const command of only.length > 0 ? [only] : COMMANDS) run(root, command);
+    for (const command of only.length > 0 ? [only] : COMMANDS) {
+        if (command[0] === '-w') run(root, command.slice(1));
+        else run(site, command);
+    }
 } catch (error) {
     failed = true;
     console.error(error instanceof Error ? error.message : String(error));
 } finally {
     for (const path of links) if (lstatSync(path, { throwIfNoEntry: false })?.isSymbolicLink()) rmSync(path);
-    if (createdModulesDirectory && existsSync(modulesDirectory) && readdirSync(modulesDirectory).length === 0) rmSync(modulesDirectory, { recursive: true });
+    for (const directory of createdDirectories) {
+        if (existsSync(directory) && readdirSync(directory).length === 0) rmSync(directory, { recursive: true });
+    }
     for (const file of TOUCHED) {
         const copy = join(saved, file.replaceAll('/', '__'));
         if (existsSync(copy)) copyFileSync(copy, join(root, file));
     }
     rmSync(scratch, { recursive: true, force: true });
-    spawnSync('pnpm', ['build:generated'], { cwd: root, stdio: 'inherit' });
+    spawnSync('pnpm', ['build:generated'], { cwd: site, stdio: 'inherit' });
 }
 if (failed) process.exit(1);
 console.log('\nThe checks that need modules pass against the published ones.');

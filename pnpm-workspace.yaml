@@ -1,7 +1,9 @@
 packages:
   - packages/*
-  - .generated
-  - modules/*
+  # The development site, its generated package, and modules developed beside it.
+  - dev
+  - dev/.generated
+  - dev/modules/*
 
 onlyBuiltDependencies:
   - '@tailwindcss/oxide'

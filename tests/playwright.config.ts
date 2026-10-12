@@ -22,8 +22,8 @@ const frontendOrigin = `http://127.0.0.1:${frontendPort}`;
  * See https://playwright.dev/docs/test-configuration.
  */
 export default defineConfig({
-  testDir: './tests',
-  testIgnore: ['production/**', 'worker/**'],
+  testDir: '.',
+  testIgnore: ['worker/**', 'fixture-host/**', 'integration/**'],
   /* Fail the build on CI if you accidentally left test.only in the source code. */
   forbidOnly: !!process.env.CI,
   /* One retry on CI absorbs a cold dev server; a test that needs more is flaky. */
@@ -88,6 +88,8 @@ export default defineConfig({
     command:
       `VITE_E2E=1 VITE_LEDGER_ENABLE_REALTIME=false pnpm run dev:e2e --host 127.0.0.1 ` +
       `--port ${frontendPort} --strictPort`,
+    // The journeys run against the development site.
+    cwd: '../dev',
     url: frontendOrigin,
     reuseExistingServer: !process.env.CI,
   },

@@ -12,40 +12,70 @@ patchedDependencies:
 importers:
 
   .:
-    dependencies:
+    devDependencies:
+      '@cloudflare/vitest-pool-workers':
+        specifier: ^0.22.0
+        version: 0.22.0(@vitest/runner@4.1.11)(@vitest/snapshot@4.1.11)(vitest@4.1.11(@types/node@26.6.3)(vite@8.3.1(@types/node@26.6.3)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)))
       '@hearthlog/cloudflare':
         specifier: workspace:*
         version: link:packages/cloudflare
+      '@playwright/test':
+        specifier: ^1.63.0
+        version: 1.63.0
+      '@types/node':
+        specifier: ^26.6.3
+        version: 26.6.3
+      '@types/ws':
+        specifier: ^8.18.2
+        version: 8.18.2
+      tsx:
+        specifier: ^4.23.15
+        version: 4.23.15
+      typescript:
+        specifier: ~6.0.3
+        version: 6.0.3
+      vitest:
+        specifier: ^4.1.11
+        version: 4.1.11(@types/node@26.6.3)(vite@8.3.1(@types/node@26.6.3)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15))
+      ws:
+        specifier: ^8.22.0
+        version: 8.22.0
+
+  dev:
+    dependencies:
+      '@hearthlog/cloudflare':
+        specifier: workspace:*
+        version: link:../packages/cloudflare
       '@hearthlog/contracts':
         specifier: workspace:*
-        version: link:packages/contracts
+        version: link:../packages/contracts
       '@hearthlog/czech':
         specifier: workspace:*
-        version: link:packages/czech
+        version: link:../packages/czech
       '@hearthlog/generated':
         specifier: workspace:*
         version: link:.generated
       '@hearthlog/ledger':
         specifier: workspace:*
-        version: link:packages/ledger
+        version: link:../packages/ledger
       '@hearthlog/native':
         specifier: workspace:*
-        version: link:packages/native
+        version: link:../packages/native
       '@hearthlog/runtime':
         specifier: workspace:*
-        version: link:packages/runtime
+        version: link:../packages/runtime
       '@hearthlog/sdk':
         specifier: workspace:*
-        version: link:packages/sdk
+        version: link:../packages/sdk
       '@hearthlog/shell':
         specifier: workspace:*
-        version: link:packages/shell
+        version: link:../packages/shell
       '@hearthlog/tooling':
         specifier: workspace:*
-        version: link:packages/tooling
+        version: link:../packages/tooling
       '@hearthlog/ui':
         specifier: workspace:*
-        version: link:packages/ui
+        version: link:../packages/ui
       '@internationalized/date':
         specifier: ^3.12.4
         version: 3.12.4
@@ -83,9 +113,6 @@ importers:
         specifier: ^3.7.0
         version: 3.7.0
     devDependencies:
-      '@cloudflare/vitest-pool-workers':
-        specifier: ^0.22.0
-        version: 0.22.0(@vitest/runner@4.1.11)(@vitest/snapshot@4.1.11)(vitest@4.1.11(@types/node@26.6.3)(vite@8.3.1(@types/node@26.6.3)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)))
       '@fontsource-variable/fira-code':
         specifier: ^5.3.0
         version: 5.3.0
@@ -95,9 +122,6 @@ importers:
       '@iconify/json':
         specifier: ^2.2.535
         version: 2.2.535
-      '@playwright/test':
-        specifier: ^1.63.0
-        version: 1.63.0
       '@sveltejs/adapter-static':
         specifier: ^4.0.0
         version: 4.0.0(@sveltejs/kit@3.0.0(@sveltejs/vite-plugin-svelte@7.3.1(svelte@5.57.1)(vite@8.3.1(@types/node@26.6.3)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)))(svelte@5.57.1)(typescript@6.0.3)(vite@8.3.1(@types/node@26.6.3)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)))
@@ -113,9 +137,6 @@ importers:
       '@types/node':
         specifier: ^26.6.3
         version: 26.6.3
-      '@types/ws':
-        specifier: ^8.18.2
-        version: 8.18.2
       '@typescript/native':
         specifier: npm:typescript@^7.0.2
         version: typescript@7.0.2
@@ -176,11 +197,8 @@ importers:
       wrangler:
         specifier: ^4.144.0
         version: 4.144.0(@types/node@26.6.3)
-      ws:
-        specifier: ^8.22.0
-        version: 8.22.0
 
-  .generated: {}
+  dev/.generated: {}
 
   packages/cloudflare:
     dependencies:
@@ -195,7 +213,7 @@ importers:
     devDependencies:
       '@hearthlog/generated':
         specifier: workspace:*
-        version: link:../../.generated
+        version: link:../../dev/.generated
 
   packages/czech: {}
 
@@ -213,7 +231,7 @@ importers:
     devDependencies:
       '@hearthlog/generated':
         specifier: workspace:*
-        version: link:../../.generated
+        version: link:../../dev/.generated
 
   packages/native:
     dependencies:
@@ -256,7 +274,7 @@ importers:
     devDependencies:
       '@hearthlog/generated':
         specifier: workspace:*
-        version: link:../../.generated
+        version: link:../../dev/.generated
 
   packages/sdk:
     dependencies:
@@ -278,7 +296,7 @@ importers:
     devDependencies:
       '@hearthlog/generated':
         specifier: workspace:*
-        version: link:../../.generated
+        version: link:../../dev/.generated
 
   packages/shell:
     dependencies:
@@ -309,10 +327,25 @@ importers:
       svelte:
         specifier: ^5.57.1
         version: 5.57.1
+      workbox-core:
+        specifier: ^7.4.1
+        version: 7.4.1
+      workbox-expiration:
+        specifier: ^7.4.1
+        version: 7.4.1
+      workbox-precaching:
+        specifier: ^7.4.1
+        version: 7.4.1
+      workbox-routing:
+        specifier: ^7.4.1
+        version: 7.4.1
+      workbox-strategies:
+        specifier: ^7.4.1
+        version: 7.4.1
     devDependencies:
       '@hearthlog/generated':
         specifier: workspace:*
-        version: link:../../.generated
+        version: link:../../dev/.generated
 
   packages/tooling:
     dependencies:
@@ -376,7 +409,7 @@ importers:
     devDependencies:
       '@hearthlog/generated':
         specifier: workspace:*
-        version: link:../../.generated
+        version: link:../../dev/.generated
 
   packages/ui:
     dependencies:

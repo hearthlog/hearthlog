@@ -1,12 +1,16 @@
 import { cloudflareTest } from "@cloudflare/vitest-pool-workers";
+import { resolve } from "node:path";
 import { defineConfig } from "vitest/config";
+
+// Paths are this package's own, so the tests run from any host (`pnpm -C dev ledger:test`).
+const here = (path: string) => resolve(import.meta.dirname, path);
 
 export default defineConfig({
     plugins: [
         cloudflareTest({
-            main: "./packages/ledger/test/rpc-worker.ts",
+            main: here("test/rpc-worker.ts"),
             wrangler: {
-                configPath: "./packages/ledger/test/wrangler.jsonc",
+                configPath: here("test/wrangler.jsonc"),
             },
             miniflare: {
                 bindings: {
@@ -18,6 +22,7 @@ export default defineConfig({
         }),
     ],
     test: {
-        include: ["packages/ledger/test/**/*.test.ts"],
+        dir: import.meta.dirname,
+        include: ["test/**/*.test.ts"],
     },
 });

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { test } from 'node:test';
 
 import type { FeatureId } from '../../../contracts/src/features/registry.js';
@@ -110,8 +110,10 @@ test('a site\'s event policy names the modules it ships and whether it may defin
     const st = sites.find((site) => site.id === 'st')!;
     // A site that lists only Health features ships only Health's contracts and defines no entity types.
     assert.deepEqual(siteEventPolicy({ ...st, features: ids('calories', 'bmi', 'activities', 'calendar'), dynamicEntities: false }), { contracts: ['org.stor.health'], dynamicEvents: false, validation: 'enforce' });
-    assert.equal(siteEventPolicy(st).dynamicEvents, true);
-    assert.ok(siteEventPolicy(st).contracts.includes('org.stor.invoices'));
+    // A site that ships Invoices and may define entity types.
+    const invoicing = { ...st, features: ids('invoices', 'calendar'), dynamicEntities: true };
+    assert.equal(siteEventPolicy(invoicing).dynamicEvents, true);
+    assert.ok(siteEventPolicy(invoicing).contracts.includes('org.stor.invoices'));
 });
 
 test('a deployment that names its account pins the generated Worker configs to it', async () => {
@@ -223,7 +225,7 @@ test('a module lock names no version, and is current for its site', async () => 
     const { sites } = await loadTenantConfig();
     const st = sites.find((site) => site.id === 'st')!;
     const { readFileSync } = await import('node:fs');
-    const lock = JSON.parse(readFileSync(new URL('../../../../tenants/st/modules.lock.json', import.meta.url), 'utf8')) as { modules: Array<Record<string, unknown>> };
+    const lock = JSON.parse(readFileSync(join(dirname(TENANTS_FILE), 'tenants/st/modules.lock.json'), 'utf8')) as { modules: Array<Record<string, unknown>> };
     assert.equal(lock.modules.every((entry) => !('version' in entry)), true, 'new locks name no version');
     assert.deepEqual(await moduleLockProblems({ id: 'st', features: st.features }), []);
 });

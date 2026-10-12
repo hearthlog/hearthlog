@@ -24,20 +24,20 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm check:ts
-      - run: pnpm check:modules
-      - run: pnpm check:tenants
+      - run: pnpm -C dev check:ts
+      - run: pnpm -C dev check:modules
+      - run: pnpm -C dev check:tenants
       - run: pnpm check:examples
       - run: pnpm check:packages
       - run: pnpm test:scripts
-      - run: pnpm test:unit --run
+      - run: pnpm -C dev test:unit --run
       # The Env declaration check needs every module's bindings: it runs in the integration job.
-      - run: pnpm frontend:worker:typecheck
-      - run: pnpm build
-      - run: pnpm frontend:worker:dry-run
-      - run: pnpm ledger:check
-      - run: pnpm ledger:test
-      - run: pnpm ledger:dry-run
+      - run: pnpm -C dev frontend:worker:typecheck
+      - run: pnpm -C dev build
+      - run: pnpm -C dev frontend:worker:dry-run
+      - run: pnpm -C dev ledger:check
+      - run: pnpm -C dev ledger:test
+      - run: pnpm -C dev ledger:dry-run
 
   integration:
     name: With the published modules

@@ -7,6 +7,8 @@ import { fileURLToPath } from 'node:url';
 
 export const REPOSITORY = resolve(fileURLToPath(import.meta.url), '../..');
 export const BIN = join(REPOSITORY, 'packages/tooling/bin/hearthlog.mjs');
+/** The development site: a tenant id given to the checks is one of its sites. */
+export const HOST = join(REPOSITORY, 'dev');
 
 export function run(command: string, args: string[], options: { cwd: string; env?: Record<string, string>; quiet?: boolean }): string {
     const result = spawnSync(command, args, { cwd: options.cwd, encoding: 'utf8', env: { ...process.env, ...options.env }, maxBuffer: 1 << 28 });
@@ -25,8 +27,7 @@ export function packEverything(work: string): Map<string, string> {
     rmSync(tarballs, { recursive: true, force: true });
     mkdirSync(tarballs, { recursive: true });
     const packed = new Map<string, string>();
-    for (const group of ['packages', 'modules']) {
-        if (!existsSync(join(REPOSITORY, group))) continue; // a platform workspace has no modules/
+    for (const group of ['packages']) {
         for (const folder of readdirSync(join(REPOSITORY, group))) {
             const directory = join(REPOSITORY, group, folder);
             const manifestPath = join(directory, 'package.json');

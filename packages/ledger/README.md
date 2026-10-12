@@ -3,7 +3,7 @@
 The separate Ledger admin console provides application metrics,
 event-log browsing and paginated event inspection using Hearthlog's shared UI components.
 
-`@hearthlog/ledger` (this package) is the sole Ledger runtime; the repository's `ledger/` directory holds the host files for deploying it (`wrangler.jsonc`, the entry that re-exports it, the generated `Env` types, `.dev.vars.example`). An Elysia application owns the stateless
+`@hearthlog/ledger` (this package) is the sole Ledger runtime; the development site's `dev/ledger/` directory holds what running it there needs (the generated `Env` types, the secrets declaration, `.dev.vars.example`); its `wrangler.jsonc` and the entry that re-exports it are generated into `dev/.generated/shared/ledger/`. An Elysia application owns the stateless
 HTTP boundary and invokes two SQLite-backed Durable Object classes through
 typed RPC. Elysia's `CloudflareAdapter` is officially experimental.
 
@@ -33,11 +33,11 @@ them.
 
 ## Local development
 
-Create `ledger/.dev.vars` from `ledger/.dev.vars.example` without committing
+Create `dev/ledger/.dev.vars` from `dev/ledger/.dev.vars.example` without committing
 it, replace all placeholders, and start Wrangler:
 
 ```bash
-pnpm ledger:dev
+pnpm -C dev ledger:dev
 ```
 
 Wrangler listens on `http://127.0.0.1:8787`. Signing keys must contain at least
@@ -84,9 +84,9 @@ Each application also carries an **event policy** (`GET|PUT /admin/v1/apps/<id>/
 `dynamicEvents` says whether runtime-defined entity types are allowed, and
 `validation` (`report` or `enforce`) overrides the deployment's `EVENT_VALIDATION`.
 An application created without a policy gets `{ contracts: null, dynamicEvents: false,
-validation: "enforce" }`; `pnpm ensure:tenant` creates a site's application with the
+validation: "enforce" }`; `pnpm -C dev ensure:tenant` creates a site's application with the
 modules the site ships. An application that predates policies has none and behaves
-as before; `pnpm ensure:tenant -- --site <id> --apply-policy` sets the site's policy on
+as before; `pnpm -C dev ensure:tenant -- --site <id> --apply-policy` sets the site's policy on
 it. Changing a policy never re-judges accepted events.
 Switch production to `enforce` once the logs show only intended rejections.
 A request that was already accepted always replays. Restoring a backup taken
@@ -96,36 +96,36 @@ from older clients replays their events through the same checks, so keep
 In a second terminal, start the frontend:
 
 ```bash
-pnpm dev
+pnpm -C dev dev
 ```
 
-Before Vite starts, `pnpm dev` runs `ledger:provision-local`. It verifies an
+Before Vite starts, `pnpm -C dev dev` runs `ledger:provision-local`. It verifies an
 existing ignored local app credential or provisions one with `ADMIN_TOKEN`
-from `ledger/.dev.vars`. Vite then proxies `/api/ledger` HTTP and WebSocket
+from `dev/ledger/.dev.vars`. Vite then proxies `/api/ledger` HTTP and WebSocket
 traffic to this local Worker and injects the app token server-side. Neither the
 administrator token nor the app token is bundled into browser code.
 
 ## Checks and deployment
 
 ```bash
-pnpm ledger:types
-pnpm ledger:check
-pnpm ledger:test
-pnpm ledger:dry-run
+pnpm -C dev ledger:types
+pnpm -C dev ledger:check
+pnpm -C dev ledger:test
+pnpm -C dev ledger:dry-run
 pnpm test:worker
 ```
 
 Configure production secrets without committing them:
 
 ```bash
-pnpm exec wrangler secret put ADMIN_TOKEN --config .generated/shared/ledger/wrangler.jsonc
-pnpm exec wrangler secret put TOKEN_SIGNING_KEY_CURRENT --config .generated/shared/ledger/wrangler.jsonc
+pnpm -C dev exec wrangler secret put ADMIN_TOKEN --config .generated/shared/ledger/wrangler.jsonc
+pnpm -C dev exec wrangler secret put TOKEN_SIGNING_KEY_CURRENT --config .generated/shared/ledger/wrangler.jsonc
 ```
 
 Then deploy:
 
 ```bash
-pnpm exec wrangler deploy --config .generated/shared/ledger/wrangler.jsonc
+pnpm -C dev exec wrangler deploy --config .generated/shared/ledger/wrangler.jsonc
 ```
 
 To rotate signing keys without immediately invalidating existing access
@@ -161,11 +161,11 @@ never authentication credentials or internal idempotency records.
 ```bash
 LEDGER_BASE_URL=https://st-ledger.example.workers.dev \
 LEDGER_AUTH_TOKEN=... \
-pnpm ledger:export --output ./ledger-export
+pnpm -C dev ledger:export --output ./ledger-export
 
 LEDGER_BASE_URL=https://st-ledger.example.workers.dev \
 LEDGER_ADMIN_TOKEN=... \
-pnpm ledger:restore --input ./ledger-export --name restored-app
+pnpm -C dev ledger:restore --input ./ledger-export --name restored-app
 ```
 
 Restore validates the complete export before provisioning, creates an empty

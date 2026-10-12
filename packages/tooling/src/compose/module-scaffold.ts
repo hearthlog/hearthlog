@@ -18,6 +18,7 @@ import { fileURLToPath } from "node:url";
 
 import { MODULE_API_VERSION } from "@hearthlog/contracts";
 
+import { PLATFORM_ROOT } from "../root.js";
 import { REPOSITORY_ROOT } from "../tenants/tenant-config.js";
 
 const TEMPLATE = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "templates", "module");
@@ -138,7 +139,8 @@ export function exportModule(modulesDirectory: string, name: string, out: string
     if (manifest.dependencies && Object.keys(manifest.dependencies).length === 0) delete manifest.dependencies;
     delete manifest.private;
     manifest.license = "AGPL-3.0-only";
-    const root = JSON.parse(readFileSync(join(REPOSITORY_ROOT, "package.json"), "utf8")) as { devDependencies?: Record<string, string>; packageManager?: string };
+    // The repository the module leaves: its pnpm and test tooling, and its license.
+    const root = JSON.parse(readFileSync(join(PLATFORM_ROOT, "package.json"), "utf8")) as { devDependencies?: Record<string, string>; packageManager?: string };
     const publishable = {
         ...manifest,
         repository: { type: "git", url: `git+https://github.com/hearthlog/hearthlog-module-${name}.git` },
@@ -160,7 +162,7 @@ export function exportModule(modulesDirectory: string, name: string, out: string
     writeFileSync(join(out, "pnpm-workspace.yaml"), "onlyBuiltDependencies:\n  - esbuild\n");
     copyFileSync(join(TEMPLATE, "ci.yml.tmpl"), join(out, ".github", "workflows", "ci.yml"));
     copyFileSync(join(TEMPLATE, "release.yml.tmpl"), join(out, ".github", "workflows", "release.yml"));
-    cpSync(join(REPOSITORY_ROOT, "LICENSE"), join(out, "LICENSE"));
+    cpSync(join(PLATFORM_ROOT, "LICENSE"), join(out, "LICENSE"));
     const readme = join(out, "README.md");
     const existing = existsSync(readme) ? readFileSync(readme, "utf8").trimEnd() : `# ${title(name)}`;
     writeFileSync(readme, `${existing}\n\n## Status\n\nIt installs against \`@hearthlog/sdk\` ${platformRange}.\n\n\`\`\`bash\npnpm install\npnpm test   # generates a site that enables this module, installs it, builds it, then runs the unit tests\n\`\`\`\n\nRelease: set \`version\` in \`package.json\`, commit, and push the tag \`v<version>\`; the release workflow publishes with provenance after approval.\n`);

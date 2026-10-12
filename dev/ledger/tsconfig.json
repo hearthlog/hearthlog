@@ -23,9 +23,9 @@
   "include": [
     "src/**/*.ts",
     "../.generated/shared/ledger/index.ts",
-    "../packages/ledger/src/**/*.ts",
-    "../packages/ledger/test/**/*.ts",
+    "../../packages/ledger/src/**/*.ts",
+    "../../packages/ledger/test/**/*.ts",
     "worker-configuration.d.ts",
-    "../packages/ledger/vitest.config.ts"
+    "../../packages/ledger/vitest.config.ts"
   ]
 }

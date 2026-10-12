@@ -1,0 +1,25 @@
+{
+  "$schema": "../../dev/tenants.schema.json",
+  "infrastructure": {
+    "ledgerWorker": "example-ledger",
+    "invoicePdfsBucket": "example-invoice-pdfs",
+    "calendarFeedsBucket": "example-calendar-feeds",
+    "calendarPublicWorker": "example-calendar-public",
+    "calendarPublicOrigin": "https://example-calendar-public.example.workers.dev",
+    "galleryFilesBucket": "example-gallery-files",
+    "galleryPublicBucket": "example-gallery-public",
+    "galleryPublicWorker": "example-gallery-public",
+    "galleryPublicOrigin": "https://example-gallery-public.example.workers.dev",
+    "workersDevDomain": "example.workers.dev",
+    "ledgerAdminEmail": "owner@example.com",
+    "accessTeamDomain": "https://your-team.cloudflareaccess.com",
+    "invoiceRendererOrigin": "https://renderer.example"
+  },
+  "defaults": {
+    "features": [],
+    "home": "/",
+    "title": "hearthlog",
+    "developerNavVisible": true,
+    "entitiesNavVisible": true
+  }
+}

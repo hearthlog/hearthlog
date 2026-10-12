@@ -1,5 +1,12 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
+/**
+ * The platform checkout this tooling runs from: the repository with `packages/`, `scripts/`, and the license. Only the
+ * repository's own checks and exports use it; everything a site owns is under `hostRoot()`.
+ */
+export const PLATFORM_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 
 /**
  * The site a build works on: `VITE_STOR_TENANT` when it is set, otherwise the host's only site (a repository

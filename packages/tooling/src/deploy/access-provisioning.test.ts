@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { test } from 'vitest';
 
 import { CloudflareAccessClient } from './cloudflare-access.js';
-import { resolveInfrastructure, type InfrastructureDefinition, type TenantFile } from '../tenants/tenant-config.js';
+import { resolveInfrastructure, TENANTS_FILE, type InfrastructureDefinition, type TenantFile } from '../tenants/tenant-config.js';
 
 function accessMock(current: Record<string, unknown>) {
     const writes: Array<{ path: string; body: Record<string, unknown> }> = [];
@@ -88,7 +88,7 @@ test('new application lifetime is included at creation', async () => {
 });
 
 test('tenant config rejects invalid and out-of-range session durations', async () => {
-    const raw = JSON.parse(await readFile(new URL('../../../../tenants.json', import.meta.url), 'utf8')) as TenantFile & { infrastructure: InfrastructureDefinition };
+    const raw = JSON.parse(await readFile(TENANTS_FILE, 'utf8')) as TenantFile & { infrastructure: InfrastructureDefinition };
     for (const key of ['accessSessionDuration', 'accessGlobalSessionDuration'] as const) {
         for (const value of ['0h', '721h', '7d', '168h ', 'NaNh']) {
             assert.throws(() => resolveInfrastructure({ ...raw, infrastructure: { ...raw.infrastructure, [key]: value } }), /whole hours/);

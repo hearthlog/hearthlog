@@ -12,9 +12,10 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, matchesGlob, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
-import { hostRoot } from "../root.js";
+import { PLATFORM_ROOT } from "../root.js";
 
-const ROOT = hostRoot();
+// Layers are a property of the platform's packages, wherever the check runs from.
+const ROOT = PLATFORM_ROOT;
 const IMPORT = /(?:^|[^\w$.])(?:import|export)\s[^'"]*?from\s+['"]([^'"]+)['"]|import\(\s*['"]([^'"]+)['"]\s*\)|^\s*import\s+['"]([^'"]+)['"]/gm;
 
 export interface LayerConfig {
