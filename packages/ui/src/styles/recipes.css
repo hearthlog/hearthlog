@@ -1,0 +1,174 @@
+@layer components {
+    .stor-page { display: flex; min-width: 0; flex-direction: column; gap: var(--stor-section-gap); }
+    .stor-panel, .stor-today-card { border: 0; border-radius: var(--stor-panel-radius); background: var(--stor-surface); box-shadow: var(--stor-elevation-1); }
+    .stor-panel { overflow: hidden; }
+    .stor-panel-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: var(--stor-panel-padding); background: transparent; }
+    .stor-panel-body { padding: var(--stor-panel-padding); }
+    .stor-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+    .stor-metric { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+    .stor-metric-label { font-size: 13px; font-weight: 500; color: var(--stor-muted-text); }
+    .stor-metric-value { font-size: 28px; line-height: 1.2; font-weight: 600; letter-spacing: -.025em; color: var(--stor-ink); overflow-wrap: anywhere; }
+    .stor-metric-support { font-size: 12px; line-height: 16px; color: var(--stor-muted-text); }
+    /* A currency or unit after a large figure: smaller and quieter than the number. */
+    .stor-unit { font-size: .6em; font-weight: 600; letter-spacing: 0; color: var(--stor-muted-text); }
+    /* Elevation recipes. A component picks a level, never its own shadow (see docs/design-concepts/depth-2026-10-04). */
+    .stor-well { background: var(--stor-surface-well); box-shadow: var(--stor-well-shadow); }
+    .stor-menu { background: var(--stor-surface-overlay); box-shadow: var(--stor-elevation-3); border-radius: 16px; }
+    .stor-sheet { background: var(--stor-surface-sheet); box-shadow: var(--stor-elevation-4); }
+    /* Buttons: the primary and destructive faces carry a soft top highlight; pressing sinks them. */
+    [data-stor-button-variant="default"], [data-stor-button-variant="destructive"] {
+        background-image: linear-gradient(180deg, rgb(255 255 255 / .14), rgb(255 255 255 / 0));
+        box-shadow: 0 0 0 1px rgb(0 0 0 / .1), 0 1px 2px rgb(0 0 0 / .16), 0 4px 10px -4px rgb(0 0 0 / .22), inset 0 1px 0 rgb(255 255 255 / .22);
+    }
+    [data-stor-button-variant="default"]:active, [data-stor-button-variant="destructive"]:active { box-shadow: 0 0 0 1px rgb(0 0 0 / .12), inset 0 1px 2px rgb(0 0 0 / .24); }
+    [data-stor-button-variant="secondary"]:active { box-shadow: var(--stor-elevation-pressed); }
+    .stor-page-header { min-width: 0; padding-bottom: 4px; }
+    .stor-page-header h1, .stor-health-header h1 { font-size: 24px; line-height: 1.2; }
+    /* Section pages let the navigation name the place: the title is read by
+       assistive tech and shown as a compact label on mobile only. */
+    .stor-page-title { margin-bottom: 12px; }
+    .stor-page-label { margin-bottom: 8px; font-size: 18px; font-weight: 600; letter-spacing: -.01em; color: var(--stor-ink); }
+    /* Serif titles: page and overlay titles only. Controls, data, and body copy stay in Inter.
+       A system serif (New York on Apple devices) keeps first paint free of an extra font. */
+    .stor-page-title, .stor-page-label, .stor-serif-title { font-family: var(--stor-font-serif); font-weight: 600; letter-spacing: -.012em; font-optical-sizing: auto; }
+    .stor-page-header-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; }
+    /* Tabs: one capsule track with a raised active pill. Page-level links use
+       .stor-primary-tabs; compact in-panel rows use .stor-section-tabs. */
+    .stor-page-tabs, .stor-primary-tabs, .stor-section-tabs { position: relative; gap: 2px; border-radius: 9999px; background: var(--stor-surface-well); padding: 3px; box-shadow: var(--stor-well-shadow); }
+    .stor-page-tab { display: inline-flex; min-height: 44px; align-items: center; justify-content: center; flex-shrink: 0; gap: 8px; border-radius: 9999px; padding: 8px 16px; color: var(--stor-muted-text); font-size: 13px; font-weight: 600; white-space: nowrap; transition: color 160ms ease, background-color 160ms ease, box-shadow 160ms ease; }
+    .stor-page-tab:hover { color: var(--stor-ink); background: var(--stor-surface-hover); }
+    .stor-page-tab:focus-visible { outline: 2px solid var(--stor-focus); outline-offset: 2px; }
+    .stor-page-tab:is([data-state="active"], [aria-selected="true"], [aria-current="page"], [aria-current="true"]) { color: var(--stor-accent-strong); }
+    /* The measured pill replaces the selected tab's own background so it can slide. */
+    .stor-tabs-sliding .stor-page-tab { position: relative; z-index: 1; }
+    .stor-tabs-sliding .stor-page-tab:is([data-state="active"], [aria-selected="true"], [aria-current="page"], [aria-current="true"]) { background: transparent; box-shadow: none; }
+    .stor-tab-indicator { position: absolute; top: 3px; bottom: 3px; left: 0; width: var(--stor-tab-w, 0px); border-radius: 9999px; opacity: 0; pointer-events: none; transform: translateX(var(--stor-tab-x, 0px)); }
+    .stor-tabs-sliding .stor-tab-indicator { opacity: 1; }
+    .stor-tabs-ready .stor-tab-indicator { transition: transform var(--stor-tab-motion), width var(--stor-tab-motion), opacity 160ms ease; }
+    .stor-primary-tabs { width: fit-content; max-width: 100%; }
+    .stor-primary-tabs .stor-page-tab { font-size: 14px; padding-inline: 18px; }
+    /* Five sections fit a phone's row without scrolling the last one out of sight. */
+    @media (max-width: 639px) { .stor-primary-tabs .stor-page-tab { padding-inline: 12px; } }
+    .stor-section-tabs { width: 100%; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .stor-section-tabs .stor-page-tab { min-width: 0; padding: 8px 12px; }
+    .stor-tab-count { display: inline-flex; min-width: 24px; align-items: center; justify-content: center; border-radius: 999px; background: color-mix(in srgb, var(--stor-border) 50%, transparent); padding: 2px 6px; color: var(--stor-muted-text); font-size: 11px; font-variant-numeric: tabular-nums; line-height: 1.25; transition: background-color 160ms ease, color 160ms ease; }
+    .stor-page-tab:is([data-state="active"], [aria-selected="true"], [aria-current="page"], [aria-current="true"]) .stor-tab-count { background: var(--stor-accent-soft); color: var(--stor-accent-strong); }
+    @media (min-width: 640px) {
+        .stor-page-tab { min-height: 38px; padding-block: 7px; }
+        .stor-section-tabs { width: fit-content; grid-template-columns: repeat(2, minmax(140px, 1fr)); }
+    }
+    .stor-segmented-control { gap: 2px; border-radius: 9999px; background: var(--stor-surface-well); padding: 3px; box-shadow: var(--stor-well-shadow); }
+    .stor-segmented-option { min-height: 36px; border-radius: 9999px; padding-inline: 12px; color: var(--stor-muted-text); font-size: 12px; font-weight: 600; }
+    .stor-segmented-option[aria-pressed="true"], .stor-segmented-option[data-state="active"] { color: var(--stor-accent-strong); }
+    /* The selected pill: navigation, page tabs, segmented options and the sliding indicators. */
+    .stor-nav-selected, .stor-nav-indicator, .stor-tab-indicator,
+    .stor-page-tab:is([data-state="active"], [aria-selected="true"], [aria-current="page"], [aria-current="true"]),
+    .stor-segmented-option:is([aria-pressed="true"], [data-state="active"]) { background: var(--stor-surface-raised); box-shadow: var(--stor-elevation-2); }
+    .stor-nav-sliding .stor-nav-selected,
+    .stor-tabs-sliding .stor-page-tab:is([data-state="active"], [aria-selected="true"], [aria-current="page"], [aria-current="true"]) { background: transparent; box-shadow: none; }
+}
+
+.stor-drawer {
+    height: 100dvh; max-width: none; background: var(--stor-surface-sheet); box-shadow: var(--stor-elevation-4);
+    transition:
+        transform var(--stor-drawer-enter-motion),
+        opacity var(--stor-drawer-enter-fade);
+}
+
+.stor-drawer-overlay {
+    transition: opacity var(--stor-overlay-enter-fade);
+}
+
+@media (max-width: 639px) {
+    .stor-drawer-footer > div > button[data-stor-button-variant="default"]:last-child { flex: 1; }
+}
+
+/* First paint of a mounted drawer slides it in from just off the edge. */
+
+@starting-style {
+    .stor-drawer {
+        opacity: 0;
+        transform: translateX(var(--stor-drawer-shift));
+    }
+    .stor-drawer-overlay {
+        opacity: 0;
+    }
+}
+
+.stor-drawer[data-ending-style] {
+    opacity: 0;
+    transform: translateX(var(--stor-drawer-shift));
+    transition:
+        transform var(--stor-drawer-exit-motion),
+        opacity var(--stor-drawer-exit-fade);
+}
+
+.stor-drawer-overlay[data-ending-style] {
+    opacity: 0;
+    transition: opacity var(--stor-overlay-exit-fade);
+}
+
+.stor-drawer-grabber { display: none; }
+
+/* Phones: a drawer is a sheet from the bottom, sized to its content, with the page dimmed above it.
+   It rides on the keyboard (--stor-keyboard, set while open), and closes by its × or the dimmed page. */
+
+@media (max-width: 767px) {
+    .stor-drawer {
+        top: auto; bottom: var(--stor-keyboard, 0px); height: auto;
+        max-height: calc(100dvh - var(--stor-keyboard, 0px) - env(safe-area-inset-top) - 2.5rem);
+        padding-top: 0; border-radius: 24px 24px 0 0;
+        transition: transform var(--stor-drawer-enter-motion), opacity var(--stor-drawer-enter-fade), bottom 120ms ease-out;
+    }
+    .stor-drawer[data-ending-style] { transform: translateY(2rem); }
+    .stor-drawer-grabber { display: block; width: 38px; height: 5px; flex: none; margin: 8px auto 0; border-radius: 3px; background: var(--stor-border); }
+    .stor-drawer-header { padding-top: 6px; padding-bottom: 8px; }
+    .stor-drawer-body { flex: 0 1 auto; padding-top: 4px; }
+    .stor-drawer-footer { border-top: 0; padding-top: 4px; }
+    [data-drawer-cancel] { display: none; }
+}
+
+/* A sheet opened over another takes its place; the one below waits, hidden, for Back. */
+
+[data-sheet-covered] { visibility: hidden; }
+
+@media (max-width: 767px) {
+    @starting-style { .stor-drawer { transform: translateY(2rem); } }
+}
+
+@media (max-width: 1023px) {
+    body:has([data-stor-drawer]) .stor-notifications { z-index: 60; }
+}
+
+@media (max-width: 767px) {
+    .stor-page-label, .stor-sidebar-owned-tabs { display: none; }
+}
+
+@media (min-width: 1024px) {
+    /* Two-level sidebar: the expanded sidebar lists sub-pages and names the place, so page tab rows and labels step aside. */
+    html:not([data-sidebar-collapsed="true"]) .stor-sidebar-owned-tabs { display: none; }
+    html:not([data-sidebar-collapsed="true"]) .stor-page-label { display: none; }
+    .stor-page-header h1, .stor-health-header h1 { font-size: 28px; }
+    .stor-metric-value { font-size: 32px; }
+    .stor-drawer { top: 16px; right: 16px; height: calc(100dvh - 32px); max-width: 28rem; border-radius: 24px; overflow: hidden; padding-top: 0; }
+    .stor-drawer[data-size="lg"] { max-width: 36rem; }
+    body:has([data-stor-drawer]) .stor-notifications { right: calc(28rem + 32px); max-width: calc(100vw - 28rem - 48px); }
+    body:has([data-stor-drawer][data-size="lg"]) .stor-notifications { right: calc(36rem + 32px); max-width: calc(100vw - 36rem - 48px); }
+}
+
+@media (max-width: 639px) {
+    .stor-page-label { margin-bottom: 6px; }
+}
+
+.stor-refined .stor-segmented-option { min-height: 44px; }
+
+.stor-performance-chart .stor-panel-header { flex-wrap: wrap; align-items: flex-start; }
+
+/* Lists that select by press and hold: rows have no checkbox until selecting starts. */
+
+@media (max-width: 767px) {
+    [data-selecting="false"] [data-row-check] { display: none; }
+    [data-selecting="false"] [data-row-id] { --check: 0px; padding-left: 0.375rem; }
+    [data-selecting="true"] [data-row-id] { -webkit-user-select: none; user-select: none; }
+    [data-row-id] { -webkit-touch-callout: none; }
+}

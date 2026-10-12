@@ -1,0 +1,11 @@
+{
+  "ignore": [
+    "**/worker-configuration.d.ts"
+  ],
+  "format": {
+    "enabled": false
+  },
+  "autofix": {
+    "enabled": false
+  }
+}

@@ -1,0 +1,51 @@
+{
+  "name": "@hearthlog/sdk",
+  "version": "0.1.0",
+  "license": "AGPL-3.0-only",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hearthlog/hearthlog.git",
+    "directory": "packages/sdk"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "files": [
+    "src",
+    "!**/*.test.ts"
+  ],
+  "type": "module",
+  "exports": {
+    "./runtime": "./src/runtime.ts",
+    "./ui": "./src/ui.ts",
+    "./format": "./src/format.ts",
+    "./data": "./src/data.ts",
+    "./endless": "./src/endless.ts",
+    "./table": "./src/table.ts",
+    "./testing": "./src/testing.ts",
+    "./entities": "./src/entities.ts",
+    "./axis": "./src/axis.ts",
+    "./server": "./src/server.ts",
+    "./ai": "./src/ai.ts",
+    "./server-testing": "./src/server-testing.ts"
+  },
+  "dependencies": {
+    "@hearthlog/contracts": "workspace:*",
+    "@hearthlog/ui": "workspace:*",
+    "@hearthlog/runtime": "workspace:*",
+    "@hearthlog/shell": "workspace:*",
+    "@hearthlog/cloudflare": "workspace:*"
+  },
+  "peerDependencies": {
+    "@hearthlog/generated": "*"
+  },
+  "peerDependenciesMeta": {
+    "@hearthlog/generated": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@hearthlog/generated": "workspace:*"
+  }
+}

@@ -1,0 +1,748 @@
+openapi: 3.1.0
+info:
+  title: Hearthlog Invoice Document Generation API
+  version: 1.0.0
+  license:
+    name: Proprietary
+    identifier: LicenseRef-Proprietary
+  description: |
+    Contract for a future stateless renderer, based on the current /invoices page,
+    its create/edit form, party form, and details drawer. These endpoints are not
+    implemented by Hearthlog yet. A request contains a complete invoice snapshot;
+    the renderer does not retrieve invoices or parties by their application IDs.
+
+    PDF and ISDOC use the same invoice model. PDF accepts incomplete party data
+    for drafts; ISDOC requires the additional fields described by IsdocInvoice.
+    Version 1 covers ordinary CZK invoices with positive quantities, net unit
+    prices and ordinary VAT, without discounts, credit notes, reverse charge,
+    foreign exchange or advance-payment settlement. ISDOC payment instructions
+    in this profile use a bank transfer. Unsupported fiscal cases must be rejected.
+
+    Monetary values and quantities are decimal strings, never formatted currency
+    text. Amounts from the page's `amount` field are BEFORE VAT. Renderers compute
+    both outputs using the calculation rules on InvoiceTotals. Supplied totals
+    are assertions to validate, not overrides. Invalid or missing line-item JSON
+    must be reported by the caller instead of silently generating an empty invoice.
+
+    Authentication is a proposed renderer bearer token, separate from Ledger
+    credentials. Do not send Ledger tokens to this service. The service processes
+    only the supplied snapshot, does not persist invoice data, and returns private,
+    non-cacheable documents. Application/source IDs are metadata, not authorization.
+servers:
+  - url: /api/invoice-generation
+    description: Proposed base path; configure the renderer origin when implemented.
+security:
+  - rendererBearerAuth: []
+tags:
+  - name: Documents
+    description: Generate an invoice document from a supplied snapshot.
+externalDocs:
+  description: Official ISDOC 6.0.2 specification and schemas
+  url: https://isdoc.github.io/doc/isdoc.html
+paths:
+  /pdf:
+    post:
+      tags: [Documents]
+      operationId: generateInvoicePdf
+      summary: Generate an invoice PDF
+      description: |
+        Render the number, status, dates, supplier/customer details, bank details,
+        notes, ordered line items, net amounts, VAT by rate and gross total.
+        Missing parties and due dates are allowed and shown as absent. Drafts
+        must be clearly labeled. Optional fiscal/payment enrichment is printed
+        when supplied. Source metadata is not printed. This is an ordinary PDF;
+        PDF/A, signatures and embedded ISDOC.PDF are outside this contract.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InvoiceGenerationRequest'
+            examples:
+              complete:
+                $ref: '#/components/examples/CompleteInvoice'
+              draft:
+                $ref: '#/components/examples/DraftInvoice'
+      responses:
+        '200':
+          description: PDF bytes, not a JSON wrapper or base64 string.
+          headers:
+            Content-Disposition:
+              $ref: '#/components/headers/ContentDisposition'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControl'
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/InvalidInvoice'
+        '500':
+          $ref: '#/components/responses/GenerationFailed'
+  /isdoc:
+    post:
+      tags: [Documents]
+      operationId: generateInvoiceIsdoc
+      summary: Generate ISDOC 6.0.2 invoice XML
+      description: |
+        Return UTF-8 XML with root Invoice, version="6.0.2", namespace
+        http://isdoc.cz/namespace/2013 and DocumentType=1. Validate generated XML
+        against the official invoice XSD and applicable ISDOC business rules
+        before returning success. The JSON schema alone does not validate XML.
+        Use a .isdoc filename. The response is unsigned, uncompressed XML.
+
+        The richer profile requires explicit VAT applicability, structured postal
+        addresses, a stable document UUID, due date, and bank-transfer instructions.
+        Tax point date is required when VAT applies. Do not guess these facts
+        from a DIČ, a combined city/postal-code string, or the default line VAT rate.
+        A 422 error identifies each missing or inconsistent field with a JSON Pointer.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IsdocGenerationRequest'
+            examples:
+              complete:
+                $ref: '#/components/examples/CompleteInvoice'
+      responses:
+        '200':
+          description: ISDOC XML document, including all applicable invoice business data.
+          headers:
+            Content-Disposition:
+              $ref: '#/components/headers/ContentDisposition'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControl'
+          content:
+            application/xml:
+              schema:
+                type: string
+                description: Raw UTF-8 ISDOC 6.0.2 XML; not JSON-encoded XML.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/InvalidInvoice'
+        '500':
+          $ref: '#/components/responses/GenerationFailed'
+components:
+  securitySchemes:
+    rendererBearerAuth:
+      type: http
+      scheme: bearer
+      description: Renderer-specific credential; provisioned independently of Ledger.
+  headers:
+    ContentDisposition:
+      description: Attachment filename derived from a sanitized invoice number, ending in .pdf or .isdoc.
+      schema:
+        type: string
+      example: 'attachment; filename="INV-2026-001.pdf"'
+    CacheControl:
+      description: Documents must not be stored by shared or browser caches.
+      schema:
+        type: string
+        const: private, no-store
+  responses:
+    BadRequest:
+      description: Malformed JSON.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Unauthorized:
+      description: Missing or invalid renderer authentication.
+      headers:
+        WWW-Authenticate:
+          schema:
+            type: string
+          example: Bearer
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    UnsupportedMediaType:
+      description: Request Content-Type must be application/json.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    InvalidInvoice:
+      description: Schema validation failed, totals disagree, required enrichment is missing, or the fiscal case is unsupported.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          example:
+            type: about:blank
+            title: Invalid invoice
+            status: 422
+            detail: ISDOC generation requires a structured supplier address.
+            errors:
+              - pointer: /invoice/supplier/postalAddress
+                code: required
+                message: Supply the structured postal address; city contains free-form text.
+    GenerationFailed:
+      description: Rendering failed, or generated XML failed output validation despite valid input. No partial document is returned.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+  schemas:
+    InvoiceGenerationRequest:
+      type: object
+      additionalProperties: false
+      required: [invoice]
+      properties:
+        invoice:
+          $ref: '#/components/schemas/Invoice'
+        locale:
+          type: string
+          enum: [cs-CZ, en-GB]
+          default: cs-CZ
+          description: PDF labels and display formatting only. XML dates and decimal syntax are locale-independent.
+    IsdocGenerationRequest:
+      allOf:
+        - $ref: '#/components/schemas/InvoiceGenerationRequest'
+        - type: object
+          properties:
+            invoice:
+              $ref: '#/components/schemas/IsdocInvoice'
+    Invoice:
+      type: object
+      additionalProperties: false
+      allOf:
+        - if:
+            required: [vatApplicable]
+            properties:
+              vatApplicable:
+                const: false
+          then:
+            properties:
+              items:
+                items:
+                  properties:
+                    vatRate:
+                      const: 0
+      required:
+        - id
+        - invoiceNumber
+        - status
+        - description
+        - issueDate
+        - dueDate
+        - currency
+        - supplierId
+        - customerId
+        - supplier
+        - customer
+        - items
+      properties:
+        id:
+          type: string
+          minLength: 1
+          description: Application invoice.id. Metadata; never used to fetch data.
+        invoiceNumber:
+          $ref: '#/components/schemas/NonBlankString'
+          description: invoice_number / InvoiceDraft.invoiceNumber; maps to ISDOC Invoice/ID.
+        status:
+          type: string
+          enum: [draft, sent, paid, overdue]
+          description: |
+            Stored invoice.status. The current UI writes draft, sent or paid;
+            overdue is accepted for existing records. This is workflow metadata,
+            not an ISDOC DocumentType or evidence of a payment amount/date.
+        isOverdue:
+          type: boolean
+          description: Optional page-derived badge state at the selected view clock; do not replace status with it.
+        description:
+          type: [string, 'null']
+          description: Invoice-level notes; preserve line breaks. ISDOC Invoice/Note.
+        issueDate:
+          type: string
+          format: date
+          description: Issue calendar date. Convert issue_date using the selected application timezone.
+        dueDate:
+          type: [string, 'null']
+          format: date
+          description: Due calendar date from due_date; null means no date recorded.
+        currency:
+          type: string
+          const: CZK
+          description: Explicit currency; the current page always displays Czech koruna.
+        amount:
+          $ref: '#/components/schemas/Decimal'
+          description: |
+            Optional preserved invoice.amount from the list, before VAT. It is
+            source metadata, not the payable total. Old values may disagree with
+            lines; the renderer uses items and must not substitute amount for totals.
+        supplierId:
+          type: [string, 'null']
+          description: Original supplier_id, including a legacy empty string if present.
+        customerId:
+          type: [string, 'null']
+          description: Original customer_id, including a legacy empty string if present.
+        supplier:
+          oneOf:
+            - allOf:
+                - $ref: '#/components/schemas/InvoiceParty'
+                - properties:
+                    partyType:
+                      const: supplier
+            - type: 'null'
+          description: Resolved supplier snapshot, or null when unselected/unresolved.
+        customer:
+          oneOf:
+            - allOf:
+                - $ref: '#/components/schemas/InvoiceParty'
+                - properties:
+                    partyType:
+                      const: customer
+            - type: 'null'
+          description: Resolved customer snapshot, or null when unselected/unresolved.
+        items:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/InvoiceLineItem'
+          description: Parsed invoice.items JSON array, in original display order. Never a JSON string.
+        totals:
+          $ref: '#/components/schemas/InvoiceTotals'
+        documentUuid:
+          type: string
+          format: uuid
+          description: Stable ISDOC Invoice/UUID. Reuse id when it is a UUID; otherwise supply a stable mapping, not a random UUID on every render.
+        vatApplicable:
+          type: boolean
+          description: Explicit document VAT applicability. Required for ISDOC; never infer from DIČ or default vatRate=21.
+        taxPointDate:
+          type: string
+          format: date
+          description: Date of taxable supply, not currently collected by the page. Required for this ISDOC profile when vatApplicable is true.
+        electronicAgreementReference:
+          type: string
+          description: |
+            Reference to the recipient's agreement to electronic invoicing.
+            Required as an explicit value by this ISDOC profile. An empty string
+            produces an empty mandatory XML element and makes no claim of consent.
+        payment:
+          $ref: '#/components/schemas/PaymentInstructions'
+        source:
+          $ref: '#/components/schemas/InvoiceSource'
+    IsdocInvoice:
+      allOf:
+        - $ref: '#/components/schemas/Invoice'
+        - type: object
+          required: [documentUuid, vatApplicable, electronicAgreementReference, payment]
+          properties:
+            dueDate:
+              type: string
+              format: date
+            supplier:
+              $ref: '#/components/schemas/IsdocParty'
+            customer:
+              $ref: '#/components/schemas/IsdocParty'
+            payment:
+              required: [bankAccount]
+              properties:
+                method:
+                  const: bank_transfer
+          allOf:
+            - if:
+                properties:
+                  vatApplicable:
+                    const: true
+                required: [vatApplicable]
+              then:
+                required: [taxPointDate]
+      description: |
+        Ordinary domestic ISDOC invoice profile. A non-VAT invoice must have zero
+        rates on all lines. When VAT applies, all lines are ordinary taxable lines;
+        mixed applicability/exemptions and reverse charge need a future profile.
+        Totals must be positive. Party IDs must match their corresponding snapshots.
+    InvoiceParty:
+      type: object
+      additionalProperties: false
+      required: [id, name, street, city, ico, dic, bankAccount, partyType]
+      properties:
+        id:
+          type: string
+          minLength: 1
+          description: invoice_parties.id; must equal supplierId/customerId when resolved.
+        name:
+          $ref: '#/components/schemas/NonBlankString'
+        street:
+          type: string
+          description: Original free-form street and building number, preserved for PDF.
+        city:
+          type: string
+          description: Original free-form City and postal code field, preserved for PDF. Do not silently split it for XML.
+        ico:
+          type: string
+          description: Company ID (IČO), mapped to PartyIdentification/ID. Keep leading zeroes.
+        dic:
+          type: [string, 'null']
+          description: VAT ID (DIČ), mapped to PartyTaxScheme/CompanyID with TaxScheme=VAT when nonempty.
+        bankAccount:
+          type: [string, 'null']
+          description: Original bank_account display string. Available for both party roles; the form collects it for suppliers.
+        partyType:
+          type: string
+          enum: [supplier, customer]
+        postalAddress:
+          $ref: '#/components/schemas/PostalAddress'
+        registration:
+          type: string
+          description: Optional register text for PDF footer and Party/RegisterIdentification/Preformatted. Not collected by the page.
+    IsdocParty:
+      allOf:
+        - $ref: '#/components/schemas/InvoiceParty'
+        - type: object
+          required: [postalAddress]
+          properties:
+            ico:
+              $ref: '#/components/schemas/NonBlankString'
+    PostalAddress:
+      type: object
+      additionalProperties: false
+      required: [streetName, buildingNumber, cityName, postalCode, countryCode, countryName]
+      description: |
+        Explicit structured equivalent of the original street/city. All ISDOC
+        PostalAddress elements are represented. Must describe the same address
+        as the display fields; reject conflicting values rather than changing facts.
+      properties:
+        streetName:
+          $ref: '#/components/schemas/NonBlankString'
+        buildingNumber:
+          type: string
+          description: May be empty when no building number applies; emit the required XML element.
+        cityName:
+          $ref: '#/components/schemas/NonBlankString'
+        postalCode:
+          $ref: '#/components/schemas/NonBlankString'
+        countryCode:
+          type: string
+          const: CZ
+          description: Version 1 domestic profile; maps to Country/IdentificationCode.
+        countryName:
+          $ref: '#/components/schemas/NonBlankString'
+          description: Country/Name, for example Česká republika.
+    InvoiceLineItem:
+      type: object
+      additionalProperties: false
+      required: [description, quantity, unitPrice, vatRate]
+      properties:
+        description:
+          type: string
+          description: Item description as recorded, including empty text. PDF uses Item N when empty; XML preserves the empty description.
+        quantity:
+          allOf:
+            - $ref: '#/components/schemas/Decimal'
+            - not:
+                pattern: '^0(\.0+)?$'
+          description: Positive decimal quantity. Zero is invalid (422). Current form minimum is 0.01, step 0.01.
+        unitPrice:
+          $ref: '#/components/schemas/Decimal'
+          description: Nonnegative unit price BEFORE VAT, in CZK.
+        vatRate:
+          type: number
+          minimum: 0
+          maximum: 100
+          description: |
+            VAT percentage, e.g. 21 means 21 percent. Required even though the
+            current form initializes it to DEFAULT_VAT_RATE (21) without an editor.
+            Existing per-line rates must be preserved. This is not a tax-rate lookup.
+        unitCode:
+          type: string
+          minLength: 1
+          description: Optional unit label/code for PDF and InvoicedQuantity/@unitCode. Not currently collected; omit rather than guessing.
+    InvoiceTotals:
+      type: object
+      additionalProperties: false
+      required: [subtotal, vatTotal, total, vatBreakdown]
+      description: |
+        Optional assertions for the renderer's computed totals, all in CZK.
+        Use exact decimal arithmetic and ROUND_HALF_UP to two decimal places.
+        For each line: net = round(quantity * unitPrice); VAT = round(net *
+        vatRate / 100); gross = net + VAT. Sum rounded line values for subtotal,
+        vatTotal and total. Group the same rounded values by numeric vatRate,
+        sorted ascending, with exactly one entry per used rate, including zero.
+        Require subtotal > 0 and total = subtotal + vatTotal. Supplied assertions
+        must match exactly or return 422; omit totals to let the renderer compute.
+
+        This makes document rounding deterministic. The existing page uses JS
+        floating-point sums with rounding only on display, so edge cases may differ
+        by cents; do not copy displayed strings into this object. Status=paid does
+        not reduce fiscal totals or invent an advance-payment/deposit settlement.
+      properties:
+        subtotal:
+          $ref: '#/components/schemas/Money'
+        vatTotal:
+          $ref: '#/components/schemas/Money'
+        total:
+          $ref: '#/components/schemas/Money'
+        vatBreakdown:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/VatSubtotal'
+    VatSubtotal:
+      type: object
+      additionalProperties: false
+      required: [vatRate, taxableAmount, vatAmount, total]
+      properties:
+        vatRate:
+          type: number
+          minimum: 0
+          maximum: 100
+        taxableAmount:
+          $ref: '#/components/schemas/Money'
+        vatAmount:
+          $ref: '#/components/schemas/Money'
+        total:
+          $ref: '#/components/schemas/Money'
+    PaymentInstructions:
+      type: object
+      additionalProperties: false
+      required: [method]
+      description: |
+        Explicit payment instructions, beyond the page's raw supplier bank account.
+        No payment method, variable symbol, IBAN or consent is inferred. Method
+        bank_transfer maps to ISDOC PaymentMeansCode=42. PDF may also print cash/card.
+      properties:
+        method:
+          type: string
+          enum: [bank_transfer, cash, card]
+        bankAccount:
+          $ref: '#/components/schemas/BankAccount'
+        variableSymbol:
+          type: string
+          pattern: '^[0-9]{1,10}$'
+          description: Preserve leading zeroes; do not strip characters from invoiceNumber to invent a symbol.
+        constantSymbol:
+          type: string
+          pattern: '^[0-9]{1,4}$'
+        specificSymbol:
+          type: string
+          pattern: '^[0-9]{1,10}$'
+    BankAccount:
+      type: object
+      additionalProperties: false
+      required: [accountNumber, bankCode]
+      description: |
+        Supplier's beneficiary account. Must agree with supplier.bankAccount when
+        that raw field is nonempty. XML Details requires ID, BankCode, Name, IBAN
+        and BIC elements; emit empty elements for omitted bankName/iban/bic.
+      properties:
+        accountNumber:
+          type: string
+          pattern: '^([0-9]{1,6}-)?[0-9]{1,10}$'
+          description: Domestic account number including optional prefix, without /bankCode.
+        bankCode:
+          type: string
+          pattern: '^[0-9]{4}$'
+        bankName:
+          type: string
+        iban:
+          type: string
+          pattern: '^CZ[0-9]{22}$'
+          description: Optional normalized Czech IBAN. If supplied, validate checksum and agreement with the domestic account.
+        bic:
+          type: string
+          pattern: '^[A-Z]{6}[A-Z0-9]{2}([A-Z0-9]{3})?$'
+    InvoiceSource:
+      type: object
+      additionalProperties: false
+      description: |
+        Optional provenance from the selected tenant/log. The legacy history
+        version field remains accepted for older requests but is not sent by
+        the current app.
+        Never printed or treated as permission to read another tenant. Resolve
+        invoice and parties from this same snapshot before calling the renderer.
+        Source timestamps preserve their original strings (ISO or SQLite datetime).
+      properties:
+        tenantId:
+          type: string
+        logId:
+          type: string
+        asOfVersion:
+          type: integer
+          minimum: 0
+          deprecated: true
+        timezone:
+          type: string
+          default: Europe/Prague
+          description: IANA timezone used by the caller to convert source timestamps to document dates.
+        issueDate:
+          type: string
+        dueDate:
+          type: [string, 'null']
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+        evaluatedAt:
+          type: string
+          format: date-time
+          description: Workspace clock used to calculate isOverdue.
+    NonBlankString:
+      type: string
+      minLength: 1
+      pattern: '\S'
+    Decimal:
+      type: string
+      pattern: '^(0|[1-9][0-9]*)(\.[0-9]+)?$'
+      description: Nonnegative base-10 decimal string with dot separator. No exponent, thousands separators, currency symbol or binary float.
+      examples: ['1', '1.25', '1500.00']
+    Money:
+      type: string
+      pattern: '^(0|[1-9][0-9]*)\.[0-9]{2}$'
+      description: Nonnegative CZK amount with exactly two fractional digits.
+      examples: ['0.00', '1210.00']
+    Problem:
+      type: object
+      additionalProperties: false
+      required: [type, title, status, detail]
+      properties:
+        type:
+          type: string
+          format: uri-reference
+        title:
+          type: string
+        status:
+          type: integer
+          minimum: 400
+          maximum: 599
+        detail:
+          type: string
+        errors:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [pointer, code, message]
+            properties:
+              pointer:
+                type: string
+                description: JSON Pointer into the request, e.g. /invoice/items/0/quantity.
+              code:
+                type: string
+                enum: [required, invalid_value, totals_mismatch, inconsistent_data, unsupported]
+              message:
+                type: string
+  examples:
+    CompleteInvoice:
+      summary: Fictional invoice with the enrichment required for both PDF and ISDOC
+      value:
+        locale: cs-CZ
+        invoice:
+          id: a52dabfa-fbd5-48ae-b61c-2e5f4f9c0e14
+          documentUuid: a52dabfa-fbd5-48ae-b61c-2e5f4f9c0e14
+          invoiceNumber: INV-2026-001
+          status: sent
+          isOverdue: false
+          description: 'Děkujeme za spolupráci.'
+          issueDate: '2026-09-11'
+          dueDate: '2026-09-25'
+          taxPointDate: '2026-09-11'
+          vatApplicable: true
+          electronicAgreementReference: ''
+          currency: CZK
+          amount: '3500.00'
+          supplierId: supplier-example
+          customerId: customer-example
+          supplier:
+            id: supplier-example
+            name: Ukázkový dodavatel s.r.o.
+            street: Ukázková 12
+            city: 110 00 Praha
+            ico: '00000019'
+            dic: CZ00000019
+            bankAccount: 123456789/0100
+            partyType: supplier
+            postalAddress:
+              streetName: Ukázková
+              buildingNumber: '12'
+              cityName: Praha
+              postalCode: '110 00'
+              countryCode: CZ
+              countryName: Česká republika
+          customer:
+            id: customer-example
+            name: Ukázkový odběratel s.r.o.
+            street: Vzorová 34
+            city: 602 00 Brno
+            ico: '00000027'
+            dic: null
+            bankAccount: null
+            partyType: customer
+            postalAddress:
+              streetName: Vzorová
+              buildingNumber: '34'
+              cityName: Brno
+              postalCode: '602 00'
+              countryCode: CZ
+              countryName: Česká republika
+          items:
+            - description: Konzultační služby
+              quantity: '2'
+              unitPrice: '1500.00'
+              vatRate: 21
+            - description: Doplňkové služby
+              quantity: '1'
+              unitPrice: '500.00'
+              vatRate: 21
+          totals:
+            subtotal: '3500.00'
+            vatTotal: '735.00'
+            total: '4235.00'
+            vatBreakdown:
+              - vatRate: 21
+                taxableAmount: '3500.00'
+                vatAmount: '735.00'
+                total: '4235.00'
+          payment:
+            method: bank_transfer
+            bankAccount:
+              accountNumber: '123456789'
+              bankCode: '0100'
+            variableSymbol: '2026001'
+          source:
+            tenantId: example-tenant
+            logId: example-log
+            timezone: Europe/Prague
+            issueDate: '2026-09-11T08:00:00.000Z'
+            dueDate: '2026-09-25T10:00:00.000Z'
+            createdAt: '2026-09-11 08:00:00'
+            updatedAt: '2026-09-11 08:05:00'
+            evaluatedAt: '2026-09-11T08:05:00.000Z'
+    DraftInvoice:
+      summary: Current-page draft with no selected parties and no ISDOC enrichment (PDF only)
+      value:
+        invoice:
+          id: 079a2db0-17f7-47f2-9335-43caf6fca4da
+          invoiceNumber: DRAFT-2026-001
+          status: draft
+          description: null
+          issueDate: '2026-09-11'
+          dueDate: null
+          currency: CZK
+          amount: '1000.00'
+          supplierId: ''
+          customerId: ''
+          supplier: null
+          customer: null
+          items:
+            - description: ''
+              quantity: '1'
+              unitPrice: '1000.00'
+              vatRate: 21

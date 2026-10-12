@@ -1,0 +1,21 @@
+{
+	"extends": ["$app/tsconfig", "./.generated/tsconfig.json"],
+	"compilerOptions": {
+		"strict": true,
+		"noUnusedLocals": true,
+		"types": ["node", "$app/types"]
+	},
+	"include": [
+		".svelte-kit/ambient.d.ts",
+		".svelte-kit/env.d.ts",
+		".svelte-kit/non-ambient.d.ts",
+		".svelte-kit/types/**/$types.d.ts",
+		"vite.config.ts",
+		".generated/routes/**/*.ts",
+		".generated/routes/**/*.svelte",
+		".generated/*.d.ts",
+		"src/**/*.ts",
+		"src/**/*.svelte"
+	],
+	"exclude": ["node_modules/**"]
+}

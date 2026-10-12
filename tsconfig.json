@@ -1,0 +1,46 @@
+{
+	"extends": ["$app/tsconfig", "./.generated/tsconfig.json"],
+	"compilerOptions": {
+		"sourceMap": true,
+		"strict": true,
+		"noUnusedLocals": true,
+		"types": [
+			"@playwright/test",
+			"node",
+			"$app/types"
+		]
+	},
+	"include": [
+		".svelte-kit/ambient.d.ts",
+		".svelte-kit/env.d.ts",
+		".svelte-kit/non-ambient.d.ts",
+		".svelte-kit/types/**/$types.d.ts",
+		"vite.config.js",
+		"vite.config.ts",
+		".generated/routes/**/*.ts",
+		".generated/routes/**/*.svelte",
+		".generated/*.d.ts",
+		"packages/cloudflare/types/*.d.ts",
+		"src/**/*.js",
+		"src/**/*.ts",
+		"src/**/*.svelte",
+		"modules/*/src/**/*.ts",
+		"modules/*/src/**/*.svelte",
+		"packages/*/src/**/*.ts",
+		"test/**/*.js",
+		"test/**/*.ts",
+		"test/**/*.svelte",
+		"tests/**/*.js",
+		"tests/**/*.ts",
+		"tests/**/*.svelte",
+		"playwright.config.ts"
+	],
+	"exclude": [
+		"node_modules/**",
+		"packages/shell/src/service-worker",
+		"modules/*/src/server/**",
+		"modules/*/public/**",
+		"packages/ledger/**",
+		"packages/tooling/**"
+	]
+}

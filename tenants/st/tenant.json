@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "id": "st",
+  "ledgerAppName": "st",
+  "title": "st",
+  "features": [],
+  "authorizedEmails": ["owner@example.com"]
+}

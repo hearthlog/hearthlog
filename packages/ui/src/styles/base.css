@@ -1,0 +1,243 @@
+/* Keep the first rendered font for this navigation if a local font arrives late. */
+@font-face {
+    font-family: 'Inter Variable';
+    font-style: normal;
+    font-display: optional;
+    font-weight: 100 900;
+    src: url('../assets/fonts/inter-latin-ui.woff2') format('woff2-variations');
+    unicode-range: U+0020-007E, U+00A0, U+00B0, U+00B5, U+00B7, U+00C1, U+00C4, U+00C9, U+00CD, U+00D3, U+00D4, U+00D7, U+00DA, U+00DD, U+00E1, U+00E4, U+00E9, U+00ED, U+00F3, U+00F4, U+00FA, U+00FD, U+2013-2014, U+2018-201D, U+2022, U+2026, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215;
+}
+@font-face {
+    font-family: 'Inter Variable';
+    font-style: normal;
+    font-display: optional;
+    font-weight: 100 900;
+    src: url('../assets/fonts/inter-latin-ext-ui.woff2') format('woff2-variations');
+    unicode-range: U+010C-010D, U+010E-0111, U+011A-011B, U+0139-013A, U+013D-013E, U+0147-0148, U+0154-0159, U+0160-0165, U+016E-0171, U+0179-017E;
+}
+@font-face {
+    font-family: 'Fira Code Variable';
+    font-style: normal;
+    font-display: optional;
+    font-weight: 300 700;
+    src: url('../assets/fonts/fira-code-latin-ui.woff2') format('woff2-variations');
+    unicode-range: U+0020-007E, U+00A0, U+00B0, U+00B5, U+00B7, U+00C1, U+00C4, U+00C9, U+00CD, U+00D3, U+00D4, U+00D7, U+00DA, U+00DD, U+00E1, U+00E4, U+00E9, U+00ED, U+00F3, U+00F4, U+00FA, U+00FD, U+2013-2014, U+2018-201D, U+2022, U+2026, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215;
+}
+@font-face {
+    font-family: 'Fira Code Variable';
+    font-style: normal;
+    font-display: optional;
+    font-weight: 300 700;
+    src: url('../assets/fonts/fira-code-latin-ext-ui.woff2') format('woff2-variations');
+    unicode-range: U+010C-010D, U+010E-0111, U+011A-011B, U+0139-013A, U+013D-013E, U+0147-0148, U+0154-0159, U+0160-0165, U+016E-0171, U+0179-017E;
+}
+@theme {
+    --font-sans: var(--stor-font-sans);
+    --font-mono: var(--stor-font-mono);
+    /* Push desktop-plus breakpoint so multi-column only appears on very wide screens */
+    --breakpoint-2xl: 1920px;
+    /* Four radii: 8 small tiles, 12 controls and inner blocks, 20 panels, full pills.
+       md and 2xl fold into that set instead of adding 6px and 16px corners. */
+    --radius-md: 0.5rem;
+    --radius-2xl: 1.25rem;
+}
+:root {
+    /* Stacking scale. Shell chrome stays at z-10 to z-55; everything that floats above a page uses these. */
+    --stor-layer-sticky: 10;
+    --stor-layer-sheet: 70;
+    --stor-layer-sheet-content: 71;
+    --stor-layer-menu: 90;
+    --stor-layer-menu-sub: 91;
+    --stor-layer-dialog: 100;
+    --stor-layer-dialog-content: 101;
+    --stor-layer-toast: 110;
+    --stor-layer-tooltip: 120;
+    --stor-font-serif: ui-serif, "New York", "Iowan Old Style", Charter, Georgia, "Times New Roman", serif;
+    color-scheme: light;
+    font-family: var(--stor-font-sans);
+    background: var(--stor-bg);
+    /* Shared shell geometry; page actions and content clearance use the same stack. */
+    --stor-mobile-header-height: calc(3.25rem + env(safe-area-inset-top));
+    --stor-mobile-nav-height: 4rem;
+    --stor-mobile-bottom-inset: max(12px, env(safe-area-inset-bottom));
+    --stor-mobile-action-height: 2.75rem;
+    --stor-mobile-stack-gap: 10px;
+    --stor-section-gap: 16px;
+    /* Padding at least the 20px panel radius keeps content clear of the curve. */
+    --stor-panel-padding: 20px;
+    --stor-panel-radius: 20px;
+    --stor-sidebar-width: 224px;
+    /* Page gutters, panel padding and gaps; phones tighten them below. */
+    --stor-sidebar-rail-width: 5rem;
+    /* One short panel slide keeps the form legible as soon as it opens. */
+    --stor-drawer-shift: 1.5rem;
+    --stor-drawer-enter-motion: 190ms cubic-bezier(0.2, 0.8, 0.2, 1);
+    --stor-drawer-enter-fade: 150ms ease-out;
+    --stor-drawer-exit-motion: 150ms ease-in;
+    --stor-drawer-exit-fade: 120ms ease-in;
+    --stor-overlay-enter-fade: 180ms ease-out;
+    --stor-overlay-exit-fade: 150ms ease-in;
+    /* The selected tab pill slides between triggers. */
+    --stor-tab-motion: 280ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+html[data-theme="dark"] {
+    color-scheme: dark;
+}
+html {
+    overflow: hidden;
+    background: var(--stor-bg);
+}
+body {
+    margin: 0;
+    font-size: 14px;
+    font-variant-numeric: tabular-nums;
+    min-width: 320px;
+    background: var(--stor-bg);
+    color: var(--stor-ink);
+}
+body,
+button,
+input,
+select,
+textarea {
+    transition:
+        background-color 160ms ease,
+        border-color 160ms ease,
+        color 160ms ease;
+}
+button,
+a,
+input,
+select,
+textarea {
+    outline-color: var(--stor-focus);
+    outline-offset: 2px;
+}
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+    outline: 2px solid var(--stor-focus);
+}
+::selection {
+    background: var(--stor-accent-soft);
+    color: var(--stor-accent-strong);
+}
+.mobile-scroll {
+    scrollbar-width: none;
+}
+.mobile-scroll::-webkit-scrollbar {
+    display: none;
+}
+input, select, textarea { accent-color: var(--stor-action); }
+[class~="bg-[var(--stor-action)]"] { color: var(--stor-action-text); }
+[class~="data-[selected]:bg-[var(--stor-action)]"][data-selected],
+[class~="data-[state=checked]:bg-[var(--stor-action)]"][data-state="checked"] {
+    color: var(--stor-action-text);
+}
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0s !important; animation-duration: 0s !important; }
+}
+/*
+ * Compatibility layer for existing Tailwind color utilities. Shared semantic
+ * tokens remain the source of truth while route markup is migrated naturally.
+ */
+html[data-theme="dark"] [class~="bg-white"] { background-color: var(--stor-surface) !important; }
+html[data-theme="dark"] [class~="bg-white/95"] { background-color: color-mix(in srgb, var(--stor-surface), transparent 5%) !important; }
+html[data-theme="dark"] [class~="bg-white/90"] { background-color: color-mix(in srgb, var(--stor-surface), transparent 10%) !important; }
+html[data-theme="dark"] [class~="bg-white/80"] { background-color: color-mix(in srgb, var(--stor-surface), transparent 20%) !important; }
+html[data-theme="dark"] [class~="bg-white/70"] { background-color: color-mix(in srgb, var(--stor-surface), transparent 30%) !important; }
+html[data-theme="dark"] [class~="bg-white/60"] { background-color: color-mix(in srgb, var(--stor-surface), transparent 40%) !important; }
+html[data-theme="dark"] [class~="bg-white/50"] { background-color: color-mix(in srgb, var(--stor-surface), transparent 50%) !important; }
+html[data-theme="dark"] [class~="bg-stone-50"],
+html[data-theme="dark"] [class~="bg-stone-100"],
+html[data-theme="dark"] [class~="bg-gray-50"],
+html[data-theme="dark"] [class~="bg-gray-100"] { background-color: var(--stor-surface-muted) !important; }
+html[data-theme="dark"] [class~="bg-stone-200"],
+html[data-theme="dark"] [class~="bg-gray-200"] { background-color: var(--stor-border) !important; }
+html[data-theme="dark"] [class~="text-stone-950"],
+html[data-theme="dark"] [class~="text-stone-900"],
+html[data-theme="dark"] [class~="text-stone-800"],
+html[data-theme="dark"] [class~="text-gray-950"],
+html[data-theme="dark"] [class~="text-gray-900"],
+html[data-theme="dark"] [class~="text-gray-800"] { color: var(--stor-ink) !important; }
+html[data-theme="dark"] [class~="text-stone-700"],
+html[data-theme="dark"] [class~="text-stone-600"],
+html[data-theme="dark"] [class~="text-stone-500"],
+html[data-theme="dark"] [class~="text-gray-700"],
+html[data-theme="dark"] [class~="text-gray-600"],
+html[data-theme="dark"] [class~="text-gray-500"] { color: var(--stor-muted-text) !important; }
+html[data-theme="dark"] [class~="border-stone-100"],
+html[data-theme="dark"] [class~="border-stone-200"],
+html[data-theme="dark"] [class~="border-gray-100"],
+html[data-theme="dark"] [class~="border-gray-200"] { border-color: var(--stor-border) !important; }
+html[data-theme="dark"] [class~="border-stone-300"],
+html[data-theme="dark"] [class~="border-gray-300"] { border-color: var(--stor-field-border) !important; }
+html[data-theme="dark"] [class~="ring-stone-200"],
+html[data-theme="dark"] [class~="ring-gray-200"] { --tw-ring-color: var(--stor-border) !important; }
+html[data-theme="dark"] [class~="hover:bg-white"]:hover,
+html[data-theme="dark"] [class~="focus:bg-white"]:focus,
+html[data-theme="dark"] [class~="focus-within:bg-white"]:focus-within,
+html[data-theme="dark"] [class~="data-[state=active]:bg-white"][data-state="active"] {
+    background-color: var(--stor-surface-hover) !important;
+}
+html[data-theme="dark"] [class~="hover:text-stone-950"]:hover,
+html[data-theme="dark"] [class~="hover:text-stone-900"]:hover,
+html[data-theme="dark"] [class~="hover:text-stone-800"]:hover {
+    color: var(--stor-ink) !important;
+}
+html[data-theme="dark"] [class~="bg-red-50"],
+html[data-theme="dark"] [class~="bg-red-50/80"],
+html[data-theme="dark"] [class~="bg-red-50/35"],
+html[data-theme="dark"] [class~="bg-red-100"],
+html[data-theme="dark"] [class~="bg-red-100/70"] { background-color: var(--stor-negative-soft) !important; }
+html[data-theme="dark"] [class~="text-red-600"],
+html[data-theme="dark"] [class~="text-red-700"],
+html[data-theme="dark"] [class~="text-red-800"],
+html[data-theme="dark"] [class~="text-red-900"] { color: var(--stor-negative) !important; }
+html[data-theme="dark"] [class~="border-red-100"],
+html[data-theme="dark"] [class~="border-red-200"],
+html[data-theme="dark"] [class~="border-red-300"] { border-color: color-mix(in srgb, var(--stor-negative), transparent 35%) !important; }
+html[data-theme="dark"] [class~="bg-amber-50"],
+html[data-theme="dark"] [class~="bg-amber-50/80"],
+html[data-theme="dark"] [class~="bg-amber-100"] { background-color: var(--stor-warning-soft) !important; }
+html[data-theme="dark"] [class~="text-amber-600"],
+html[data-theme="dark"] [class~="text-amber-700"],
+html[data-theme="dark"] [class~="text-amber-800"],
+html[data-theme="dark"] [class~="text-amber-900"],
+html[data-theme="dark"] [class~="text-amber-950"] { color: var(--stor-warning) !important; }
+html[data-theme="dark"] [class~="border-amber-100"],
+html[data-theme="dark"] [class~="border-amber-200"],
+html[data-theme="dark"] [class~="border-amber-300"] { border-color: color-mix(in srgb, var(--stor-warning), transparent 35%) !important; }
+html[data-theme="dark"] [class~="bg-emerald-50"],
+html[data-theme="dark"] [class~="bg-emerald-100"],
+html[data-theme="dark"] [class~="bg-green-50"],
+html[data-theme="dark"] [class~="bg-green-100"] { background-color: var(--stor-positive-soft) !important; }
+html[data-theme="dark"] [class~="text-emerald-600"],
+html[data-theme="dark"] [class~="text-emerald-700"],
+html[data-theme="dark"] [class~="text-emerald-800"],
+html[data-theme="dark"] [class~="text-emerald-900"],
+html[data-theme="dark"] [class~="text-green-600"],
+html[data-theme="dark"] [class~="text-green-700"],
+html[data-theme="dark"] [class~="text-green-800"] { color: var(--stor-positive) !important; }
+html[data-theme="dark"] [class~="border-emerald-200"] { border-color: color-mix(in srgb, var(--stor-positive), transparent 35%) !important; }
+html[data-theme="dark"] [class~="bg-sky-50"],
+html[data-theme="dark"] [class~="bg-sky-50/60"],
+html[data-theme="dark"] [class~="bg-sky-100"],
+html[data-theme="dark"] [class~="bg-blue-50"],
+html[data-theme="dark"] [class~="bg-blue-100"] { background-color: var(--stor-info-soft) !important; }
+html[data-theme="dark"] [class~="text-sky-700"],
+html[data-theme="dark"] [class~="text-sky-800"],
+html[data-theme="dark"] [class~="text-sky-950"],
+html[data-theme="dark"] [class~="text-blue-600"],
+html[data-theme="dark"] [class~="text-blue-700"],
+html[data-theme="dark"] [class~="text-blue-800"] { color: var(--stor-info) !important; }
+html[data-theme="dark"] [class~="border-sky-200"] { border-color: var(--stor-info-border) !important; }
+@media print {
+    *, *::before, *::after {
+        color-scheme: light !important;
+        box-shadow: none !important;
+    }
+}
+/* Borderless surfaces: ordinary information stays on the canvas. */

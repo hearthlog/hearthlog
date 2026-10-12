@@ -1,0 +1,72 @@
+{
+  "_comment": "The split of the old src/lib into packages is complete: @hearthlog/contracts, ui, runtime, czech, and shell; the Ledger and its admin console follow as @hearthlog/ledger and @hearthlog/ledger-admin. src/lib now holds only the per-tenant generated module (tenant/generated.ts), which belongs to the host. `packages` lists the extracted packages and the other @hearthlog packages each may import; `allowOutside` names files outside a package's src it may still import by relative path (tooling's configuration chain: Vite's config loader cannot load a TypeScript package by name, so the tenant configuration and the manifest plugin reach the few contracts they need by relative path). Generated files (@hearthlog/generated) are the host's and follow no rule. Tooling lists runtime, sdk, shell, cloudflare, and ledger only because the generators and the module scaffold write import lines for them into generated files; its code imports none.",
+  "root": "src/lib",
+  "default": "host",
+  "layers": [],
+  "packages": {
+    "contracts": {
+      "may": []
+    },
+    "czech": {
+      "may": []
+    },
+    "ui": {
+      "may": []
+    },
+    "runtime": {
+      "may": [
+        "contracts",
+        "ui"
+      ]
+    },
+    "shell": {
+      "may": [
+        "contracts",
+        "ui",
+        "runtime",
+        "czech"
+      ]
+    },
+    "ledger": {
+      "may": [
+        "contracts"
+      ]
+    },
+    "ledger-admin": {
+      "may": [
+        "contracts",
+        "ui",
+        "runtime",
+        "cloudflare"
+      ]
+    },
+    "cloudflare": {
+      "may": [
+        "contracts"
+      ]
+    },
+    "native": {
+      "may": [
+        "contracts",
+        "tooling"
+      ]
+    },
+    "tooling": {
+      "may": [
+        "contracts",
+        "runtime",
+        "sdk",
+        "shell",
+        "cloudflare",
+        "ledger"
+      ],
+      "allowOutside": [
+        "packages/contracts/src/ai/capabilities",
+        "packages/contracts/src/features/core",
+        "packages/contracts/src/features/registry",
+        "packages/contracts/src/integrations/kinds",
+        "packages/contracts/src/tenant/theme"
+      ]
+    }
+  }
+}

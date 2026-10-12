@@ -1,0 +1,46 @@
+{
+  "name": "@hearthlog/contracts",
+  "version": "0.1.0",
+  "license": "AGPL-3.0-only",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hearthlog/hearthlog.git",
+    "directory": "packages/contracts"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "files": [
+    "src",
+    "!**/*.test.ts"
+  ],
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./ai/*": "./src/ai/*.ts",
+    "./calendar/*": "./src/calendar/*.ts",
+    "./event/*": "./src/event/*.ts",
+    "./features/*": "./src/features/*.ts",
+    "./history/*": "./src/history/*.ts",
+    "./integrations/*": "./src/integrations/*.ts",
+    "./ledger/*": "./src/ledger/*.ts",
+    "./tenant/*": "./src/tenant/*.ts",
+    "./package.json": "./package.json"
+  },
+  "imports": {
+    "#generated/modules": "@hearthlog/generated/modules"
+  },
+  "dependencies": {},
+  "peerDependencies": {
+    "@hearthlog/generated": "*"
+  },
+  "peerDependenciesMeta": {
+    "@hearthlog/generated": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@hearthlog/generated": "workspace:*"
+  }
+}

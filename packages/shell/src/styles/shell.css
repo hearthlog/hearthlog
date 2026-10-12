@@ -1,0 +1,296 @@
+@layer components {
+    .stor-native-field { width: 100%; min-height: 44px; border: 1px solid var(--stor-field-border); border-radius: 12px; background: var(--stor-surface-muted); padding: 0 12px; color: var(--stor-ink); font-size: 16px; outline: none; }
+    .stor-native-field:focus { border-color: var(--stor-focus); box-shadow: 0 0 0 2px var(--stor-selected); }
+    .stor-native-field:disabled { cursor: not-allowed; color: var(--stor-muted-text); }
+    @media (min-width: 640px) { .stor-native-field { min-height: 36px; font-size: 14px; } }
+    /* Navigation: the current destination is a raised pill, the same selection as tabs. */
+    :root { --stor-nav-hover: color-mix(in srgb, var(--stor-ink) 5%, transparent); }
+    /* The pill glides between rows (navIndicator). The selected row keeps its own look until the pill is placed. */
+    .stor-nav-indicator { position: absolute; z-index: 0; left: 0; top: 0; border-radius: 10px; opacity: 0; pointer-events: none; will-change: transform; }
+    .stor-nav-sliding .stor-nav-indicator { opacity: 1; }
+    .stor-nav-badge { min-width: 20px; height: 18px; padding: 0 6px; border-radius: 999px; font-size: 10.5px; font-weight: 650; line-height: 18px; text-align: center; font-variant-numeric: tabular-nums; }
+    .stor-nav-badge-negative { background: var(--stor-negative-soft); color: var(--stor-negative); }
+    .stor-nav-badge-warning { background: var(--stor-warning-soft); color: var(--stor-warning); }
+    .stor-nav-badge-dot { position: absolute; top: 7px; right: 8px; min-width: 0; width: 8px; height: 8px; padding: 0; box-shadow: 0 0 0 2px var(--stor-sidebar); }
+    .stor-nav-badge-dot.stor-nav-badge-negative { background: var(--stor-negative); }
+    .stor-nav-badge-dot.stor-nav-badge-warning { background: var(--stor-warning); }
+    /* Sub-pages open and close in place, so the rows below glide instead of jumping. */
+    .stor-nav-sub { display: grid; grid-template-rows: 0fr; transition: grid-template-rows 200ms ease; }
+    .stor-nav-sub[data-open] { grid-template-rows: 1fr; }
+    .stor-nav-sub-in { min-height: 0; overflow: hidden; visibility: hidden; transition: visibility 0s linear 200ms; }
+    .stor-nav-sub[data-open] > .stor-nav-sub-in { visibility: visible; transition-delay: 0s; }
+    /* Rail flyout: a section's pages beside the rail, opened by hover or keyboard focus (NavFlyout). */
+    .stor-nav-fly { position: fixed; z-index: 60; width: 13rem; padding: 8px; border-radius: 16px; background: var(--stor-surface-overlay); box-shadow: var(--stor-elevation-3); opacity: 0; visibility: hidden; transform: translateX(-4px); transition: opacity 140ms ease, transform 140ms ease, visibility 0s linear 140ms; }
+    .stor-nav-fly[data-open] { opacity: 1; visibility: visible; transform: none; transition-delay: 0s; }
+    /* A bridge across the gap keeps the pointer inside while it travels from the rail to the flyout. */
+    .stor-nav-fly::before { content: ""; position: absolute; left: -14px; top: 0; bottom: 0; width: 14px; }
+    .stor-nav-fly ul { display: grid; gap: 1px; margin: 0; padding: 0; list-style: none; }
+    .stor-nav-fly-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 8px 8px; font-size: 13px; font-weight: 600; color: var(--stor-ink); }
+    .stor-nav-fly .stor-nav-child { height: 32px; padding: 0 8px; }
+    .stor-nav-fly .stor-nav-child-active { padding-left: 14px; }
+    .stor-nav-fly .stor-nav-child-active::before { left: 0; top: 8px; bottom: 8px; }
+    .stor-nav-children { position: relative; display: flex; flex-direction: column; gap: 1px; margin: 2px 0 0 21px; padding-left: 12px; }
+    .stor-nav-children::before { content: ""; position: absolute; left: 0; top: 4px; bottom: 4px; width: 1.5px; border-radius: 2px; background: var(--stor-border); }
+    .stor-nav-child { position: relative; display: flex; align-items: center; gap: 8px; height: 30px; padding: 0 10px; border-radius: 8px; font-size: 12.5px; font-weight: 500; color: var(--stor-muted-text); transition: color 120ms, background-color 120ms; }
+    .stor-nav-child:hover { color: var(--stor-ink); background: var(--stor-nav-hover); }
+    .stor-nav-child:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--stor-focus); }
+    .stor-nav-child .stor-nav-badge { min-width: 18px; height: 16px; padding: 0 5px; font-size: 10px; line-height: 16px; }
+    /* Selection is ink, so red keeps meaning late work. */
+    .stor-nav-child-active { color: var(--stor-ink); font-weight: 600; }
+    .stor-nav-child-active::before { content: ""; position: absolute; left: -13.25px; top: 7px; bottom: 7px; width: 2px; border-radius: 2px; background: var(--stor-ink); }
+    .stor-dock-badge { position: absolute; top: -3px; right: 2px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 999px; font-size: 9.5px; font-weight: 700; line-height: 16px; text-align: center; color: var(--stor-negative-text); box-shadow: 0 0 0 2px var(--stor-surface-raised); }
+    .stor-dock-badge-negative { background: var(--stor-negative); }
+    .stor-dock-badge-warning { background: var(--stor-warning); color: var(--stor-surface); }
+    /* Inset dividers start at the row text, so icons read as one clean column. */
+    .stor-inset-rows > * + * { position: relative; }
+    .stor-inset-rows > * + *::before { content: ""; position: absolute; top: 0; left: var(--stor-row-inset, 0px); right: 8px; height: 1px; background: color-mix(in srgb, var(--stor-border) 70%, transparent); pointer-events: none; }
+    .stor-inset-rows > *:hover::before, .stor-inset-rows > *:hover + *::before { opacity: 0; }
+    .stor-section-link { display: inline-flex; align-items: center; gap: 4px; min-height: 44px; font-size: 13px; font-weight: 500; color: var(--stor-accent-text); }
+}
+
+/* The shell alone owns space occupied by mobile chrome. */
+
+[data-stor-main] {
+    padding-bottom: calc(var(--stor-mobile-bottom-inset) + var(--stor-mobile-nav-height) + 12px);
+    scroll-padding-bottom: calc(var(--stor-mobile-bottom-inset) + var(--stor-mobile-nav-height) + 12px);
+}
+
+[data-stor-main]:has(.stor-mobile-action) {
+    padding-bottom: calc(var(--stor-mobile-bottom-inset) + var(--stor-mobile-nav-height) + var(--stor-mobile-stack-gap) + var(--stor-mobile-action-height) + 12px);
+    scroll-padding-bottom: calc(var(--stor-mobile-bottom-inset) + var(--stor-mobile-nav-height) + var(--stor-mobile-stack-gap) + var(--stor-mobile-action-height) + 12px);
+}
+
+/* The page's main action is a pill at the thumb's corner, sized by its label, not a bar across the content. */
+
+.stor-mobile-action {
+    position: fixed; right: 12px;
+    bottom: calc(var(--stor-mobile-bottom-inset) + var(--stor-mobile-nav-height) + var(--stor-mobile-stack-gap));
+    z-index: 40; display: flex; height: var(--stor-mobile-action-height); gap: 8px;
+}
+
+.stor-mobile-action > button { width: auto; height: 100%; min-height: 44px; padding-inline: 18px; border-radius: 999px; box-shadow: var(--stor-shadow-md); }
+
+.stor-mobile-nav {
+    left: 12px; right: 12px; bottom: var(--stor-mobile-bottom-inset);
+    height: var(--stor-mobile-nav-height); padding: 4px;
+    border: 0; border-radius: 24px; background: var(--stor-surface-raised);
+    box-shadow: var(--stor-elevation-1);
+}
+
+.stor-mobile-header { background: var(--stor-bg); box-shadow: var(--stor-header-shadow); }
+
+[data-testid="desktop-sidebar"] { border-radius: 20px; box-shadow: var(--stor-sidebar-shadow); }
+
+body:has([data-stor-drawer]) .stor-mobile-action,
+body:has([data-stor-drawer]) .stor-mobile-fab { visibility: hidden; }
+
+/* A phone spends its width on content: tighter gaps and panel padding (still clear of the smaller curve). */
+
+@media (max-width: 639px) {
+    :root { --stor-section-gap: 12px; --stor-panel-padding: 16px; --stor-panel-radius: 16px; }
+}
+
+@media (max-width: 1023px) {
+    [data-stor-main]:has([data-under-action]) {
+        padding-bottom: calc(var(--stor-mobile-bottom-inset) + var(--stor-mobile-nav-height));
+        scroll-padding-bottom: calc(var(--stor-mobile-bottom-inset) + var(--stor-mobile-nav-height));
+    }
+    [data-under-action] {
+        --endless-home-bottom: calc(var(--stor-mobile-stack-gap) - 8px);
+        --endless-home-left: 10px;
+        --endless-home-height: var(--stor-mobile-action-height);
+        --endless-home-transform: none;
+    }
+}
+
+@media (max-width: 767px) {
+    /* While its list moves, the page action shrinks to its icon; it is an overlay, so nothing resizes. */
+    .stor-mobile-action[data-moving] .stor-action-label { display: none; }
+    .stor-mobile-action[data-moving] > button { padding-inline: 12px; }
+}
+
+/* From 768px the rail replaces the phone header and dock, so their heights fall away. Pages and
+   fixed bars size themselves from these variables, so they follow without their own rules. */
+
+@media (min-width: 768px) {
+    :root { --stor-mobile-header-height: env(safe-area-inset-top, 0px); --stor-mobile-nav-height: 0px; }
+}
+
+@media (min-width: 1024px) {
+    :root { --stor-section-gap: 24px; --stor-panel-padding: 24px; }
+    [data-stor-main], [data-stor-main]:has(.stor-mobile-action) { padding-bottom: 0; scroll-padding-bottom: 12px; }
+    /* Finance, Calendar and Gallery fit the screen; their endless lists scroll themselves. */
+    main[data-page-fit] { overflow: hidden; }
+    .stor-mobile-action { display: none; }
+}
+
+.stor-calendar-layout { display: grid; align-items: start; min-width: 0; gap: var(--stor-section-gap); }
+
+.stor-calendar-agendas { display: grid; min-width: 0; gap: var(--stor-section-gap); }
+
+/* The weeks scroll endlessly inside the panel; on smaller screens the page scrolls around it. */
+
+.stor-calendar-panel { display: flex; height: min(34rem, 70dvh); min-height: 0; flex-direction: column; }
+
+.stor-calendar-grid { display: flex; min-height: 0; flex: 1; flex-direction: column; }
+
+.stor-calendar-weeks { position: relative; min-height: 0; flex: 1; }
+
+/* A thumb over a century of weeks says nothing, and a gutter would shift the columns off the weekday row. */
+
+.stor-calendar-scroller { scrollbar-width: none; }
+
+.stor-calendar-scroller::-webkit-scrollbar { display: none; }
+
+.stor-calendar-day { position: relative; min-width: 0; min-height: 64px; border-radius: 14px; padding: 0 1px 6px; transition: background-color 160ms ease; }
+
+/* Days outside the month in view step back, so the weeks still read as a month. */
+
+.stor-calendar-out > * { opacity: .45; }
+
+.stor-calendar-select { min-height: 44px; justify-content: center; }
+
+/* A phone shows about five weeks, so the selected day's agenda starts on the first screen
+   and there is page left to scroll by that is not the endless grid. */
+
+@media (max-width: 639px) { .stor-calendar-panel { height: min(23rem, 56dvh); } .stor-calendar-day { min-height: 56px; } }
+
+/* Phones: the month grid is the page and its only scroller; weeks are tall enough to name their events. */
+
+@media (max-width: 767px) {
+    .stor-calendar-page { display: flex; height: 100%; flex-direction: column; }
+    .stor-calendar-layout { display: flex; min-height: 0; flex: 1; flex-direction: column; align-items: stretch; }
+    .stor-calendar-agendas { display: none; }
+    .stor-calendar-panel { height: auto; min-height: 0; flex: 1; }
+    .stor-calendar-day { min-height: 104px; height: 104px; overflow: hidden; border-radius: 10px; padding: 2px 1px 0; }
+    .stor-calendar-select { min-height: 30px; }
+    /* Names keep every letter they can: no ellipsis eating the last ones in a 50 px day. */
+    .stor-calendar-day .truncate { text-overflow: clip; }
+    /* The day card lists its agenda as plain rows. */
+    [data-calendar-peek] a, [data-calendar-peek] button.flex { border-color: transparent; padding-inline: 4px; }
+    [data-calendar-peek] a .text-xs::first-letter { text-transform: uppercase; }
+}
+
+@media (min-width: 1024px) {
+    .stor-calendar-layout { min-height: 0; flex: 1; grid-template-columns: minmax(0, 1fr) 320px; grid-template-rows: minmax(0, 1fr); align-items: stretch; }
+    .stor-calendar-agendas { min-height: 0; align-content: start; overflow-y: auto; }
+    .stor-calendar-panel { height: auto; }
+    .stor-calendar-day { min-height: 112px; padding: 4px; }
+    .stor-calendar-select { justify-content: flex-start; }
+}
+
+/* ---------- Native shell (apple/) ----------
+   Rules in this block apply only inside the Mac and iOS apps, which set
+   html[data-stor-shell] from the boot script. The browser version never matches them. */
+
+.stor-lights { display: none; }
+
+/* Mac: the window has no title bar of its own. The shell draws the window controls over the sidebar's
+   header row (the empty .stor-lights anchor tells it where), the web view is transparent over the window's
+   glass, and one canvas tint covers the content and the space around the translucent sidebar. */
+
+html[data-stor-shell="mac"] {
+    --stor-shell-titlebar: 52px;
+    --stor-shell-lights: 62px;
+    --stor-shell-canvas-tint: 86%;
+    --stor-shell-sidebar-tint: 56%;
+    /* The title bar reports a top safe area; the page header already clears the window edge. */
+    --stor-mobile-header-height: 0px;
+    background: transparent;
+}
+
+html[data-stor-shell="mac"] body { background: transparent; }
+
+html[data-stor-shell="mac"] [data-stor-root] {
+    background: color-mix(in srgb, var(--stor-bg) var(--stor-shell-canvas-tint), transparent);
+}
+
+html[data-stor-shell="mac"] [data-testid="desktop-sidebar"] {
+    background: color-mix(in srgb, var(--stor-sidebar) var(--stor-shell-sidebar-tint), transparent);
+    box-shadow: inset 0 0 0 0.5px color-mix(in srgb, var(--stor-ink) 9%, transparent), var(--stor-sidebar-shadow);
+}
+
+html[data-stor-shell="mac"] .stor-lights { display: block; flex: none; width: var(--stor-shell-lights); height: 14px; }
+
+/* The menu bar already names the app; the Mac sidebar shows no brand, only the drag space. */
+
+html[data-stor-shell="mac"] [data-stor-brand] { display: none; }
+
+html[data-stor-shell="mac"]:not([data-sidebar-collapsed="true"]) [data-testid="desktop-sidebar"] > [data-stor-drag] {
+    height: var(--stor-shell-titlebar);
+}
+
+/* Full screen hides the window controls, so their space goes back to the wordmark. */
+
+html[data-stor-shell="mac"][data-stor-fullscreen] .stor-lights { display: none; }
+
+/* iOS: edge to edge with glass bars. The header and the dock stay web; content scrolls under them. */
+
+html[data-stor-shell="ios"] {
+    -webkit-text-size-adjust: 100%;
+    overscroll-behavior: none;
+}
+
+html[data-stor-shell="ios"] :where(a, button, summary, label, [role="button"], [role="tab"]) { -webkit-tap-highlight-color: transparent; }
+
+html[data-stor-shell="ios"] .stor-mobile-header {
+    background: color-mix(in srgb, var(--stor-bg) 62%, transparent);
+    -webkit-backdrop-filter: blur(22px) saturate(1.8);
+    backdrop-filter: blur(22px) saturate(1.8);
+    box-shadow: none;
+}
+
+html[data-stor-shell="ios"] .stor-mobile-nav {
+    left: 18px; right: 18px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--stor-surface-raised) 58%, transparent);
+    -webkit-backdrop-filter: blur(24px) saturate(1.9);
+    backdrop-filter: blur(24px) saturate(1.9);
+    box-shadow:
+        inset 0 0.5px 0 color-mix(in srgb, white 70%, transparent),
+        inset 0 0 0 0.5px color-mix(in srgb, var(--stor-ink) 10%, transparent),
+        var(--stor-shadow-md);
+}
+
+/* iPad shows the rail from 768px: clear the status bar, which the edge-to-edge page now sits under. */
+
+html[data-stor-shell="ios"] [data-testid="desktop-sidebar"] { top: calc(12px + env(safe-area-inset-top, 0px)); }
+
+html[data-stor-shell="ios"] [data-stor-main] { padding-top: var(--stor-mobile-header-height); }
+
+/* Sidebar edge: a 12px strip straddling the card edge (4px inside, 8px in the gutter). The line shows
+   after a short hover so it does not flash as the pointer passes. */
+
+.stor-sidebar-handle { position: absolute; top: 0; bottom: 0; left: calc(100% - 4px); width: 12px; cursor: col-resize; touch-action: none; z-index: 1; }
+
+.stor-sidebar-handle::after { content: ""; position: absolute; left: 3px; top: 18px; bottom: 18px; width: 2px; border-radius: 2px; background: var(--stor-focus); opacity: 0; transition: opacity 120ms ease 150ms; }
+
+.stor-sidebar-handle:hover::after, .stor-sidebar-handle:focus-visible::after, html[data-sidebar-resizing] .stor-sidebar-handle::after { opacity: 1; }
+
+.stor-sidebar-handle:focus-visible { outline: none; }
+
+.stor-sidebar-handle:focus-visible::after { transition-delay: 0s; box-shadow: 0 0 0 3px color-mix(in srgb, var(--stor-focus) 30%, transparent); }
+
+@media (pointer: coarse) { .stor-sidebar-handle { width: 24px; left: calc(100% - 8px); } .stor-sidebar-handle::after { left: 11px; } }
+
+html[data-sidebar-resizing], html[data-sidebar-resizing] * { cursor: col-resize !important; user-select: none; }
+
+html[data-sidebar-resizing] [data-testid="desktop-sidebar"], html[data-sidebar-resizing] [data-stor-root] { transition: none !important; }
+
+@media (prefers-reduced-motion: reduce) { .stor-sidebar-handle::after { transition: none; } }
+
+/* A round list-options button at the thumb's other corner, level with the page action; it floats over the list. */
+
+.stor-mobile-fab {
+    position: fixed; left: 12px; z-index: 30;
+    bottom: calc(var(--stor-mobile-bottom-inset) + var(--stor-mobile-nav-height) + var(--stor-mobile-stack-gap));
+    width: var(--stor-mobile-action-height); height: var(--stor-mobile-action-height); min-height: 44px; padding: 0; justify-content: center;
+    border: 0; border-radius: 999px; box-shadow: var(--stor-elevation-2);
+}
+
+/* A list marked data-under-action runs on under the page action down to the dock; it scrolls its last
+   rows clear of the pill, and its way back (Today) sits bottom left, level with the pill. */
+
+@media (max-width: 1023px) {
+    [data-under-action] [data-timeline-scroll] { padding-bottom: calc(var(--stor-mobile-action-height) + 2 * var(--stor-mobile-stack-gap)); }
+}

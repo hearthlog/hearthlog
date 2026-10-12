@@ -1,0 +1,38 @@
+{
+  "name": "@hearthlog/native",
+  "version": "0.1.0",
+  "description": "Hearthlog's native shells: the Swift sources of the Mac and iOS apps and the tools that build them for one tenant (`hearthlog apple:mac|ios|test|resign`)",
+  "license": "AGPL-3.0-only",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hearthlog/hearthlog.git",
+    "directory": "packages/native"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "files": [
+    "src",
+    "swift",
+    "resign.example.json",
+    "!**/*.test.ts"
+  ],
+  "type": "module",
+  "exports": {
+    "./*.js": "./src/*.ts",
+    "./package.json": "./package.json"
+  },
+  "dependencies": {
+    "@hearthlog/contracts": "workspace:*",
+    "@hearthlog/tooling": "workspace:*"
+  },
+  "peerDependencies": {
+    "@playwright/test": "^1.63.0"
+  },
+  "peerDependenciesMeta": {
+    "@playwright/test": {
+      "optional": true
+    }
+  }
+}

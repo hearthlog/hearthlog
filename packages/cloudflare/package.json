@@ -1,0 +1,29 @@
+{
+  "name": "@hearthlog/cloudflare",
+  "version": "0.1.0",
+  "description": "Hearthlog's Cloudflare Worker code: the same-origin gateway (Access sessions, the Ledger and admin proxies, assets, fences, log forks), AI decisions, service integrations, and the calendar feed Workers",
+  "license": "AGPL-3.0-only",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hearthlog/hearthlog.git",
+    "directory": "packages/cloudflare"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "files": [
+    "src",
+    "types",
+    "!**/*.test.ts"
+  ],
+  "type": "module",
+  "exports": {
+    "./*.js": "./src/*.ts",
+    "./package.json": "./package.json"
+  },
+  "dependencies": {
+    "@hearthlog/contracts": "workspace:*",
+    "jose": "6.2.12"
+  }
+}

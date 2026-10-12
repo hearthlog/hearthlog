@@ -1,0 +1,67 @@
+{
+  "name": "@hearthlog/tooling",
+  "version": "0.1.0",
+  "license": "AGPL-3.0-only",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hearthlog/hearthlog.git",
+    "directory": "packages/tooling"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "files": [
+    "bin",
+    "src",
+    "templates",
+    "!**/*.test.ts"
+  ],
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*.js": "./src/*.ts",
+    "./package.json": "./package.json"
+  },
+  "imports": {
+    "#generated/modules": "@hearthlog/generated/modules"
+  },
+  "dependencies": {
+    "@hearthlog/contracts": "workspace:*",
+    "tsx": "^4.23.15"
+  },
+  "bin": {
+    "hearthlog": "./bin/hearthlog.mjs"
+  },
+  "peerDependencies": {
+    "@hearthlog/generated": "*",
+    "@iconify/json": "^2.2.535",
+    "@sveltejs/adapter-static": "^4.0.0",
+    "@sveltejs/kit": "^3.0.0",
+    "@sveltejs/vite-plugin-svelte": "^7.3.1",
+    "@tailwindcss/vite": "^4.3.3",
+    "sqlocal": "^0.18.0",
+    "svelte": "^5.57.1",
+    "tailwindcss": "^4.3.3",
+    "typescript": "~6.0.3",
+    "unplugin-icons": "^24.0.0",
+    "vite": "^8.3.1",
+    "workbox-core": "^7.4.1",
+    "workbox-expiration": "^7.4.1",
+    "workbox-precaching": "^7.4.1",
+    "workbox-routing": "^7.4.1",
+    "workbox-strategies": "^7.4.1",
+    "wrangler": "^4.144.0"
+  },
+  "peerDependenciesMeta": {
+    "wrangler": {
+      "optional": true
+    },
+    "@hearthlog/generated": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@hearthlog/generated": "workspace:*"
+  }
+}

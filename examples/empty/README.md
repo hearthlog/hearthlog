@@ -1,0 +1,13 @@
+# empty
+
+A Hearthlog site. `tenants/empty/tenant.json` says what it enables, `tenants/empty/modules.lock.json` records the
+modules it ships, and everything else the app needs is written by `pnpm build:generated` into `.generated/`.
+
+```bash
+pnpm install
+pnpm dev     # builds the generated files, then starts Vite
+pnpm build   # a static build in build/
+```
+
+`tenants.json` holds placeholder infrastructure names: it makes the site load, and it cannot be deployed until real
+values replace them.

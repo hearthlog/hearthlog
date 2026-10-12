@@ -1,0 +1,46 @@
+{
+  "name": "@hearthlog/ledger",
+  "version": "0.1.0",
+  "description": "Hearthlog's Ledger: the event store Worker (Elysia over SQLite Durable Objects), its contracts and tests, and the logical backup tooling",
+  "license": "AGPL-3.0-only",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hearthlog/hearthlog.git",
+    "directory": "packages/ledger"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "files": [
+    "src",
+    "contracts",
+    "scripts",
+    "docs",
+    "!**/*.test.ts"
+  ],
+  "type": "module",
+  "exports": {
+    "./*.js": "./src/*.ts",
+    "./scripts/*.js": "./scripts/*.ts"
+  },
+  "imports": {
+    "#generated/event-schemas": "@hearthlog/generated/event-schemas"
+  },
+  "dependencies": {
+    "@hearthlog/contracts": "workspace:*",
+    "@sinclair/typebox": "0.34.52",
+    "elysia": "1.4.30"
+  },
+  "peerDependencies": {
+    "@hearthlog/generated": "*"
+  },
+  "peerDependenciesMeta": {
+    "@hearthlog/generated": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@hearthlog/generated": "workspace:*"
+  }
+}

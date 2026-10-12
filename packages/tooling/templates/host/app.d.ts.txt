@@ -1,0 +1,31 @@
+import 'unplugin-icons/types/svelte';
+
+declare global {
+	namespace App { }
+	const __BUILD_TIMESTAMP__: string;
+	const __STACK_INFO__: {
+		packages: Record<string, string>;
+		node: string;
+		commit: string;
+		branch: string;
+		dirty: boolean;
+	};
+	interface Window {
+		__storE2E?: import('@hearthlog/runtime/testing/e2e-seed.js').StorE2ESeedApi;
+	}
+}
+
+interface ImportMetaEnv {
+	readonly VITE_LEDGER_SERVICE_URL?: string;
+	readonly VITE_LEDGER_AUTH_TOKEN?: string;
+	readonly VITE_LEDGER_TIMEOUT_MS?: string;
+	readonly VITE_LEDGER_MAX_RETRIES?: string;
+	readonly VITE_LEDGER_ENABLE_REALTIME?: string;
+	readonly VITE_E2E?: string;
+}
+
+interface ImportMeta {
+	readonly env: ImportMetaEnv;
+}
+
+export { };

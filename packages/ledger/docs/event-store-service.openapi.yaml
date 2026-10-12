@@ -1,0 +1,1651 @@
+openapi: 3.1.0
+info:
+  title: Event Store Service API
+  version: 0.4.0
+  license:
+    name: Proprietary
+    identifier: LicenseRef-Proprietary
+  description: |
+    Minimal API for managing append-only event logs with entity-level optimistic locking.
+    Each event is associated with an entity, and version tracking is maintained per entity,
+    allowing concurrent writes to different entities while preventing conflicts on the same entity.
+    Bearer tokens are scoped to a single app. App tokens can read and write in that app.
+
+    Typical client flow:
+      1. List/select a log.
+      2. Replay events after the local head.
+      3. Append events with entity-level version checks (idempotent via `requestId`).
+      4. Handle conflicts by replaying missing log events and retrying.
+      5. Open a gateway-authenticated `ledger.v1` WebSocket for realtime events.
+
+    Key concepts:
+      - Each entity has its own version counter starting at 1
+      - New entity chains use no first base, then `1`, `2`, and so on
+      - Existing entity chains at version `N` use `N`, `N+1`, and so on
+      - Conflicts return the current entity version for client-side resolution
+      - Multiple entities can be updated in a single atomic request
+      - Ledger validates event envelopes but leaves domain payload rules to clients
+      - `ADMIN_TOKEN` can optionally enable `/admin/v1` for operator-only provisioning
+      - Unknown request fields are rejected
+      - Log forking and request-level log version checks are not supported
+servers:
+  - url: /
+    description: The same origin that serves this specification.
+security:
+  - bearerAuth: []
+paths:
+  /health:
+    get:
+      operationId: healthCheck
+      summary: Check database readiness
+      security: []
+      responses:
+        "204":
+          description: The service can query its database.
+        "500":
+          description: The database readiness check failed.
+  /session:
+    get:
+      operationId: getSession
+      summary: Resolve the authenticated app and principal
+      responses:
+        "200":
+          description: Stable tenant and credential-principal identity.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionResponse"
+              example:
+                appId: 00000000-0000-0000-0000-000000000001
+                principalId: 33333333-3333-4333-8333-333333333333
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /logs:
+    get:
+      operationId: listLogs
+      summary: List available logs
+      description: Returns every log in the caller's app.
+      responses:
+        "200":
+          description: List of logs.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LogListResponse"
+              examples:
+                default:
+                  value:
+                    logs:
+                      - id: 11111111-1111-1111-1111-111111111111
+                        name: default
+                        headVersion: 187
+                        createdAt: "2024-05-01T08:00:00.000Z"
+                        lastUpdatedAt: "2024-06-02T09:24:55.612Z"
+                      - id: 22222222-2222-2222-2222-222222222222
+                        name: finance-simulation
+                        headVersion: 42
+                        createdAt: "2024-05-20T12:00:00.000Z"
+                        lastUpdatedAt: "2024-05-30T19:02:11.004Z"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      operationId: createLog
+      summary: Create a new log
+      description: Creates an empty log. The service assigns the log ID and generates a name when omitted.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateLogRequest"
+            example:
+              name: elections-archive
+      responses:
+        "201":
+          description: Log created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateLogResponse"
+              examples:
+                default:
+                  value:
+                    id: 33333333-3333-3333-3333-333333333333
+                    name: elections-archive
+                    headVersion: 0
+                    createdAt: "2024-06-02T10:18:03.447Z"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "422":
+          description: The JSON body does not match the request schema.
+  /logs/{logId}:
+    parameters:
+      - $ref: "#/components/parameters/LogId"
+    get:
+      operationId: getLog
+      summary: Fetch log metadata
+      description: Returns current head information for a log in the caller's app.
+      responses:
+        "200":
+          description: Log metadata.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LogMetadata"
+              examples:
+                default:
+                  value:
+                    id: 11111111-1111-1111-1111-111111111111
+                    name: default
+                    headVersion: 187
+                    createdAt: "2024-05-01T08:00:00.000Z"
+                    lastUpdatedAt: "2024-06-02T09:24:55.612Z"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      operationId: deleteLog
+      summary: Delete a log
+      description: Deletes the log and its events. A source log with child forks cannot be deleted.
+      responses:
+        "204":
+          description: Log deleted.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: This log has forks that depend on its provenance.
+  /logs/{logId}/forks:
+    parameters:
+      - $ref: "#/components/parameters/LogId"
+    post:
+      operationId: forkLog
+      summary: Fork an accepted prefix into a new log
+      description: Creates a preparing child log with the source events through a complete action boundary. Repeating the same requestId returns the same child. The frontend Worker prepares inherited private files before the child is marked ready.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ForkLogRequest"
+      responses:
+        "201":
+          description: Fork created or idempotently found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LogSummary"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "409":
+          description: Source head changed or requestId was reused with different content.
+  /logs/{logId}/gallery-photos/{photoId}/files/{fileVersionId}/reference:
+    parameters:
+      - $ref: "#/components/parameters/LogId"
+      - name: photoId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: fileVersionId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      operationId: getGalleryPhotoReference
+      summary: Check whether an accepted Gallery photo version belongs to a log
+      description: The private file gateway calls this with its server-side app token. Preparing forks cannot access inherited photo bytes. A missing reference returns present false.
+      responses:
+        "200":
+          description: Exact per-log photo file reference status.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [present]
+                additionalProperties: false
+                properties:
+                  present:
+                    type: boolean
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: The fork is still preparing.
+  /logs/{logId}/visibility:
+    parameters:
+      - $ref: "#/components/parameters/LogId"
+    post:
+      operationId: setLogVisibility
+      summary: Hide or show a log in the log tree
+      description: Hiding records when a log was hidden and changes nothing else; the log, its events and its forks stay readable and writable. Hiding an already hidden log keeps the first time. Showing clears it.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LogVisibilityRequest"
+      responses:
+        "200":
+          description: Updated log metadata.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LogSummary"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "404":
+          description: Log not found.
+  /logs/{logId}/finalize-fork:
+    parameters:
+      - $ref: "#/components/parameters/LogId"
+    post:
+      operationId: finalizeFork
+      summary: Mark a fork ready after file preparation
+      description: Internal frontend Worker operation. The public same-origin Ledger gateway blocks this route.
+      responses:
+        "200":
+          description: Ready fork metadata.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LogSummary"
+  /logs/{logId}/events:
+    parameters:
+      - $ref: "#/components/parameters/LogId"
+    post:
+      operationId: appendEvents
+      summary: Append events to a log
+      parameters:
+        - name: X-Ledger-Actor
+          in: header
+          required: false
+          description: |
+            Identity of the person on whose behalf a trusted gateway appends. Ledger stores it as
+            each accepted event's `actor`. A value that is empty, longer than 320 characters or
+            contains control characters is ignored. Browsers never send it: the frontend Worker
+            replaces any incoming value with its verified Access identity.
+          schema:
+            type: string
+            maxLength: 320
+      description: |
+        Appends one or more events to the log with optimistic locking.
+        Re-sending the same `requestId` with canonically equivalent content returns the original
+        outcome. Reusing it with different content returns `idempotency_mismatch`.
+        A request carries at most 512 events, and the accepted events must serialize to at most
+        1,900,000 bytes; larger requests return `400 request_too_large`. Event ids must be unique
+        within a request (`400 invalid_event_envelope`) and within the log
+        (`409 event_already_accepted`).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AppendEventsRequest"
+            examples:
+              createNewEntity:
+                summary: Create a new entity (first event)
+                value:
+                  requestId: b5b2c5b0-64de-4e9f-9c2a-7e69f238d2c1
+                  events:
+                    - id: 44444444-4444-4444-4444-444444444444
+                      type: USER_CREATED
+                      entityId: user-123
+                      timestamp: 1717323612903
+                      payload:
+                        name: John Doe
+                        email: john@example.com
+              appendToExistingEntity:
+                summary: Append to existing entity with version check
+                value:
+                  requestId: a1b2c3d4-5e6f-4788-9190-a1b2c3d4e5f6
+                  events:
+                    - id: 55555555-5555-5555-5555-555555555555
+                      type: USER_UPDATED
+                      entityId: user-123
+                      baseEntityVersion: 1
+                      timestamp: 1717323700000
+                      payload:
+                        email: john.doe@example.com
+              appendEntityChain:
+                summary: Append a sequential chain to one existing entity
+                value:
+                  requestId: 727e32f7-2c5e-48bb-b377-cac25427ac32
+                  events:
+                    - type: USER_UPDATED
+                      entityId: user-123
+                      baseEntityVersion: 1
+                      payload:
+                        email: john.doe@example.com
+                    - type: USER_VERIFIED
+                      entityId: user-123
+                      baseEntityVersion: 2
+                      payload:
+                        verified: true
+              multiEntityBatch:
+                summary: Append events to multiple entities
+                value:
+                  requestId: f1e2d3c4-b5a6-9788-0192-a3b4c5d6e7f8
+                  events:
+                    - type: TRANSACTION_ADDED
+                      entityId: txn-b030
+                      timestamp: 1717323612903
+                      payload:
+                        name: Groceries
+                        amount: 1249.5
+                    - type: USER_UPDATED
+                      entityId: user-456
+                      baseEntityVersion: 3
+                      timestamp: 1717323613000
+                      payload:
+                        lastActivity: "2024-06-02T09:26:53.000Z"
+      responses:
+        "200":
+          description: Events appended successfully.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppendEventsResponse"
+              examples:
+                success:
+                  value:
+                    newVersion: 188
+                    events:
+                      - version: 188
+                        id: 44444444-4444-4444-4444-444444444444
+                        type: USER_CREATED
+                        entityId: user-123
+                        entityVersion: 1
+                        timestamp: 1717323612903
+                        payload:
+                          name: John Doe
+                          email: john@example.com
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "409":
+          description: |
+            Entity conflict, malformed entity version chain, request ID reuse with different content,
+            or an action or event id that the log already accepted.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/ConflictResponse"
+                  - $ref: "#/components/schemas/EntityVersionChainErrorResponse"
+                  - $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                entityConflict:
+                  summary: Entity version conflict
+                  value:
+                    code: entity_conflict
+                    entityId: user-123
+                    currentEntityVersion: 3
+                    currentLogVersion: 190
+                  description: |
+                    Client attempted to append with baseEntityVersion=1, but the entity is now at version 3.
+                    Client should fetch events for user-123 after entity version 1 and retry.
+                invalidEntityVersionChain:
+                  summary: Later event does not continue the batch chain
+                  value:
+                    error: ValidationError
+                    code: invalid_entity_version_chain
+                    message: baseEntityVersion does not continue the entity version chain
+                    entityId: user-123
+                    expectedBaseEntityVersion: 2
+                    actualBaseEntityVersion: 1
+                idempotencyMismatch:
+                  summary: Request ID reused with different content
+                  value:
+                    error: Conflict
+                    code: idempotency_mismatch
+                    message: requestId was already used with different request content
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          description: |
+            The JSON body does not match the request schema, or the deployment enforces event
+            validation (`EVENT_VALIDATION=enforce`) and an event is of an unknown type or has a
+            payload key of the wrong kind or a missing required key. The latter returns
+            `code: invalid_event_payload` and a `message` naming the event and key.
+    get:
+      operationId: listEvents
+      summary: Fetch events after a version
+      parameters:
+        - $ref: "#/components/parameters/AfterVersion"
+        - $ref: "#/components/parameters/Limit"
+      description: |
+        Returns at most `limit` events with `version` greater than `afterVersion`.
+        Page until fewer than `limit` events are returned.
+        Available to app tokens in the same app.
+      responses:
+        "200":
+          description: Events after the requested version.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventBatch"
+              examples:
+                default:
+                  value:
+                    events:
+                      - version: 181
+                        id: 66666666-6666-6666-6666-666666666666
+                        type: TRANSACTION_UPDATED
+                        entityId: txn-5a00
+                        entityVersion: 2
+                        timestamp: 1717319500111
+                        payload:
+                          amount: 420.0
+                      - version: 182
+                        id: 77777777-7777-7777-7777-777777777777
+                        type: ASSET_ADDED
+                        entityId: asset-33a8
+                        entityVersion: 1
+                        timestamp: 1717319610786
+                        payload:
+                          name: Savings
+                          amount: 3000
+                          asset_type: cash
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /logs/{logId}/events/socket:
+    parameters:
+      - $ref: "#/components/parameters/LogId"
+      - name: afterVersion
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+        description: Last locally committed log version used for socket catch-up.
+    get:
+      operationId: connectEventSocket
+      summary: Upgrade to the ledger.v1 WebSocket protocol
+      description: |
+        The browser connects through the same-origin frontend gateway, which
+        injects the app bearer credential while forwarding the upgrade through
+        a Cloudflare service binding. The server sends `event`, `ready`,
+        `resync_required`, and `error` JSON frames. Client messages are not
+        supported.
+      responses:
+        "101":
+          description: WebSocket upgrade accepted.
+        "400":
+          description: The `ledger.v1` subprotocol was not requested.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: |
+            The client must upgrade to read this log (`client_upgrade_required`), or the log is a
+            fork that is still being prepared (`fork_preparing`).
+        "426":
+          description: The request is not a WebSocket upgrade.
+  /admin/v1/apps:
+    get:
+      operationId: listApps
+      summary: List apps
+      description: Returns app lifecycle metadata for operators. Requires `ADMIN_TOKEN`.
+      security:
+        - adminBearerAuth: []
+      responses:
+        "200":
+          description: List of apps.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminAppListResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      operationId: createApp
+      summary: Create app
+      description: Creates an app and returns its newly generated app token exactly once.
+      security:
+        - adminBearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminCreateAppRequest"
+      responses:
+        "201":
+          description: App created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminAppTokenResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /admin/v1/apps/{appId}/revoke:
+    parameters:
+      - $ref: "#/components/parameters/AppId"
+    post:
+      operationId: revokeApp
+      summary: Revoke app
+      description: Revokes the app and all active principals in that app.
+      security:
+        - adminBearerAuth: []
+      responses:
+        "200":
+          description: Revoked app summary.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminAppSummary"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /admin/v1/apps/{appId}/logs:
+    parameters:
+      - $ref: "#/components/parameters/AppId"
+    get:
+      operationId: listAppLogsAsAdmin
+      summary: List an app's logs
+      description: Returns logical log metadata for an active or revoked app. Requires `ADMIN_TOKEN`.
+      security:
+        - adminBearerAuth: []
+      responses:
+        "200":
+          description: List of application logs.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LogListResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /admin/v1/apps/{appId}/logs/{logId}/lineage:
+    parameters:
+      - $ref: "#/components/parameters/AppId"
+      - $ref: "#/components/parameters/LogId"
+    post:
+      operationId: setRestoredLogLineage
+      summary: Restore a fork's source relationship
+      description: Admin-only logical backup restore step. Validates the child prefix against the mapped parent and rejects cycles.
+      security:
+        - adminBearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [sourceLogId, sourceVersion]
+              additionalProperties: false
+              properties:
+                sourceLogId: { type: string, format: uuid }
+                sourceVersion: { type: integer, minimum: 0 }
+      responses:
+        "200":
+          description: Updated log metadata.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LogSummary"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /admin/v1/apps/{appId}/connections:
+    parameters:
+      - $ref: "#/components/parameters/AppId"
+    get:
+      operationId: listAppConnectionsAsAdmin
+      summary: Inspect live and recent WebSocket connections
+      description: Samples the Durable Object runtime, including closing sockets. Client handshake metadata is descriptive, not authenticated identity. Cursor is the last event sent, not a client acknowledgement. Legacy metadata may be null. Connection changes between pages are reflected live. Every page also lists recently started sessions that are no longer attached; clients close their stream while hidden, so live sockets alone rarely show who uses an application.
+      security:
+        - adminBearerAuth: []
+      parameters:
+        - name: afterId
+          in: query
+          description: Exclusive connection ID cursor. Pages contain at most 100 connections.
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Live connection page.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminConnectionPage"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /admin/v1/apps/{appId}/export/sqlite:
+    parameters:
+      - $ref: "#/components/parameters/AppId"
+    get:
+      operationId: exportAppSqliteAsAdmin
+      summary: Export every Ledger-owned SQL table for an application
+      description: Streams a SQL dump of schema, metadata, logs, events, entity claims, migration records and idempotency rows. Includes revoked applications. Interleaved Ledger writes or schema changes abort the stream; incomplete downloads must be discarded. No storage mutation is performed.
+      security:
+        - adminBearerAuth: []
+      responses:
+        "200":
+          $ref: "#/components/responses/SqliteExport"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /admin/v1/registry/export/sqlite:
+    get:
+      operationId: exportRegistrySqliteAsAdmin
+      summary: Export all registry SQL tables
+      description: Includes all application registrations, provisioning state, principal metadata, migrations and indexes. The registry and each application are separate databases; separate downloads are not one atomic cross-database snapshot.
+      security:
+        - adminBearerAuth: []
+      responses:
+        "200":
+          $ref: "#/components/responses/SqliteExport"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /admin/v1/apps/{appId}/metrics:
+    parameters:
+      - $ref: "#/components/parameters/AppId"
+    get:
+      operationId: getAppMetricsAsAdmin
+      summary: Sample application storage and connection metrics
+      description: Includes active and revoked applications. Counts cover current logs only.
+      security:
+        - adminBearerAuth: []
+      responses:
+        "200":
+          description: A per-application snapshot, not request or billing analytics.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminMetrics"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /admin/v1/apps/{appId}/logs/{logId}/events:
+    parameters:
+      - $ref: "#/components/parameters/AppId"
+      - $ref: "#/components/parameters/LogId"
+    get:
+      operationId: listLogEventsAsAdmin
+      summary: Browse all stored events in descending version order
+      description: Includes revoked applications. Search uses case-insensitive substrings over event type, entity ID and event ID across the selected log; payloads are not searched. Older pages exclude events appended after the first page was read.
+      security:
+        - adminBearerAuth: []
+      parameters:
+        - name: beforeVersion
+          in: query
+          description: Exclusive upper version bound; omit to start at the newest event.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 9007199254740991
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+        - name: search
+          in: query
+          schema:
+            type: string
+            maxLength: 200
+      responses:
+        "200":
+          description: Event page; a null nextBeforeVersion means the end of the matching history.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEventPage"
+        "400":
+          description: Invalid pagination or search parameters.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /admin/v1/apps/{appId}/export:
+    parameters:
+      - $ref: "#/components/parameters/AppId"
+    get:
+      operationId: exportAppAsAdmin
+      summary: Download all logical app data
+      description: |
+        Streams a consistent JSON snapshot containing application metadata,
+        every log, and every event through each log's captured head version.
+        Authentication secrets and internal idempotency rows are not included.
+      security:
+        - adminBearerAuth: []
+      responses:
+        "200":
+          description: Streamed application export.
+          headers:
+            Content-Disposition:
+              schema:
+                type: string
+              description: Attachment filename for the JSON export.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminApplicationExport"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /admin/v1/apps/{appId}/fence:
+    parameters:
+      - $ref: "#/components/parameters/AppId"
+    get:
+      operationId: getAppFence
+      summary: Get an app's write fence
+      security:
+        - adminBearerAuth: []
+      responses:
+        "200":
+          description: "`{ fence: null }` or `{ fence: { mode, destination } }`."
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      operationId: setAppFence
+      summary: Set or lift an app's write fence
+      description: "`tenant_migrating` pauses writes (503, `Retry-After`); `moved` ends them (410 with the destination origin); `off` lifts the fence. Reads stay open."
+      security:
+        - adminBearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                mode:
+                  type: string
+                  enum: [off, tenant_migrating, moved]
+                destination:
+                  type: string
+                  description: HTTPS origin; only with `moved`.
+              required:
+                - mode
+              additionalProperties: false
+      responses:
+        "200":
+          description: The fence now in force.
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /admin/v1/apps/{appId}/transfer:
+    parameters:
+      - $ref: "#/components/parameters/AppId"
+    get:
+      operationId: exportAppTransfer
+      summary: Export an app for an identity-preserving import
+      description: |
+        Streams NDJSON: the application, then for each log its record, its events
+        (with authors and action batches), and its idempotency records, then fork
+        requests and a totals line. Refused with `409 fork_preparing` while a fork is
+        still copying its files.
+      security:
+        - adminBearerAuth: []
+      responses:
+        "200":
+          description: The transfer stream.
+          content:
+            application/x-ndjson:
+              schema:
+                type: string
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: A fork is still preparing.
+  /admin/v1/apps/{appId}/checksums:
+    parameters:
+      - $ref: "#/components/parameters/AppId"
+    get:
+      operationId: getAppChecksums
+      summary: Per-log event checksums
+      description: One SHA-256 per log over its events in version order, with the head version and event count, for comparing a source with its imported copy.
+      security:
+        - adminBearerAuth: []
+      responses:
+        "200":
+          description: Checksums per log.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /admin/v1/import:
+    post:
+      operationId: beginImport
+      summary: Begin an identity-preserving import
+      description: Creates the application under its original id, empty and unusable (no token exists) until the import finishes. Accepted only by a Ledger with no application (`409 ledger_not_empty`).
+      security:
+        - adminBearerAuth: []
+      responses:
+        "201":
+          description: The application now awaits its records.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          description: The Ledger already has an application.
+  /admin/v1/apps/{appId}/import:
+    parameters:
+      - $ref: "#/components/parameters/AppId"
+    post:
+      operationId: importRecords
+      summary: Import a chunk of transfer records
+      description: "`{ records: [...] }` taken from the export stream in order. Strictly validated: a gap in versions, an entity version that does not follow, or a log that does not exist yet is refused."
+      security:
+        - adminBearerAuth: []
+      responses:
+        "200":
+          description: Counts of what was imported.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Out of order, a gap, or not importing.
+  /admin/v1/apps/{appId}/import/abort:
+    parameters:
+      - $ref: "#/components/parameters/AppId"
+    post:
+      operationId: abortImport
+      summary: Abort an import in progress
+      description: Empties an application whose import failed so the Ledger is empty again and the import can start over. Refused once the import has finished.
+      security:
+        - adminBearerAuth: []
+      responses:
+        "204":
+          description: The half-imported application is gone.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /admin/v1/apps/{appId}/import/finish:
+    parameters:
+      - $ref: "#/components/parameters/AppId"
+    post:
+      operationId: finishImport
+      summary: Finish an import
+      description: "`{ logs: [{ id, headVersion }] }` as the source reported. The application opens only when every log holds exactly that many contiguous events."
+      security:
+        - adminBearerAuth: []
+      responses:
+        "200":
+          description: The application is active; mint its token with rotate-token.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: The history is incomplete.
+  /admin/v1/apps/{appId}/policy:
+    parameters:
+      - $ref: "#/components/parameters/AppId"
+    get:
+      operationId: getAppPolicy
+      summary: Get an app's event policy
+      description: Returns the policy the app's appends are checked against, or `null` for an app created before policies existed (it accepts every module's events and runtime entity types, in the deployment's validation mode).
+      security:
+        - adminBearerAuth: []
+      responses:
+        "200":
+          description: The app's event policy.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  policy:
+                    oneOf:
+                      - $ref: "#/components/schemas/AdminEventPolicy"
+                      - type: "null"
+                required:
+                  - policy
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      operationId: setAppPolicy
+      summary: Set an app's event policy
+      description: Replaces the policy. Events already accepted are never re-judged; later appends follow it.
+      security:
+        - adminBearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminEventPolicy"
+      responses:
+        "200":
+          description: The policy now in force.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEventPolicy"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /admin/v1/apps/{appId}/rotate-token:
+    parameters:
+      - $ref: "#/components/parameters/AppId"
+    post:
+      operationId: rotateAppToken
+      summary: Rotate app token
+      description: Revokes the current app token and returns a new generated token exactly once.
+      security:
+        - adminBearerAuth: []
+      responses:
+        "200":
+          description: New app token returned once.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminAppTokenResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: opaque
+    adminBearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: opaque
+  parameters:
+    LogId:
+      name: logId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: Identifier of the log to operate on (as returned by `/logs`).
+    AfterVersion:
+      name: afterVersion
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 0
+        default: 0
+      description: >
+        Only return events with `version` greater than this number.
+        Omit or set to 0 to begin with the first event.
+    Limit:
+      name: limit
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        default: 512
+      description: Maximum events returned in one page. Values above 512 are clamped.
+    AppId:
+      name: appId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: Identifier of the app.
+  responses:
+    SqliteExport:
+      description: A streamed SQL dump, suitable for sqlite3 or incremental reconstruction by the admin UI. Contains statement-boundary comments and ends with the ledger-sqlite-export-complete marker. Excludes Cloudflare private tables, KV, WebSocket attachments, Worker secrets and PITR history. This is not a raw physical SQLite file.
+      headers:
+        Content-Disposition:
+          description: Attachment filename ending in .sql.
+          schema: { type: string }
+        Cache-Control:
+          schema: { type: string, const: no-store }
+      content:
+        application/sql:
+          schema: { type: string }
+    Unauthorized:
+      description: Missing, invalid, or revoked bearer token.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            error: Unauthorized
+            code: unauthorized
+            message: Invalid bearer token
+    NotFound:
+      description: Log not found in the caller's app scope.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            error: NotFound
+            code: log_not_found
+    ValidationError:
+      description: Request validation failed.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            error: ValidationError
+            code: validation_error
+            message: app name must not be empty
+  schemas:
+    AdminConnectionPage:
+      type: object
+      required: [sampledAt, total, unavailable, connections, nextAfterId, recent]
+      properties:
+        sampledAt: { type: string, format: date-time }
+        total: { type: integer, minimum: 0 }
+        unavailable:
+          type: integer
+          minimum: 0
+          description: Attached sockets with unreadable metadata, omitted from the connection list.
+        nextAfterId: { type: [string, "null"], format: uuid }
+        connections:
+          type: array
+          maxItems: 100
+          items:
+            $ref: "#/components/schemas/AdminConnection"
+        recent:
+          type: array
+          maxItems: 50
+          description: Sessions no longer attached, newest connection first. Ledger keeps the 50 most recent sessions per application, including live ones; the list is the same on every page.
+          items:
+            $ref: "#/components/schemas/AdminRecentConnection"
+    AdminConnection:
+      type: object
+      required: [id, logId, logName, principalId, generation, state, cursor, headVersion, connectedAt, lastSentAt, client]
+      properties:
+        id: { type: string, format: uuid }
+        logId: { type: string, format: uuid }
+        logName: { type: [string, "null"] }
+        principalId: { type: string, format: uuid }
+        generation: { type: integer, minimum: 1 }
+        state: { type: string, enum: [connecting, open, closing, closed] }
+        cursor: { type: integer, minimum: 0 }
+        headVersion: { type: [integer, "null"], minimum: 0 }
+        connectedAt: { type: [string, "null"], format: date-time }
+        lastSentAt: { type: [string, "null"], format: date-time }
+        client:
+          type: object
+          required: [userAgent, ip, country, colo]
+          properties:
+            userAgent: { type: [string, "null"] }
+            ip: { type: [string, "null"] }
+            country: { type: [string, "null"] }
+            colo: { type: [string, "null"] }
+    AdminRecentConnection:
+      type: object
+      required: [id, logId, logName, principalId, generation, cursor, connectedAt, disconnectedAt, closeCode, lastSentAt, client]
+      properties:
+        id: { type: string, format: uuid }
+        logId: { type: string, format: uuid }
+        logName: { type: [string, "null"] }
+        principalId: { type: string, format: uuid }
+        generation: { type: integer, minimum: 1 }
+        cursor:
+          type: integer
+          minimum: 0
+          description: Last event sent before the session ended.
+        connectedAt: { type: string, format: date-time }
+        disconnectedAt:
+          type: [string, "null"]
+          format: date-time
+          description: Null when the session ended without a close notification, for example during a deployment.
+        closeCode: { type: [integer, "null"], minimum: 0 }
+        lastSentAt: { type: [string, "null"], format: date-time }
+        client:
+          type: object
+          required: [userAgent, ip, country, colo]
+          properties:
+            userAgent: { type: [string, "null"] }
+            ip: { type: [string, "null"] }
+            country: { type: [string, "null"] }
+            colo: { type: [string, "null"] }
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+        code:
+          type: string
+        message:
+          type:
+            - string
+            - "null"
+      required:
+        - error
+        - code
+    SessionResponse:
+      type: object
+      properties:
+        appId:
+          type: string
+          format: uuid
+        principalId:
+          type: string
+          format: uuid
+      required:
+        - appId
+        - principalId
+    AdminEventPolicy:
+      type: object
+      description: What an app may append. The core's events are always allowed.
+      properties:
+        contracts:
+          oneOf:
+            - type: array
+              items:
+                type: string
+                description: A module id such as `org.stor.finance`, or `core`.
+              maxItems: 64
+            - type: "null"
+          description: Modules whose event types are accepted; `null` accepts every module.
+        dynamicEvents:
+          type: boolean
+          description: Accept runtime-defined entity types (`ENTITY_TYPE_DEFINED` and their events).
+        validation:
+          oneOf:
+            - type: string
+              enum: [report, enforce]
+            - type: "null"
+          description: How violations are handled; `null` follows the deployment's `EVENT_VALIDATION`.
+      required:
+        - contracts
+        - dynamicEvents
+        - validation
+      additionalProperties: false
+    AdminCreateAppRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        policy:
+          $ref: "#/components/schemas/AdminEventPolicy"
+          description: Omitted, the app starts with `{ contracts: null, dynamicEvents: false, validation: enforce }`.
+      required:
+        - name
+      additionalProperties: false
+    AdminAppSummary:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        revokedAt:
+          type:
+            - string
+            - "null"
+          format: date-time
+        activeTokenCreatedAt:
+          type:
+            - string
+            - "null"
+          format: date-time
+      required:
+        - id
+        - name
+        - createdAt
+        - revokedAt
+        - activeTokenCreatedAt
+    AdminAppListResponse:
+      type: object
+      properties:
+        apps:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminAppSummary"
+      required:
+        - apps
+    AdminAppTokenResponse:
+      type: object
+      properties:
+        app:
+          $ref: "#/components/schemas/AdminAppSummary"
+        token:
+          type: string
+          description: Newly generated raw token returned exactly once.
+      required:
+        - app
+        - token
+    AdminApplicationExport:
+      type: object
+      properties:
+        format:
+          type: string
+          enum:
+            - ledger-application-export
+        version:
+          type: integer
+          enum:
+            - 1
+        exportedAt:
+          type: string
+          format: date-time
+        application:
+          $ref: "#/components/schemas/AdminAppSummary"
+        logs:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminExportedLog"
+      required:
+        - format
+        - version
+        - exportedAt
+        - application
+        - logs
+    AdminExportedLog:
+      allOf:
+        - $ref: "#/components/schemas/LogSummary"
+        - type: object
+          properties:
+            events:
+              type: array
+              items:
+                $ref: "#/components/schemas/AppEvent"
+          required:
+            - events
+    AdminMetrics:
+      type: object
+      additionalProperties: false
+      required: [sampledAt, logCount, eventCount, entityCount, databaseBytes, connectedClients, lastUpdatedAt]
+      properties:
+        sampledAt:
+          type: string
+          format: date-time
+        logCount:
+          type: integer
+          minimum: 0
+        eventCount:
+          type: integer
+          minimum: 0
+        entityCount:
+          type: integer
+          minimum: 0
+          description: Entity streams counted separately in each log.
+        databaseBytes:
+          type: integer
+          minimum: 0
+          description: SQLite storage including indexes and other Ledger tables.
+        connectedClients:
+          type: integer
+          minimum: 0
+          description: Attached WebSocket connections at sampling time.
+        lastUpdatedAt:
+          type: [string, "null"]
+          format: date-time
+    AdminEventPage:
+      type: object
+      additionalProperties: false
+      required: [events, headVersion, nextBeforeVersion]
+      properties:
+        events:
+          type: array
+          maxItems: 100
+          items:
+            $ref: "#/components/schemas/AppEvent"
+        headVersion:
+          type: integer
+          minimum: 0
+        nextBeforeVersion:
+          type: [integer, "null"]
+          minimum: 1
+    LogListResponse:
+      type: object
+      properties:
+        logs:
+          type: array
+          items:
+            $ref: "#/components/schemas/LogSummary"
+        lineage:
+          type: object
+          description: Server-ordered log roots and direct children for rendering fork lineage.
+          properties:
+            rootIds:
+              type: array
+              items: { type: string, format: uuid }
+            childIdsByLogId:
+              type: object
+              additionalProperties:
+                type: array
+                items: { type: string, format: uuid }
+          required: [rootIds, childIdsByLogId]
+          additionalProperties: false
+      required:
+        - logs
+        - lineage
+      additionalProperties: false
+    LogSummary:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Server-generated log identifier.
+        name:
+          type: string
+          description: Human-readable log name.
+        headVersion:
+          type: integer
+          minimum: 0
+          description: Current highest version in the log.
+        createdAt:
+          type: string
+          format: date-time
+          description: Timestamp when the log was created.
+        lastUpdatedAt:
+          type:
+            - string
+            - "null"
+          format: date-time
+          description: Timestamp of the most recent update.
+        sourceLogId:
+          type: [string, "null"]
+          format: uuid
+        sourceLogName:
+          type: [string, "null"]
+        sourceVersion:
+          type: [integer, "null"]
+          minimum: 0
+        sourceTimestamp:
+          type: [string, "null"]
+          format: date-time
+        hiddenAt:
+          type: [string, "null"]
+          format: date-time
+          description: When the log was hidden from the log tree, or null.
+          description: Timestamp of the accepted source event at sourceVersion.
+        status:
+          type: string
+          enum: [ready, preparing]
+      required:
+        - id
+        - name
+        - headVersion
+        - createdAt
+        - lastUpdatedAt
+        - sourceLogId
+        - sourceLogName
+        - sourceVersion
+        - sourceTimestamp
+        - status
+        - hiddenAt
+    LogVisibilityRequest:
+      type: object
+      properties:
+        hidden:
+          type: boolean
+      required:
+        - hidden
+      additionalProperties: false
+    ForkLogRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+        targetVersion:
+          type: integer
+          minimum: 0
+        expectedSourceHeadVersion:
+          type: integer
+          minimum: 0
+        requestId:
+          type: string
+          format: uuid
+      required: [name, targetVersion, expectedSourceHeadVersion, requestId]
+      additionalProperties: false
+    CreateLogRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Optional display name for the log. If omitted, the service may assign one.
+      additionalProperties: false
+    CreateLogResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Newly created log identifier.
+        name:
+          type: string
+          description: Effective log name (may be generated when none provided).
+        headVersion:
+          type: integer
+          minimum: 0
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - headVersion
+        - createdAt
+    LogMetadata:
+      allOf:
+        - $ref: "#/components/schemas/LogSummary"
+    AppendEventsRequest:
+      type: object
+      properties:
+        requestId:
+          type: string
+          format: uuid
+          description: Client-generated UUID used for idempotency.
+        events:
+          type: array
+          minItems: 1
+          maxItems: 512
+          description: Events to append (in desired order).
+          items:
+            $ref: "#/components/schemas/IncomingEvent"
+      required:
+        - requestId
+        - events
+      additionalProperties: false
+    IncomingEvent:
+      type: object
+      properties:
+        id:
+          type:
+            - string
+            - "null"
+          format: uuid
+          description: Optional event identifier supplied by the client. If omitted, the service generates one.
+        type:
+          type: string
+          description: Domain event type (e.g., `TRANSACTION_ADDED`).
+        entityId:
+          type: string
+          description: Identifier of the entity affected by the event. Required for all events.
+        baseEntityVersion:
+          type:
+            - integer
+            - "null"
+          format: int64
+          minimum: 0
+          description: |
+            Expected entity version immediately before this event. For an existing entity at version
+            `N`, repeated events in one request use `N`, `N+1`, and so on. For a new entity, omit the
+            first base and use `1`, `2`, and so on for later events in the same request.
+        timestamp:
+          type:
+            - integer
+            - "null"
+          format: int64
+          minimum: 0
+          maximum: 8640000000000000
+          description: Optional client timestamp in milliseconds since Unix epoch.
+        payload:
+          type: object
+          description: Event payload to persist as-is.
+      required:
+        - type
+        - entityId
+        - payload
+      additionalProperties: false
+    AppendEventsResponse:
+      type: object
+      properties:
+        newVersion:
+          type: integer
+          minimum: 0
+          description: Version assigned to the last persisted event.
+        events:
+          type: array
+          description: Events actually stored (with server-assigned ids/timestamps/versions).
+          items:
+            $ref: "#/components/schemas/AppEvent"
+      required:
+        - newVersion
+        - events
+    ConflictResponse:
+      type: object
+      properties:
+        code:
+          type: string
+          const: entity_conflict
+        entityId:
+          type: string
+          description: The entity identifier that caused the conflict.
+        currentEntityVersion:
+          type: integer
+          format: int64
+          minimum: 1
+          description: Current version of the conflicting entity. Client should replay missing log events and retry with the correct baseEntityVersion.
+        currentLogVersion:
+          type: integer
+          minimum: 0
+          description: Current head version of the entire log (for context).
+      required:
+        - code
+        - entityId
+        - currentEntityVersion
+        - currentLogVersion
+    EntityVersionChainErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          const: ValidationError
+        code:
+          type: string
+          const: invalid_entity_version_chain
+        message:
+          type: string
+        entityId:
+          type: string
+        expectedBaseEntityVersion:
+          type:
+            - integer
+            - "null"
+          format: int64
+        actualBaseEntityVersion:
+          type:
+            - integer
+            - "null"
+          format: int64
+      required:
+        - error
+        - code
+        - message
+        - entityId
+        - expectedBaseEntityVersion
+        - actualBaseEntityVersion
+    EventBatch:
+      type: object
+      properties:
+        events:
+          type: array
+          items:
+            $ref: "#/components/schemas/AppEvent"
+      required:
+        - events
+    AppEvent:
+      type: object
+      properties:
+        version:
+          type: integer
+          minimum: 1
+          description: Monotonic sequence number within the log (global log version).
+        id:
+          type: string
+          format: uuid
+          description: Event identifier (typically a UUID).
+        type:
+          type: string
+          description: Domain event type (e.g., `TRANSACTION_ADDED`, `ASSET_UPDATED`).
+        entityId:
+          type: string
+          description: Identifier of the entity associated with the event.
+        entityVersion:
+          type: integer
+          format: int64
+          minimum: 1
+          description: Monotonic sequence number specific to this entity. Starts at 1 for each entity's first event.
+        timestamp:
+          type: integer
+          format: int64
+          description: Milliseconds since Unix epoch when the event was committed.
+        payload:
+          type: object
+          description: Event-specific data; mirrors the client’s expectations.
+        actor:
+          type: string
+          maxLength: 320
+          description: Identity the gateway verified for the request that wrote the event. Absent for events accepted without one.
+      required:
+        - version
+        - id
+        - type
+        - entityId
+        - entityVersion
+        - timestamp
+        - payload

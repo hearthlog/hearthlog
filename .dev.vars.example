@@ -1,0 +1,17 @@
+LEDGER_AUTH_TOKEN=replace-with-a-ledger-app-token
+LEDGER_ADMIN_TOKEN=replace-with-the-ledger-admin-token
+INVOICE_RENDERER_TOKEN=replace-with-the-invoice-renderer-bearer-token
+CF_ACCESS_TEAM_DOMAIN=https://your-team.cloudflareaccess.com
+CF_ACCESS_ADMIN_AUD=replace-with-the-admin-access-application-audience
+CF_ACCESS_APP_AUD=replace-with-the-general-stor-access-application-audience
+CF_ACCESS_INTEGRATIONS_AUD=replace-with-the-integrations-access-application-audience
+# Vertex AI extraction: set exactly one credential. The express-mode API key is
+# the simplest; the service-account JSON is the production fallback. Without a
+# credential the AI extraction route answers 503 and the UI hides its button.
+INVOICE_EXTRACTION_API_KEY=replace-with-a-vertex-express-mode-api-key
+INVOICE_EXTRACTION_SERVICE_ACCOUNT=replace-with-a-service-account-json
+
+# Vertex AI extraction model and region. Both are optional: empty uses the Worker's defaults
+# (gemini-3.8-flash, global). Set them as Worker variables or secrets to override.
+INVOICE_EXTRACTION_MODEL=
+INVOICE_EXTRACTION_LOCATION=

@@ -1,0 +1,11 @@
+# What `hearthlog build` writes; only .generated/package.json is committed.
+/.generated/*
+!/.generated/package.json
+/.svelte-kit/
+/build/
+# The seal of a build (`hearthlog artifact manifest`): it travels with the release artifact, not with the source.
+/artifact-manifest.json
+node_modules/
+# Native apps (`hearthlog apple:*`): build output and personal device settings
+/.apple-build/
+/resign.local.json

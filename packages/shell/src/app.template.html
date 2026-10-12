@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <link rel="icon" href="%sveltekit.assets%/icons/%%BRAND_ID%%/favicon.ico" sizes="48x48" />
+        <link rel="apple-touch-icon" href="%sveltekit.assets%/icons/%%BRAND_ID%%/apple-touch-icon.png" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="theme-color" content="%%BRAND_THEME_COLOR%%" />
+        <link rel="manifest" href="%sveltekit.assets%/manifest.webmanifest" />
+        <style>
+            html,html[data-theme="light"]{%%BRAND_THEME%%}
+            html[data-theme="dark"]{%%BRAND_DARK_THEME%%}
+            @media(prefers-color-scheme:dark){html:not([data-theme]){%%BRAND_DARK_THEME%%}}
+            @media print{html,html[data-theme="dark"]{%%BRAND_THEME%%}}
+        </style>
+        <script>
+            (() => {
+                const appearanceKey = 'stor:appearance:%%BRAND_ID%%';
+                let appearance = 'system';
+                try {
+                    const stored = localStorage.getItem(appearanceKey);
+                    if (stored === 'light' || stored === 'dark' || stored === 'system') appearance = stored;
+                } catch {}
+                const theme = appearance === 'system'
+                    ? (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+                    : appearance;
+                document.documentElement.dataset.appearance = appearance;
+                document.documentElement.dataset.theme = theme;
+                document.documentElement.style.colorScheme = theme;
+                const themeColor = getComputedStyle(document.documentElement).getPropertyValue('--stor-theme-color').trim();
+                const themeMeta = document.querySelector('meta[name="theme-color"]');
+                if (themeMeta && themeColor) themeMeta.content = themeColor;
+                // Mirrors the layout: a rail below 1024px, the saved choice if there is one, otherwise a rail below 1280px.
+                let sidebarChoice = null;
+                try { sidebarChoice = localStorage.getItem('stor:sidebar-collapsed'); } catch {}
+                const viewportWidth = window.innerWidth;
+                // The saved width (192-336px) sizes the boot shell and the layout until the page takes over.
+                try {
+                    const savedWidth = Number(localStorage.getItem('stor:sidebar-width'));
+                    if (savedWidth > 0) document.documentElement.style.setProperty('--stor-sidebar-width', Math.min(336, Math.max(192, Math.round(savedWidth))) + 'px');
+                } catch {}
+                document.documentElement.dataset.sidebarCollapsed = String(viewportWidth < 1024 || (sidebarChoice === null ? viewportWidth < 1280 : sidebarChoice === 'true'));
+                // Native shell (apple/): the shell defines window.storShell before any page script runs.
+                const shellKind = window.storShell && window.storShell.kind;
+                if (shellKind === 'mac' || shellKind === 'ios') {
+                    document.documentElement.dataset.storShell = shellKind;
+                    if (window.storShell.lights) document.documentElement.style.setProperty('--stor-shell-lights', window.storShell.lights + 'px');
+                    if (shellKind === 'ios') {
+                        // Edge to edge: the page owns the safe areas through env(safe-area-inset-*).
+                        const viewport = document.querySelector('meta[name="viewport"]');
+                        if (viewport) viewport.content = 'width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover';
+                    }
+                    try {
+                        window.webkit.messageHandlers.stor.postMessage({ type: 'appearance', body: { preference: appearance, resolved: theme, background: getComputedStyle(document.documentElement).getPropertyValue('--stor-bg').trim() } });
+                    } catch {}
+                }
+                const reloadGuardKey = 'stor:boot-reload-attempt';
+                const moduleErrorPattern = /dynamically imported module|failed to load module script|importing a module script failed|vite:preloaderror/i;
+                let recoveryTimer = setTimeout(() => {
+                    showRecovery('Opening the app is taking longer than expected.');
+                }, 8000);
+
+                function showRecovery(message) {
+                    const shell = document.getElementById('stor-boot-shell');
+                    const visibleStatus = document.getElementById('stor-boot-message');
+                    const liveStatus = document.getElementById('stor-boot-status');
+                    if (!shell) return;
+                    shell.removeAttribute('inert');
+                    shell.setAttribute('aria-hidden', 'false');
+                    shell.classList.add('stor-boot-needs-attention');
+                    if (visibleStatus) visibleStatus.textContent = message;
+                    if (liveStatus) liveStatus.textContent = `${message} You can retry without clearing local data.`;
+                }
+
+                function recoverFromModuleFailure(event) {
+                    // Do NOT preventDefault(): Vite resolves a failed dynamic
+                    // `import()` with `undefined` when `vite:preloadError` is
+                    // cancelled, which makes SvelteKit crash reading
+                    // `node.universal` and skips its offline error page.
+                    // Letting the rejection through keeps the app recoverable.
+                    let previousAttempt = 0;
+                    try {
+                        previousAttempt = Number(sessionStorage.getItem(reloadGuardKey) ?? 0);
+                    } catch {
+                        // Storage can be unavailable in a privacy-restricted context.
+                    }
+                    if (navigator.onLine && Date.now() - previousAttempt > 60000) {
+                        try {
+                            sessionStorage.setItem(reloadGuardKey, String(Date.now()));
+                        } catch {
+                            showRecovery('The latest app files could not be opened.');
+                            return;
+                        }
+                        location.reload();
+                        return;
+                    }
+                    showRecovery(
+                        navigator.onLine
+                            ? 'The latest app files could not be opened.'
+                            : 'The app update is not available while offline.',
+                    );
+                }
+
+                addEventListener('stor:app-mounted', () => {
+                    clearTimeout(recoveryTimer);
+                    const shell = document.getElementById('stor-boot-shell');
+                    const status = document.getElementById('stor-boot-status');
+                    shell?.remove();
+                    status?.remove();
+                }, { once: true });
+                addEventListener('stor:app-ready', () => {
+                    try {
+                        sessionStorage.removeItem(reloadGuardKey);
+                    } catch {
+                        // Storage can be unavailable in a privacy-restricted context.
+                    }
+                }, { once: true });
+                addEventListener('stor:boot-failed', (event) => {
+                    clearTimeout(recoveryTimer);
+                    showRecovery(event.detail?.message ?? 'stor could not finish opening.');
+                });
+                addEventListener('vite:preloadError', recoverFromModuleFailure);
+                addEventListener('error', (event) => {
+                    const failedScript = event.target instanceof HTMLScriptElement;
+                    const details = `${event.message ?? ''} ${event.error?.message ?? ''}`;
+                    if (failedScript || moduleErrorPattern.test(details)) recoverFromModuleFailure(event);
+                }, true);
+                addEventListener('unhandledrejection', (event) => {
+                    const details = event.reason instanceof Error ? event.reason.message : String(event.reason ?? '');
+                    if (moduleErrorPattern.test(details)) recoverFromModuleFailure(event);
+                });
+                addEventListener('click', (event) => {
+                    if (event.target instanceof Element && event.target.closest('#stor-boot-retry')) {
+                        location.reload();
+                    }
+                });
+            })();
+        </script>
+        <style>
+            :root{--boot-bg:var(--stor-bg);--boot-border:var(--stor-border);--boot-sidebar-width:var(--stor-sidebar-width,224px);--boot-sidebar-margin:12px;--boot-sidebar-radius:20px}
+            html[data-sidebar-collapsed="true"]{--boot-sidebar-width:80px}html,body{margin:0;min-width:320px;background:var(--boot-bg)}
+            /* Shared with NavBar: branding must keep the same geometry before and after mount. */
+            :root{--stor-font-sans:'Inter Variable',ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;--stor-font-mono:'Fira Code Variable',ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,'Liberation Mono','Courier New',monospace}
+            .stor-mark{display:inline-block;width:.78em;height:1.1em;flex-shrink:0;vertical-align:-.18em;background:var(--stor-action);-webkit-mask:%%BRAND_MARK_MASK%% center/contain no-repeat;mask:%%BRAND_MARK_MASK%% center/contain no-repeat}
+            .stor-brand-logo{display:flex;align-items:center;justify-content:center;width:36px;height:36px;flex-shrink:0;font-size:32px}
+            .stor-brand-title{font:600 18px/28px var(--stor-font-sans);letter-spacing:.04em}
+            .stor-wordmark{white-space:nowrap}.stor-wordmark .stor-mark{margin:0 .03em}
+            #stor-boot-shell{position:fixed;inset:0;z-index:9998;background:var(--boot-bg);font:14px/1.5 var(--stor-font-sans);color:var(--stor-ink)}
+            .stor-boot-sidebar{position:absolute;left:var(--boot-sidebar-margin);top:var(--boot-sidebar-margin);bottom:var(--boot-sidebar-margin);width:var(--boot-sidebar-width);background:var(--stor-sidebar);border:0;border-radius:var(--boot-sidebar-radius);box-shadow:var(--stor-sidebar-shadow);box-sizing:border-box;overflow:hidden}
+            .stor-boot-brandbar{height:72px;display:flex;gap:12px;align-items:center;padding:0 14px;box-sizing:border-box}
+            html[data-sidebar-collapsed="true"] .stor-boot-brandbar{justify-content:center;padding:0 8px}
+            .stor-boot-mark{display:none}
+            html[data-sidebar-collapsed="true"] .stor-boot-title{display:none}html[data-sidebar-collapsed="true"] .stor-boot-mark{display:flex}
+            .stor-boot-mobile-head,.stor-boot-mobile-nav{display:none}
+            .stor-boot-recovery{display:none;position:absolute;right:24px;bottom:24px;max-width:360px;border:1px solid var(--boot-border);border-radius:16px;background:var(--stor-surface-raised);padding:16px;box-shadow:0 12px 32px var(--stor-overlay)}
+            .stor-boot-needs-attention .stor-boot-recovery{display:block}.stor-boot-recovery h1{font-size:16px}.stor-boot-recovery p{font-size:13px;line-height:1.5;color:var(--stor-muted-text)}.stor-boot-recovery button{border:0;border-radius:10px;background:var(--stor-action);color:var(--stor-action-text);padding:10px 14px;cursor:pointer}
+            .stor-boot-status{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+            /* Mac shell: the web view is transparent over the window's glass; mirrors app.css so the boot frame matches the app. */
+            html[data-stor-shell="mac"]{--boot-bg:transparent}
+            html[data-stor-shell="mac"] #stor-boot-shell{background:linear-gradient(to right,transparent calc(var(--boot-sidebar-width) + 2 * var(--boot-sidebar-margin)),color-mix(in srgb,var(--stor-bg) 86%,transparent) 0)}
+            html[data-stor-shell="mac"] .stor-boot-sidebar{background:color-mix(in srgb,var(--stor-sidebar) 56%,transparent)}
+            html[data-stor-shell="mac"]:not([data-sidebar-collapsed="true"]) .stor-boot-brandbar{height:52px;padding-left:76px}
+            /* The Mac sidebar shows no brand; the bar stays to hold the drag space under the window controls. */
+            html[data-stor-shell="mac"] .stor-boot-brandbar>*{display:none}
+            @media(max-width:767px){.stor-brand-logo{font-size:28px}.stor-boot-sidebar{display:none}.stor-boot-mobile-head{display:flex;align-items:center;box-sizing:border-box;height:calc(56px + env(safe-area-inset-top));padding:env(safe-area-inset-top) 12px 0;background:var(--stor-bg)}.stor-boot-mobile-nav{display:block;position:absolute;left:12px;right:12px;bottom:max(12px,env(safe-area-inset-bottom));height:64px;background:var(--stor-surface-raised);border-radius:24px;box-shadow:var(--stor-shadow-md)}.stor-boot-recovery{left:16px;right:16px;bottom:84px}}
+            @media(max-width:359px){.stor-boot-mobile-title{display:none}}@media(min-width:360px){.stor-boot-mobile-head .stor-brand-logo{display:none}}
+        </style>
+        %sveltekit.head%
+    </head>
+    <body data-sveltekit-preload-code="hover">
+        <div id="stor-boot-shell" inert aria-hidden="true">
+            <aside class="stor-boot-sidebar"><div class="stor-boot-brandbar"><span class="stor-boot-title stor-brand-title">%%BRAND_WORDMARK%%</span><span class="stor-boot-mark stor-brand-logo"><span class="stor-mark"></span></span></div></aside>
+            <div class="stor-boot-mobile-head"><span class="stor-brand-logo"><span class="stor-mark"></span></span><span class="stor-brand-title stor-boot-mobile-title">%%BRAND_WORDMARK%%</span></div>
+            <div class="stor-boot-mobile-nav"></div>
+            <section class="stor-boot-recovery" aria-labelledby="stor-boot-recovery-title">
+                <h1 id="stor-boot-recovery-title" class="stor-boot-recovery-title">%%BRAND_TITLE%% needs another moment</h1>
+                <p id="stor-boot-message">Opening the app is taking longer than expected.</p>
+                <button id="stor-boot-retry" type="button">Retry loading</button>
+            </section>
+        </div>
+        <div id="stor-boot-status" class="stor-boot-status" role="status" aria-live="polite">Preparing local data…</div>
+        <div style="display: contents">%sveltekit.body%</div>
+    </body>
+</html>

@@ -1,0 +1,11 @@
+/*
+ * The shell's stylesheet: navigation, the dock and mobile chrome, the calendar page, and the
+ * native-shell tweaks. Import it after the design system's:
+ *
+ *     @import '@hearthlog/ui/styles/index.css';
+ *     @import '@hearthlog/shell/styles/index.css';
+ */
+@import './shell.css';
+
+/* The shell's components use Tailwind classes; scan them wherever the host's source root is. */
+@source '../';

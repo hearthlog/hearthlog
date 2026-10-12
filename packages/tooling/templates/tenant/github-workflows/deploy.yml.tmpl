@@ -1,0 +1,110 @@
+name: Deploy {{id}}
+
+# Two jobs. `build` has no secrets: it installs the locked dependencies, builds the site, and seals the result in
+# artifact-manifest.json. `deploy` runs in the protected `{{id}}` environment, so it starts only once a reviewer
+# approves, and it is the only job that holds secrets. It installs the same lockfile with scripts disabled, checks the
+# manifest, and deploys what `build` made. It never creates a Ledger token or signing key: provision the stack once
+# on your machine with `hearthlog apply`. Each run uploads its receipt (no secrets) as an artifact.
+#
+# In the `{{id}}` environment: CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID, and LEDGER_ADMIN_TOKEN (the administrator
+# token of this site's Ledger); optionally INVOICE_RENDERER_TOKEN, VERTEX_API_KEY, and VERTEX_SERVICE_ACCOUNT.
+
+on:
+  pull_request:
+  push:
+    branches: [main]{{pushPaths}}
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Validate and bundle without uploading
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build {{id}}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: 24
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Plan (read-only)
+        run: pnpm exec hearthlog plan --site {{id}}
+      - name: Build and seal
+        env:
+          VITE_STOR_TENANT: {{id}}
+        run: |
+          pnpm exec hearthlog build
+          pnpm exec hearthlog gallery-public:build --site {{id}}
+          pnpm exec vite build
+          pnpm exec hearthlog artifact manifest --site {{id}}
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release
+          path: |
+            build
+            .generated
+            artifact-manifest.json
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 14
+
+  deploy:
+    name: Deploy {{id}}
+    needs: build
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    environment: {{id}}
+    concurrency:
+      group: deploy-{{id}}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: 24
+          cache: pnpm
+      # No lifecycle script of any dependency runs in the job that holds the secrets.
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release
+          path: .
+      - name: Check the release against its manifest
+        run: pnpm exec hearthlog artifact verify --site {{id}}
+      - name: Deploy
+        env:
+          DRY_RUN: ${{ github.event.inputs.dry_run }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          LEDGER_ADMIN_TOKEN_{{idUpper}}: ${{ secrets.LEDGER_ADMIN_TOKEN }}
+          INVOICE_RENDERER_TOKEN: ${{ secrets.INVOICE_RENDERER_TOKEN }}
+          INVOICE_EXTRACTION_API_KEY: ${{ secrets.VERTEX_API_KEY }}
+          INVOICE_EXTRACTION_SERVICE_ACCOUNT: ${{ secrets.VERTEX_SERVICE_ACCOUNT }}
+        run: |
+          set -euo pipefail
+          args=(--site {{id}} --yes --skip-build --no-bootstrap)
+          if [ "$DRY_RUN" = "true" ]; then args+=(--dry-run); fi
+          pnpm exec hearthlog apply "${args[@]}"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: receipt
+          path: .wrangler/tenants/{{id}}/receipt.json
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 90

@@ -1,0 +1,6 @@
+{
+    "device": "My iPhone",
+    "sites": ["st"],
+    "bundlePrefix": "app.stor",
+    "renewWithinDays": 2
+}

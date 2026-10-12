@@ -1,0 +1,16 @@
+.env
+.env.*
+!.env.example
+.envrc
+.dev.vars
+.wrangler/
+build/
+target/
+
+*.db
+*.db-shm
+*.db-wal
+
+.DS_Store
+.idea/
+.kiro/

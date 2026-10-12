@@ -1,0 +1,9 @@
+# Month navigation
+
+Finance transactions and Calendar share the same month control. The month and year heading opens a month picker: an anchored popover on desktop and a bottom sheet on mobile. The picker offers a 12-month grid, adjacent-year arrows, and a year button that opens a 12-year grid. The picker trigger, previous and next controls, and **Today** action have 44px touch targets. **Today** appears only while viewing a different month; its space remains reserved so the arrows and picker size stay fixed while switching months.
+
+Neither page has month pages any more: both are endless lists (see [adding an endless list](adding-a-page.md#adding-an-endless-list)), and the control names the month in view. Its arrows, the picker and **Today** scroll the list instead of loading a page, and the address follows the month in view quietly (`replaceState`), so a reload opens there. Finance keeps the month in its route path and preserves the planned or done view. Budget plans remain independent of month navigation.
+
+Calendar keeps the month in `?month=YYYY-MM`, opens with that month's first week at the top, and returns focus to the grid after a month change. Its weeks run on without a break, one virtualized row per week, and are read from SQL in six-week blocks (`getCalendarWeeks`), which also places multi-day items in each week. The month in view is the one holding most of the days of the weeks on screen. Moving to a month selects today there or its first day; scrolling by hand keeps the selected day. On the focused grid, the arrow keys move a month, Page Up and Page Down a year, and Home goes to today. When today is off screen, a **Today** button floats over the weeks. **Export .ics** exports the month in view.
+
+Finance uses the compact desktop layout, placing the previous and next arrows beside the month heading. Calendar keeps the spread layout. Both reserve the same Today slot when it is hidden, and both keep the original mobile arrangement.

@@ -1,0 +1,4 @@
+ADMIN_TOKEN=replace-with-a-local-admin-token
+TOKEN_SIGNING_KEY_CURRENT=replace-with-at-least-32-random-bytes
+# TOKEN_SIGNING_KEY_PREVIOUS=
+ALLOWED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173,http://127.0.0.1:8787

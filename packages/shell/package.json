@@ -1,0 +1,54 @@
+{
+  "name": "@hearthlog/shell",
+  "version": "0.1.0",
+  "description": "Hearthlog's application shell: layout and navigation, the log panel and history, the calendar, sync status, and the pages the host serves",
+  "license": "AGPL-3.0-only",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hearthlog/hearthlog.git",
+    "directory": "packages/shell"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "files": [
+    "src",
+    "static",
+    "!**/*.test.ts"
+  ],
+  "type": "module",
+  "exports": {
+    "./styles/*.css": "./src/styles/*.css",
+    "./*.svelte.js": "./src/*.svelte.ts",
+    "./*.js": "./src/*.ts",
+    "./*.svelte": "./src/*.svelte",
+    "./package.json": "./package.json"
+  },
+  "imports": {
+    "#generated/module-icons": "@hearthlog/generated/module-icons",
+    "#generated/modules": "@hearthlog/generated/modules"
+  },
+  "dependencies": {
+    "@tanstack/svelte-table": "^9.2.4",
+    "bits-ui": "^2.19.3",
+    "date-fns": "^4.4.0",
+    "@hearthlog/contracts": "workspace:*",
+    "@hearthlog/czech": "workspace:*",
+    "@hearthlog/runtime": "workspace:*",
+    "@hearthlog/ui": "workspace:*"
+  },
+  "peerDependencies": {
+    "svelte": "^5.57.1",
+    "@sveltejs/kit": "^3.0.0",
+    "@hearthlog/generated": "*"
+  },
+  "peerDependenciesMeta": {
+    "@hearthlog/generated": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@hearthlog/generated": "workspace:*"
+  }
+}

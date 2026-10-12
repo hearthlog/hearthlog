@@ -1,0 +1,13 @@
+/*
+ * The design system's stylesheet: fonts, design tokens, base styles, the dark-mode remap of literal
+ * palette classes, and the generic recipes (panel, page, metric, menu, sheet, tabs, drawer...).
+ * Import it once, after Tailwind:
+ *
+ *     @import 'tailwindcss' source('./');
+ *     @import '@hearthlog/ui/styles/index.css';
+ */
+@import './base.css';
+@import './recipes.css';
+
+/* The package's own components use Tailwind classes; scan them wherever the host's source root is. */
+@source '../';

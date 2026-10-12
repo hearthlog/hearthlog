@@ -1,0 +1,16 @@
+{
+  "name": "@hearthlog/generated",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./schema": "./src/schema.generated.ts",
+    "./types": "./src/types.generated.ts",
+    "./standard-commands": "./src/standard-commands.generated.ts",
+    "./standard-db": "./src/standard-db.generated.ts",
+    "./module-repositories": "./src/module-repositories.generated.ts",
+    "./modules": "./src/modules.generated.ts",
+    "./module-icons": "./src/module-icons.generated.ts",
+    "./event-schemas": "./src/event-schemas.generated.ts"
+  }
+}

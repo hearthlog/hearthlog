@@ -1,0 +1,13 @@
+packages:
+  - packages/*
+  - .generated
+  - modules/*
+
+onlyBuiltDependencies:
+  - '@tailwindcss/oxide'
+  - esbuild
+  - sharp
+  - workerd
+
+patchedDependencies:
+  sqlocal@0.18.0: packages/tooling/templates/tenant/patches/sqlocal@0.18.0.patch

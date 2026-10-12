@@ -1,0 +1,54 @@
+{
+  "name": "@hearthlog/runtime",
+  "version": "0.1.0",
+  "description": "Hearthlog's offline runtime: the local database, events and projections, commands, the outbox and sync, the Ledger client, history, and page lifecycle",
+  "license": "AGPL-3.0-only",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hearthlog/hearthlog.git",
+    "directory": "packages/runtime"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "files": [
+    "src",
+    "!**/*.test.ts"
+  ],
+  "type": "module",
+  "exports": {
+    "./*.svelte.js": "./src/*.svelte.ts",
+    "./*.js": "./src/*.ts"
+  },
+  "imports": {
+    "#generated/schema": "@hearthlog/generated/schema",
+    "#generated/types": "@hearthlog/generated/types",
+    "#generated/standard-commands": "@hearthlog/generated/standard-commands",
+    "#generated/standard-db": "@hearthlog/generated/standard-db",
+    "#generated/module-repositories": "@hearthlog/generated/module-repositories",
+    "#generated/modules": "@hearthlog/generated/modules",
+    "#generated/module-icons": "@hearthlog/generated/module-icons"
+  },
+  "dependencies": {
+    "kysely": "^0.29.6",
+    "date-fns": "^4.4.0",
+    "sqlocal": "^0.18.0",
+    "idb": "^8.0.3",
+    "@hearthlog/contracts": "workspace:*",
+    "@hearthlog/ui": "workspace:*"
+  },
+  "peerDependencies": {
+    "svelte": "^5.57.1",
+    "@sveltejs/kit": "^3.0.0",
+    "@hearthlog/generated": "*"
+  },
+  "peerDependenciesMeta": {
+    "@hearthlog/generated": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@hearthlog/generated": "workspace:*"
+  }
+}
