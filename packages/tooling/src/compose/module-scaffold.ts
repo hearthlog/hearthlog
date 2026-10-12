@@ -92,10 +92,10 @@ export const load = ({ url }: { url: URL }) => deferLocalPage(url, {}, async () 
 `,
         "README.md": `# ${label}
 
-A module for the stor platform. It reaches the app only through \`@hearthlog/sdk\`; see
-\`docs/modules.md\` in the platform repository for what a module may declare (pages, entities,
-repositories, gateway code, startup code, attention badges) and \`pnpm check:modules\` for the
-boundary it enforces.
+A module for the Hearthlog platform. It reaches the app only through \`@hearthlog/sdk\`; the
+\`ModuleManifest\` type in \`@hearthlog/contracts\` documents what a module may declare (pages, entities,
+repositories, gateway code, startup code, attention badges), and \`pnpm check:modules\` enforces the
+boundary.
 `,
     };
 }

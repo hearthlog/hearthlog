@@ -11,7 +11,8 @@ release train and credit reporters who want it.
 
 ## What is in scope
 
-- The platform packages and first-party modules in this repository.
+- The platform packages in this repository (`@hearthlog/*`). First-party modules are in scope too;
+  report them the same way, in the module's own repository.
 - The gateway Worker, the Ledger, and the tooling that provisions them.
 
 Modules run with the privileges of application code (same origin, storage, and the gateway's

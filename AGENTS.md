@@ -27,8 +27,8 @@ proxies `/api/ledger` to Ledger through a service binding.
 | --- | --- |
 | `src/routes/` | Optional: a site's own routes, merged into the generated ones (a path that collides with a core or module route is an error). The core routes are thin files the build writes to `.generated/routes/` from a table in `packages/tooling/src/host/core-routes.ts`; each `+page.ts` (load) and `+page.svelte` imports its page from `@hearthlog/shell` (`packages/shell/src/pages/`) or a module |
 | `.generated/` | Gitignored output of `pnpm build:generated` (only its `package.json` is committed): the package `@hearthlog/generated` for the active site (`src/`: module catalog, icons, repositories, entity types, schema, data APIs, Ledger event schemas) and `sites/<id>/` per site built (`tenant.ts`, `app.html`, `server-modules.ts`); also the SvelteKit host for the active site: `routes/`, `app.css`, `service-worker/` (a thin entry), `static/` (the shell's core files plus the site's icons), `app.d.ts` |
-| `modules/` | Feature modules (`calc/`, `finance/`, `health/`, `gallery/`, `invoices/`): pages, domain code, entities, repositories, gateway code, `hearthlog.module.json`; see `docs/modules.md` |
-| `packages/` | `@hearthlog/contracts` (module manifest and the pure shared kernel: tenant config, feature registry, entity definitions), `@hearthlog/shell` (layout and navigation, the log panel and history, the calendar, sync status; the host's pages are being moved in), `@hearthlog/runtime` (the offline runtime: database, events and projections, commands, the outbox and sync, the Ledger client, history, page lifecycle), `@hearthlog/generated` (what `pnpm build:generated` writes to `.generated/`), `@hearthlog/ui` (the design system: primitives, overlays, the generic data table, and the small stores they share; it imports no other `@hearthlog` package), `@hearthlog/sdk` (the API modules import), `@hearthlog/czech` (Czech public holidays, working-time rules, and the flat-rate tax estimate: a plain library, not part of the SDK), and `@hearthlog/ledger` (the Ledger Worker: Elysia application, SQLite Durable Objects, event validation, tests, and the logical backup scripts; it imports `contracts` only), `@hearthlog/ledger-admin` (the read-only admin console and its Worker), `@hearthlog/cloudflare` (the gateway Worker code: Access sessions, the Ledger and admin proxies, assets, fences, log forks, AI decisions, service integrations, calendar feeds; it imports `contracts` only), and `@hearthlog/tooling` (the `pnpm hearthlog` CLI and the tools behind the pnpm scripts, in folders by job: `tenants` configuration, `deploy` planner/apply/ensure/copy/split/backup, `compose` and `generate` for the module catalog and generated files, `check` for layers, module boundaries, and tenants, `security` for the push audit, `vite` for the site's Vite configuration (`hearthlogConfig()`, which the root `vite.config.ts` calls) with its plugins and the local gateway stand-ins, `dev` for the local Ledger credential, `init` for `hearthlog init` (renders `templates/tenant/` into a new site; the `hearthlog` bin runs `build`, `init`, and the CLI), `public-workers` config; commands treat the nearest directory with `tenants.json` as the host root) |
+| `modules/` | Not in this repository. The first-party modules (Calc, Finance, Health, Gallery, Invoices) live in their own repositories and install as `@hearthlog/module-*`; the composer still picks up a local `modules/<name>/` with a `hearthlog.module.json` (what `pnpm module:new` writes). The manifest is the `ModuleManifest` type in `packages/contracts/src/index.ts` |
+| `packages/` | `@hearthlog/contracts` (module manifest and the pure shared kernel: tenant config, feature registry, entity definitions), `@hearthlog/shell` (layout and navigation, the log panel and history, the calendar, sync status; the host's pages are being moved in), `@hearthlog/runtime` (the offline runtime: database, events and projections, commands, the outbox and sync, the Ledger client, history, page lifecycle), `@hearthlog/generated` (what `pnpm build:generated` writes to `.generated/`), `@hearthlog/ui` (the design system: primitives, overlays, the generic data table, and the small stores they share; it imports no other `@hearthlog` package), `@hearthlog/sdk` (the API modules import), `@hearthlog/czech` (Czech public holidays, working-time rules, and the flat-rate tax estimate: a plain library, not part of the SDK), `@hearthlog/ledger` (the Ledger Worker: Elysia application, SQLite Durable Objects, event validation, tests, and the logical backup scripts; it imports `contracts` only), `@hearthlog/cloudflare` (the gateway Worker code: Access sessions, the Ledger and admin proxies, assets, fences, log forks, AI decisions, service integrations, calendar feeds; it imports `contracts` only), and `@hearthlog/tooling` (the `pnpm hearthlog` CLI and the tools behind the pnpm scripts, in folders by job: `tenants` configuration, `deploy` planner/apply/ensure/copy/split/backup, `compose` and `generate` for the module catalog and generated files, `check` for layers, module boundaries, and tenants, `security` for the push audit, `vite` for the site's Vite configuration (`hearthlogConfig()`, which the root `vite.config.ts` calls) with its plugins and the local gateway stand-ins, `dev` for the local Ledger credential, `init` for `hearthlog init` (renders `templates/tenant/` into a new site; the `hearthlog` bin runs `build`, `init`, and the CLI), `public-workers` config; commands treat the nearest directory with `tenants.json` as the host root) |
 | `packages/runtime/src/event/` | Entity definitions, commands, projections, rebuild |
 | `packages/runtime/src/db/` | SQLite schema, migrations, read repositories |
 | `packages/runtime/src/ledger/` | Ledger HTTP/WebSocket client |
@@ -38,11 +38,12 @@ proxies `/api/ledger` to Ledger through a service binding.
 | `packages/native/` | `@hearthlog/native`: the Swift shells that open the deployed site as a Mac and an iOS app (`swift/`) and the tools that build them for one tenant (`src/`: Mac build, iOS project, icons, re-sign), run as `hearthlog apple:mac|ios|test|resign`; output goes to the tenant's `.apple-build/`, device settings to its gitignored `resign.local.json` |
 | `packages/cloudflare/types/` | The `Env` declaration of the gateway Worker (`wrangler types` output from the generated `st` config, `.generated/sites/st/wrangler.jsonc`, with every binding any module may use) and its secrets; tenants take it from the package and run no `wrangler types` (`pnpm frontend:worker:types` regenerates it, `frontend:worker:types:check` is the drift check) |
 | `ledger/` | What the Ledger Worker needs in this repository: the generated `Env` types (`worker-configuration.d.ts`, `pnpm ledger:types`), the secrets declaration, `.dev.vars.example`, and the tsconfig; its Worker config and entry are generated into `.generated/shared/ledger/` (and `.generated/sites/<id>/ledger/` for a site on its own stack), beside those of the public calendar feed and Gallery Workers |
-| `examples/` | `empty` (the core only) and `calc-only`: committed `hearthlog init --workspace` output from `packages/tooling/templates/tenant/`; `pnpm check:examples` fails on drift, `pnpm examples:update` rewrites them; not workspace members (see `docs/starting-a-site.md`) |
-| `scripts/` | What only this repository needs: publishing the public snapshot and its identity audit (`build-snapshot.ts`, `snapshot-policy.json`, and `public-overlay/`, the files laid over the copy to make the public root a platform workspace with a module-less `st` site, its workflows, and its test configuration), `release-version.ts` (`pnpm release:version`), `check-packages.ts`, the Apple build scripts, preview fixtures, and `layers.json`; the shared tools are in `packages/tooling` |
-| `tests/` | Playwright: a few app journeys, `tests/worker/`, `production/` |
-| `docs/` | Design docs and how-tos; `packages/ledger/docs/` holds OpenAPI contracts |
-| `.github/workflows/` | `st-ci.yml`, `ledger-ci.yml` (nothing here deploys: a site deploys from its own repository) |
+| `examples/` | `empty` (the core only): committed `hearthlog init --workspace` output from `packages/tooling/templates/tenant/`; `pnpm check:examples` fails on drift, `pnpm examples:update` rewrites it; not a workspace member, and built from tarballs by `pnpm check:tarballs examples/empty` |
+| `scripts/` | What only this repository needs: releasing (`release-version.ts`, `publish-packages.ts`), package checks (`check-packages.ts`, `tarball-equivalence.ts` and `tarball-support.ts`), `integration.ts` (`pnpm test:integration`), and `layers.json` (the package graph `check:layers` enforces); the shared tools are in `packages/tooling` |
+| `integration/` | `st.tenant.json`: the development site with every module's features, swapped in by `pnpm test:integration` |
+| `tenants/st/` | The module-less development site (`VITE_STOR_TENANT` defaults to `st`) |
+| `tests/` | Playwright: a few app journeys and `tests/worker/` |
+| `.github/workflows/` | `ci.yml` (checks, the integration run, browser journeys, the tarball build, the secret scan) and `release.yml` (publishes the packages on a `v*` tag). Nothing here deploys: a site deploys from its own repository |
 
 ## Commands
 
@@ -61,21 +62,30 @@ Pick the checks that cover the change; when unsure, run `pnpm check:all`.
 | Area changed | Commands |
 | --- | --- |
 | Frontend TS/Svelte | `pnpm check:ts` and `pnpm test:unit --run` |
-| Modules (`modules/`, `packages/`, composer) | above, plus `pnpm build:generated --check`, `pnpm check:modules`, `pnpm test:scripts` |
+| Packages, SDK, composer | above, plus `pnpm build:generated --check`, `pnpm check:modules`, `pnpm test:scripts` |
 | Page/UI behavior | above, plus `pnpm build` and `pnpm test` |
 | Frontend Worker gateway | `pnpm frontend:worker:check` (+ `pnpm frontend:worker:dry-run` for binding/config changes) |
 | Ledger | `pnpm ledger:check` and `pnpm ledger:test` (+ `pnpm ledger:dry-run` for config changes) |
-| Scripts / tenant config | `pnpm check:scripts`, `pnpm test:scripts`, `pnpm check:tenants`, `pnpm check:examples`; `pnpm check:packages` after changing a package manifest or its `files` (packs each package and inspects the tarball); `pnpm check:tarballs` after changing what a package declares or exports (packs everything and builds a site outside the workspace, a few minutes); `pnpm hearthlog plan --site <id>` is read-only (`apply` changes Cloudflare: only when asked, see `docs/deploying-a-tenant.md`) |
-| Native shell (`packages/native/`, `packages/runtime/src/native/`) | `pnpm apple:test`, `pnpm check:scripts`, and `pnpm apple:mac <site> --dev` run against `pnpm dev:e2e` (see `docs/native-shell.md`) |
+| Scripts / tenant config | `pnpm check:scripts`, `pnpm test:scripts`, `pnpm check:tenants`, `pnpm check:examples`; `pnpm check:packages` after changing a package manifest or its `files` (packs each package and inspects the tarball); `pnpm check:tarballs` after changing what a package declares or exports (packs everything and builds a site outside the workspace, a few minutes); `pnpm hearthlog plan --site <id>` is read-only (`apply` changes Cloudflare: only when asked) |
+| Native shell (`packages/native/`, `packages/runtime/src/native/`) | `pnpm apple:test`, `pnpm check:scripts`, and `pnpm apple:mac <site> --dev` run against `pnpm dev:e2e` |
 | Cross-cutting / unsure | `pnpm check:all` |
 
 Notes:
 
-- CI runs `check:ts`, `test:unit --run`, `ledger:admin:check`,
-  `frontend:worker:check`, `frontend:worker:dry-run`, the browser journeys
-  (`pnpm test`), and a default-site build with its production checks
-  (`pnpm test:preview`) for the frontend; `ledger:check`, `ledger:test`,
-  `ledger:dry-run`, and `test:worker` for Ledger. Match CI.
+- CI (`.github/workflows/ci.yml`) runs `check:ts`, `check:modules`,
+  `check:tenants`, `check:examples`, `check:packages`, `test:scripts`,
+  `test:unit --run`, `frontend:worker:typecheck`, `build`,
+  `frontend:worker:dry-run`, `ledger:check`, `ledger:test`, and
+  `ledger:dry-run`; then `test:integration`, the browser journeys
+  (`pnpm test`), `check:tarballs examples/empty`, and a gitleaks scan, each in
+  its own job. Match CI.
+- This repository installs no module, so `pnpm test:unit` skips the tests that
+  need one (the list is `needModules` in `vite.config.ts`), and
+  `pnpm check:scripts` reports type errors in tooling tests that name module
+  features. `pnpm test:integration` installs the published
+  `@hearthlog/module-*` for one run, swaps in `integration/st.tenant.json`,
+  runs the unit tests, the type check, the Worker `Env` check, and the Ledger
+  checks, then restores `package.json`, the lockfile, and the site.
 - `pnpm test` is hermetic and needs no `pnpm ledger:dev`: `VITE_E2E=1`
   disables network sync and realtime, and the dev server stubs the Ledger
   contract. It is a handful of journeys that CI runs in one job.
@@ -131,8 +141,8 @@ Notes:
 - **Tenant configuration.** A site is its directory `tenants/<id>/`: `tenant.json` (features, branding, authorized
   emails), `modules.lock.json` (`pnpm lock:modules`; regenerate it when a site's modules or a module manifest change),
   `static/` (its icons and brand files, served at the same paths; `pnpm generate:icons` writes them), and optionally
-  `deployment.json`, which gives the site its own Ledger, buckets, and public Workers (`docs/deploying-a-tenant.md`; a site
-  deploys from its own repository, `docs/tenant-handover.md`). `tenants.json` is optional and holds the shared stack's `infrastructure` and the `defaults` of
+  `deployment.json`, which gives the site its own Ledger, buckets, and public Workers (a site deploys from its own
+  repository; `pnpm tenant:export` writes one). `tenants.json` is optional and holds the shared stack's `infrastructure` and the `defaults` of
   the sites that use it. Never hand-write per-tenant wrangler config (`.generated/sites/<id>/wrangler.jsonc` is generated from the tenant files, the modules, and the base in
   `packages/tooling/src/tenants/wrangler-base.ts`). Run `pnpm check:tenants` after changes. Account values
   (`workersDevDomain`, Access team, admin email, renderer origin) are operator input in `tenants.json` or, for a site on
@@ -158,7 +168,7 @@ Notes:
 
 - SvelteKit 3: project config (adapter, aliases, `compilerOptions`) is passed to
   the `sveltekit()` plugin in `vite.config.ts`; there is no `svelte.config.js`.
-  The service worker is `packages/shell/src/service-worker/index.ts` (a Kit-bundled module; the host entry in `.generated/service-worker/` imports it, and `offline-bundle.ts` beside it is shared with the production test and `build-report`). Kit's `files.routes`, `files.serviceWorker`, `files.assets`, and `files.appTemplate` point into `.generated/`.
+  The service worker is `packages/shell/src/service-worker/index.ts` (a Kit-bundled module; the host entry in `.generated/service-worker/` imports it, and `offline-bundle.ts` beside it holds the precache list). Kit's `files.routes`, `files.serviceWorker`, `files.assets`, and `files.appTemplate` point into `.generated/`.
 - TypeScript strict (with `checkJs`); import platform code through its package with explicit extensions, for example `@hearthlog/runtime/utils/async.js` or `@hearthlog/ui/components/ui/Button.svelte`; the shell's own components are still imported with the `#lib` subpath import (`package.json` `imports`, for example `#lib/components/layout/NavBar.svelte`); SvelteKit 3 no longer provides `$lib`.
 - 4-space indentation, single quotes, semicolons; match surrounding code. No
   formatter or linter is configured — do not add one unasked.
@@ -168,12 +178,13 @@ Notes:
 - Reuse existing components, the feature registry
   (`packages/contracts/src/features/registry.ts`), and layout patterns. Do not add a parallel
   registry, transport, or design system.
-- **New pages:** follow `docs/adding-a-page.md`. Loads go through `deferPage` +
+- **New pages:** loads go through `deferPage` +
   `queryDatabase`, derive `routeData.pageResource` and pass it to
   `providePageResource`, render `PageDataStatus`, keep mutations inside
   `CommandOnly`, and register the refresh key in
   `packages/runtime/src/store/sync-invalidation.ts`.
-- **New entities:** follow `docs/adding-an-entity.md` and the Gallery album example.
+- **New entities:** core entities go in `packages/contracts/src/event/entity-definitions.ts`, a module's in its
+  `src/data/definitions.ts`; rebuild with `pnpm build:generated`. Persisted names (tables, events, fields) never change.
 - **Date-sensitive pages:** use the active workspace clock where a shared
   date boundary matters.
 - Prefer small, surgical diffs. Do not refactor, rename, or reformat code your
@@ -188,9 +199,9 @@ A task is complete only when:
 2. Targeted verification (above) passes; report the exact commands and results.
 3. Tests stay few: a change to data integrity, access, or money rounding has a
    Vitest test, and a new core journey has a Playwright journey. Other
-   behavior needs no new test (see `docs/testing-strategy.md`).
+   behavior needs no new test (see Tests below).
 4. Docs are updated when behavior, commands, or configuration change
-   (`README.md`, `docs/`, `packages/ledger/README.md`).
+   (`README.md`, `AGENTS.md`, `packages/ledger/README.md`).
 5. The change is committed (see below).
 
 ## Commits
@@ -382,8 +393,8 @@ await galleryAlbumCommands.create(payload, { submissionId });
   (`tests/<feature>.spec.ts`). Extend an existing journey before adding one,
   and never add a browser test for layout, viewport widths, or copy. The
   default `pnpm test` run is hermetic (no Ledger) and excludes
-  `tests/production/` and `tests/worker/`, which use their own configs
-  (`playwright.preview.config.ts`, `playwright.worker.config.ts`). Extend
+  `tests/worker/`, which uses its own config (`playwright.worker.config.ts`,
+  `pnpm test:worker`). Extend
   `tests/fixtures.ts` instead of re-seeding per spec.
 
 ## Design system
@@ -405,8 +416,7 @@ arbitrary values, for example `text-[var(--stor-muted-text)]`.
 | Health domains | `--stor-health-eat`, `--stor-health-move`, `--stor-health-body` (per tenant, from the chart palette); `.stor-tone-eat/-move/-body` set `--tone` from them, and tints are `color-mix(in srgb, var(--tone) N%, var(--stor-surface))` |
 | Elevation | `--stor-surface-well/-overlay/-sheet`, `--stor-well-shadow`, `--stor-elevation-1…4`, `--stor-elevation-pressed`, `--stor-tooltip`; `--stor-shadow-sm/md/lg`, `--stor-panel-shadow`, `--stor-sidebar-shadow` are aliases; `--stor-header-shadow` |
 
-**Depth.** Every surface sits on one level of a z scale, lit from above
-(`docs/design-concepts/depth-2026-10-04`). A component picks a level, never its
+**Depth.** Every surface sits on one level of a z scale, lit from above. A component picks a level, never its
 own shadow: well (`.stor-well`: fields, tab and segmented tracks, checkboxes),
 canvas (`--stor-bg`), panel (`.stor-panel`, sidebar, dock; `--stor-elevation-1`),
 raised (`.stor-raised`, buttons, the selected pill; level 2), menu (`.stor-menu`:
@@ -428,9 +438,6 @@ Layout and motion tokens live in `packages/ui/src/styles/base.css` `:root`:
   transitional dark-mode remap in `packages/ui/src/styles/base.css`; do not add new consumers of
   it, and do not add `dark:` variants for ordinary color changes — tokens flip
   through `html[data-theme]`.
-- The semantic Tailwind alias / component migration is planned in
-  `docs/design-system-migration-plan.md`; it has not started, so do not begin
-  it as a side quest.
 
 ### Layout and typography
 
@@ -525,7 +532,7 @@ imported through `.generated/module-sources.generated.css` only for tenants that
   second confirmation when the domain supports reversal.
 - Destructive actions confirm through `ConfirmDialog`, disable themselves
   while running, and offer undo where one exists.
-- Phones (below 768 px) follow `docs/ux-patterns.md` → Phones: one top bar
+- Phones (below 768 px): one top bar
   (section, sub-page menu, the page's one figure via `PhoneGlance`, the log),
   every other figure in that figure's sheet, filters behind one options
   button, no row checkboxes until press and hold, required fields first.
@@ -548,5 +555,5 @@ imported through `.generated/module-sources.generated.css` only for tenants that
   targets on touch, and reduced-motion handled globally.
 - Copy is short, sentence case, English; shared formatters live in
   the owning module's `src/` (`format.ts`) and use `date-fns` / `Intl` rather than ad-hoc
-  formatting. Follow the copy budget in `docs/ux-patterns.md`: label, value,
+  formatting. Keep to the copy budget: label, value,
   and at most one support line per panel — no restated labels or glosses.

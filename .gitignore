@@ -85,8 +85,8 @@ dist/
 
 # Cloudflare Wrangler
 .wrangler/
-# Stray output of a bare `wrangler types` run from the repo root; the
-# committed worker types live in worker/worker-configuration.d.ts.
+# Stray output of a bare `wrangler types` run from the repo root; the committed
+# types live in ledger/ and packages/cloudflare/types/.
 /worker-configuration.d.ts
 
 # Local design-review and verification artifacts
@@ -114,13 +114,6 @@ gha-creds-*.json
 # Native apps (packages/native): build output, the generated iOS project, and personal device settings
 .apple-build/
 resign.local.json
-
-# Local evaluation exports (personal finance data)
-.eval/
-
-# Module routes composed per tenant by pnpm compose
-src/routes/(modules)/
-src/module-sources.generated.css
 
 # What `pnpm build:generated` writes (the catalog, entity code, and per-site files); only its package.json is committed
 /.generated/*

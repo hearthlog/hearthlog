@@ -47,7 +47,6 @@
     "deploy:tenant": "pnpm build:generated && tsx packages/tooling/src/deploy/deploy-tenant.ts",
     "tenant:export": "tsx packages/tooling/src/init/export-tenant.ts",
     "check:scripts": "tsc --noEmit -p scripts/tsconfig.json",
-    "ai:eval": "pnpm build:generated && tsx scripts/ai-eval-categories.ts",
     "test:scripts": "tsx --test packages/tooling/src/deploy/async-utils.test.ts packages/tooling/src/public-workers/calendar-public-config.test.ts packages/tooling/src/public-workers/check-gallery-public-route.test.ts packages/tooling/src/deploy/cloudflare-access.test.ts packages/tooling/src/deploy/deployment-security.test.ts packages/tooling/src/deploy/ensure-tenant.test.ts packages/tooling/src/public-workers/gallery-public-config.test.ts packages/tooling/src/tenants/integrations-access.test.ts packages/tooling/src/check/check-layers.test.ts packages/tooling/src/tooling.test.ts packages/tooling/src/move.test.ts packages/tooling/src/init/export-tenant.test.ts",
     "frontend:worker:types": "pnpm build:generated && (cd .generated/sites/st && wrangler types ../../../packages/cloudflare/types/worker-configuration.d.ts --config wrangler.jsonc --env-file ../../../.dev.vars.example --strict-vars=false)",
     "frontend:worker:types:check": "pnpm build:generated && (cd .generated/sites/st && wrangler types ../../../packages/cloudflare/types/worker-configuration.d.ts --config wrangler.jsonc --env-file ../../../.dev.vars.example --strict-vars=false --check)",

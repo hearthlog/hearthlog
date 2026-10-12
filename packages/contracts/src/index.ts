@@ -121,7 +121,7 @@ export interface ModuleManifest {
     calendarIcons?: string[];
     section?: ModuleSection;
     redirects?: ModuleRedirect[];
-    /** Tables the module owns are rebuilt from history when this changes (see docs/modules.md). */
+    /** Tables the module owns are rebuilt from history when this changes. */
     projectionVersion?: number;
     /**
      * Entry points under `src/data/`: `definitions` exports ENTITY_DEFINITIONS

@@ -11,7 +11,7 @@
     .stor-metric-support { font-size: 12px; line-height: 16px; color: var(--stor-muted-text); }
     /* A currency or unit after a large figure: smaller and quieter than the number. */
     .stor-unit { font-size: .6em; font-weight: 600; letter-spacing: 0; color: var(--stor-muted-text); }
-    /* Elevation recipes. A component picks a level, never its own shadow (see docs/design-concepts/depth-2026-10-04). */
+    /* Elevation recipes. A component picks a level, never its own shadow. */
     .stor-well { background: var(--stor-surface-well); box-shadow: var(--stor-well-shadow); }
     .stor-menu { background: var(--stor-surface-overlay); box-shadow: var(--stor-elevation-3); border-radius: 16px; }
     .stor-sheet { background: var(--stor-surface-sheet); box-shadow: var(--stor-elevation-4); }

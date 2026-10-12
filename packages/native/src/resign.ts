@@ -12,8 +12,8 @@
  *   hearthlog apple:resign install     run daily at 03:30 through a LaunchAgent
  *   hearthlog apple:resign uninstall   remove the LaunchAgent
  *
- * Settings live in resign.local.json (git-ignored); see
- * resign.example.json (in @hearthlog/native) and docs/ios-free-signing.md. Each site's app is prepared first
+ * Settings live in resign.local.json (git-ignored); see resign.example.json (in
+ * @hearthlog/native). Each site's app is prepared first
  * (ios.ts), so a build always carries that site's bundle id, icon and team.
  */
 

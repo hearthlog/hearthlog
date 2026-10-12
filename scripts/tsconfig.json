@@ -24,8 +24,5 @@
     "**/*.ts",
     "../packages/tooling/src/**/*.ts",
     "../packages/native/src/**/*.ts"
-  ],
-  "exclude": [
-    "public-overlay"
   ]
 }

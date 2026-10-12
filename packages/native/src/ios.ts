@@ -6,7 +6,7 @@
  *
  * Usage: hearthlog apple:ios <site>
  *
- * Everything written here is generated, in the git-ignored `.apple-build/`. See docs/native-shell.md.
+ * Everything written here is generated, in the git-ignored `.apple-build/`.
  */
 
 import { mkdirSync, rmSync, writeFileSync, copyFileSync } from "node:fs";

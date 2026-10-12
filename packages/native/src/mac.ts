@@ -13,7 +13,6 @@
  * The app is signed ad hoc unless STOR_SIGN_IDENTITY names a certificate in your keychain
  * (a self-signed one keeps camera and notification permissions across rebuilds). It is not
  * notarized, so a copy that arrives by download needs Open Anyway on first launch.
- * See docs/native-shell.md.
  */
 
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, symlinkSync, writeFileSync, copyFileSync } from "node:fs";
