@@ -84,10 +84,13 @@ Notes:
   `pnpm test:scripts` through a `needsModules` skip option on the test. Module
   feature ids are not in a catalog without modules, so tooling code and tests
   compare them as strings (`ids(...)` in the tests). `pnpm test:integration`
-  installs the published `@hearthlog/module-*` for one run, swaps in
-  `integration/st.tenant.json`, runs the unit and tooling tests, the type
-  checks, the Worker `Env` check, and the Ledger checks, then restores
-  `package.json`, the lockfile, and the site.
+  installs the published `@hearthlog/module-*` into a throwaway project outside
+  the repository (every package the root installs is overridden with a link to
+  the root's copy, the platform to `packages/*`), links them into `modules/`
+  and `node_modules/@hearthlog/`, swaps in `integration/st.tenant.json`, runs
+  the unit and tooling tests, the type checks, the Worker `Env` check, and the
+  Ledger checks, then removes the links and restores the site. It never writes
+  the root `package.json` or the lockfile: modules never go in either.
 - `pnpm test` is hermetic and needs no `pnpm ledger:dev`: `VITE_E2E=1`
   disables network sync and realtime, and the dev server stubs the Ledger
   contract. It is a handful of journeys that CI runs in one job.

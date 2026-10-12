@@ -50,8 +50,9 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      # Installs @hearthlog/module-* from npm for this run only; this repository's own manifest and site have no module.
-      # Runs the unit tests that need modules, the type check, the Env declaration check and the Ledger tests against them.
+      # Installs @hearthlog/module-* from npm into a throwaway project and links them in for this run only; the root
+      # package.json and lockfile name no module. Runs the unit and tooling tests that need modules, the type checks,
+      # the Env declaration check and the Ledger tests against them.
       - run: pnpm test:integration
 
   browser:

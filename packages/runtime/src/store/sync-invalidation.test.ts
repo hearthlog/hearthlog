@@ -24,12 +24,14 @@ describe('sync invalidation targets', () => {
 });
 
 it('covers every literal route data dependency', async () => {
-    const { readdir, readFile } = await import('node:fs/promises');
+    const { readdir, readFile, stat } = await import('node:fs/promises');
     const { join } = await import('node:path');
     async function visit(directory: string): Promise<void> {
         for (const entry of await readdir(directory, { withFileTypes: true })) {
             const path = join(directory, entry.name);
-            if (entry.isDirectory()) { if (entry.name !== 'node_modules') await visit(path); continue; }
+            // A module in modules/ may be a link to a checkout or an installed package.
+            const isDirectory = entry.isDirectory() || (entry.isSymbolicLink() && (await stat(path)).isDirectory());
+            if (isDirectory) { if (entry.name !== 'node_modules') await visit(path); continue; }
             if (!entry.name.endsWith('.ts')) continue;
             const source = await readFile(path, 'utf8');
             for (const match of source.matchAll(/\bdepends\(['"](app:[^'"]+)['"]\)/g)) {

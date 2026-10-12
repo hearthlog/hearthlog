@@ -3,7 +3,7 @@ import { resolve } from 'node:path';
 import { hearthlogConfig } from './packages/tooling/src/vite/config.js';
 
 // This repository is the platform's workspace: its `st` site installs no module. Tests that need modules run through `pnpm test:integration`,
-// which installs the published ones for the run (HEARTHLOG_INTEGRATION=1).
+// which links the published ones in for the run without adding them to package.json (HEARTHLOG_INTEGRATION=1).
 const integration = process.env.HEARTHLOG_INTEGRATION === '1';
 const needModules = [
 	'packages/contracts/src/tenant/route-access.test.ts',

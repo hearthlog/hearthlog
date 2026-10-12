@@ -91,13 +91,13 @@ export function installedModuleDirectories(root = REPOSITORY_ROOT): string[] {
 }
 
 /**
- * The modules a host has: those in its `modules/` folder (a checkout that develops them) and the packages
- * it installs (a site that uses them). Given a directory, only that folder is scanned.
+ * The modules a host has: those in its `modules/` folder (a checkout that develops them, or a link to one) and
+ * the packages it installs (a site that uses them). Given a directory, only that folder is scanned.
  */
 export function loadModules(directory?: string): LoadedModule[] {
     const scanned = (folder: string): string[] => existsSync(folder)
         ? readdirSync(folder, { withFileTypes: true })
-            .filter((entry) => entry.isDirectory() && existsSync(join(folder, entry.name, "hearthlog.module.json")))
+            .filter((entry) => (entry.isDirectory() || entry.isSymbolicLink()) && existsSync(join(folder, entry.name, "hearthlog.module.json")))
             .map((entry) => join(folder, entry.name))
         : [];
     const directories = directory !== undefined ? scanned(directory) : [...scanned(MODULES_DIRECTORY), ...installedModuleDirectories()];
