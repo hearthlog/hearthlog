@@ -34,3 +34,11 @@ visual placement, or copy.
 CI (`st-ci.yml`) runs the default suite in one job and builds the default site
 for the production checks in another. `ledger-ci.yml` runs the Worker suite
 when `ledger/` changes. `deploy.yml` builds every site before it deploys.
+
+## Tests that need modules
+
+This repository installs no module: its `st` site has none, so `pnpm test:unit` skips the tests that depend on a module's entities and
+routes (route access, entity scope, module projections, sync invalidation, sync convergence). `pnpm test:integration` runs them, with the type
+check, the frontend Worker's `Env` declaration check and the Ledger's tests, against the published modules: it installs `@hearthlog/module-*`
+from npm for the run, swaps the development site for `integration/st.tenant.json` (every module's features), locks the modules, and puts
+`package.json`, the lockfile and the site back afterwards. CI runs it as its own job. A module's own behaviour is tested in its own repository.

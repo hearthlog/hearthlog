@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "st",
+  "title": "stor",
+  "ledgerAppName": "st-production",
+  "admin": true,
+  "dynamicEntities": true,
+  "ai": [
+    "category-pick",
+    "invoice-expense-type"
+  ],
+  "authorizedEmails": [
+    "owner@example.com"
+  ],
+  "features": [
+    "finance",
+    "invoices",
+    "gallery",
+    "calc",
+    "bmi",
+    "calories",
+    "activities"
+  ]
+}
