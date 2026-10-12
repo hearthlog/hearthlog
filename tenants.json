@@ -16,15 +16,7 @@
     "invoiceRendererOrigin": "https://renderer.example"
   },
   "defaults": {
-    "features": [
-      "finance",
-      "invoices",
-      "gallery",
-      "calc",
-      "bmi",
-      "calories",
-      "activities"
-    ],
+    "features": [],
     "home": "/",
     "title": "hearthlog",
     "developerNavVisible": true,

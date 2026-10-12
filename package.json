@@ -70,7 +70,8 @@
     "publish:packages": "tsx scripts/publish-packages.ts",
     "check:tarballs": "tsx scripts/tarball-equivalence.ts",
     "check:examples": "node packages/tooling/bin/hearthlog.mjs init examples/empty --id empty --modules none --workspace --check",
-    "examples:update": "node packages/tooling/bin/hearthlog.mjs init examples/empty --id empty --modules none --workspace --force"
+    "examples:update": "node packages/tooling/bin/hearthlog.mjs init examples/empty --id empty --modules none --workspace --force",
+    "test:integration": "tsx scripts/integration.ts"
   },
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "^0.22.0",
@@ -117,11 +118,6 @@
     "@hearthlog/czech": "workspace:*",
     "@hearthlog/generated": "workspace:*",
     "@hearthlog/ledger": "workspace:*",
-    "@hearthlog/module-calc": "^1.0.0",
-    "@hearthlog/module-finance": "^1.0.0",
-    "@hearthlog/module-gallery": "^1.0.0",
-    "@hearthlog/module-health": "^1.0.0",
-    "@hearthlog/module-invoices": "^1.0.0",
     "@hearthlog/runtime": "workspace:*",
     "@hearthlog/native": "workspace:*",
     "@hearthlog/shell": "workspace:*",

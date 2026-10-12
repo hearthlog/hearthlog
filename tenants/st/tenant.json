@@ -1,14 +1,9 @@
 {
   "schemaVersion": 1,
   "id": "st",
-  "title": "stor",
-  "ledgerAppName": "st-production",
-  "admin": true,
-  "dynamicEntities": true,
-  "ai": [
-    "category-pick",
-    "invoice-expense-type"
-  ],
+  "ledgerAppName": "st",
+  "title": "st",
+  "features": [],
   "authorizedEmails": [
     "owner@example.com"
   ]

@@ -3,48 +3,5 @@
   "platform": {
     "moduleApi": 1
   },
-  "modules": [
-    {
-      "id": "org.stor.calc",
-      "package": "@hearthlog/module-calc",
-      "features": [
-        "calc"
-      ],
-      "manifestSha256": "ae19b9b3e142925fe51f617b66ebc0e3d385237ff133f2bd1da010c77e741674"
-    },
-    {
-      "id": "org.stor.finance",
-      "package": "@hearthlog/module-finance",
-      "features": [
-        "finance"
-      ],
-      "manifestSha256": "2d2ff9b060bc4cc34386f626afe06d767101c0e3b74802c45794e36df4cc29e7"
-    },
-    {
-      "id": "org.stor.gallery",
-      "package": "@hearthlog/module-gallery",
-      "features": [
-        "gallery"
-      ],
-      "manifestSha256": "58a781914c9bdd7a0898d9225828cf62b80a007e5508cfcfcc942862c98b2183"
-    },
-    {
-      "id": "org.stor.health",
-      "package": "@hearthlog/module-health",
-      "features": [
-        "bmi",
-        "calories",
-        "activities"
-      ],
-      "manifestSha256": "8b64d647684b96a56db0339a824a4133b7a4ea29877b81c52d593d0b26ed8bb3"
-    },
-    {
-      "id": "org.stor.invoices",
-      "package": "@hearthlog/module-invoices",
-      "features": [
-        "invoices"
-      ],
-      "manifestSha256": "09f469e7f976e4548f91cddafd7a144ea3e3d2f924b1f8f1e69267003c45b521"
-    }
-  ]
+  "modules": []
 }

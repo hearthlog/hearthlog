@@ -38,6 +38,21 @@ jobs:
       - run: pnpm ledger:test
       - run: pnpm ledger:dry-run
 
+  integration:
+    name: With the published modules
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # Installs @hearthlog/module-* from npm for this run only; this repository's own manifest and site have no module.
+      # Runs the unit tests that need modules, the type check, the Env declaration check and the Ledger tests against them.
+      - run: pnpm test:integration
+
   browser:
     name: Browser journeys
     runs-on: ubuntu-latest
