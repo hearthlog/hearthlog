@@ -1,0 +1,13 @@
+# Releases of the platform and of the modules arrive as pull requests that change the lockfile (and nothing else, unless a
+# module's contract moved: then `hearthlog lock` rewrites tenants/<id>/modules.lock.json and the diff names the module).
+# The build job of this repository's workflow builds each one; merge it to deploy, with the approval of the environment.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+    groups:
+      hearthlog:
+        patterns:
+          - "@hearthlog/*"
