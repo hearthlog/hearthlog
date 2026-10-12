@@ -348,8 +348,8 @@ from the file's `resourcePrefix`, in the account the file names (its
 renderer and food-catalog origins and session lengths replace the shared values;
 the first three are required when there is no `tenants.json`). CI leaves such a site out; it is deployed from
 a machine with `pnpm deploy:ledger -- --site <id>` and
-`pnpm deploy:tenant -- --site <id>`. `jst` is one, filled by a copy of `alpha`;
-see [Copying a tenant](tenant-copy.md).
+`pnpm deploy:tenant -- --site <id>`; in its own repository it deploys from the tenant workflow
+([handing a site over](tenant-handover.md)).
 
 | Site | Features |
 | --- | --- |

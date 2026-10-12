@@ -118,7 +118,7 @@ The phone form rules apply to desktop and tablet too
 - Choices are `ChoiceChips` (arrow keys move between chips) before a Select;
   optional fields and defaults sit behind one `FoldLine`; the button names the
   result. Drawer descriptions and "Optional"/"0 = unset" hints are not used.
-- Log food is `QuickFoodLog` everywhere: Recent · Library · Catalog over one
+- Log food is `QuickFoodLog` everywhere: Recent · Library · Online over one
   search, a portion stepper for a chosen food. Barcode scanning is a link to the
   full form on Nutrition.
 - Attention is a chip in the toolbar (Invoices: "2 overdue"), never a banner.

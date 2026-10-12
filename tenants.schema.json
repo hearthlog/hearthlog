@@ -115,7 +115,14 @@
           "type": "array",
           "items": {
             "enum": [
-              "calendar"
+              "calendar",
+              "calc",
+              "finance",
+              "gallery",
+              "bmi",
+              "calories",
+              "activities",
+              "invoices"
             ]
           },
           "minItems": 1,
@@ -125,7 +132,14 @@
           "enum": [
             "/",
             "/developer",
-            "/calendar"
+            "/calendar",
+            "/calc",
+            "/finance",
+            "/gallery",
+            "/bmi",
+            "/calories",
+            "/activities",
+            "/invoices"
           ],
           "description": "Start path; must belong to an enabled feature."
         },
@@ -176,7 +190,14 @@
             "type": "array",
             "items": {
               "enum": [
-                "calendar"
+                "calendar",
+                "calc",
+                "finance",
+                "gallery",
+                "bmi",
+                "calories",
+                "activities",
+                "invoices"
               ]
             },
             "minItems": 1,
@@ -186,7 +207,14 @@
             "enum": [
               "/",
               "/developer",
-              "/calendar"
+              "/calendar",
+              "/calc",
+              "/finance",
+              "/gallery",
+              "/bmi",
+              "/calories",
+              "/activities",
+              "/invoices"
             ],
             "description": "Start path; must belong to an enabled feature."
           },
@@ -203,7 +231,10 @@
           "ai": {
             "type": "array",
             "items": {
-              "enum": []
+              "enum": [
+                "category-pick",
+                "invoice-expense-type"
+              ]
             },
             "uniqueItems": true
           },
@@ -223,7 +254,9 @@
                   "pattern": "^[a-z0-9][a-z0-9-]{0,39}$"
                 },
                 "kind": {
-                  "enum": []
+                  "enum": [
+                    "steps"
+                  ]
                 },
                 "logId": {
                   "type": "string",

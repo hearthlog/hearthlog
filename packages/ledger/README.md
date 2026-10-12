@@ -66,8 +66,8 @@ retried request). An empty Ledger takes it with `POST /admin/v1/import`, then
 `POST /admin/v1/apps/<id>/import/finish`, which opens the application only when every
 log holds the events the source reported. `GET /admin/v1/apps/<id>/checksums` gives one
 digest per log on both sides. The application has no token until you mint one
-(`rotate-token`), so nothing can write to it half-imported. This is the engine of the
-tenant split and move (`docs/tenant-split-runbook.md`).
+(`rotate-token`), so nothing can write to it half-imported. It moves an application
+between Ledgers (for example onto a stack of its own).
 
 **Write fence.** `PUT /admin/v1/apps/<id>/fence` with `{ "mode": "tenant_migrating" }`
 pauses every write (append, create, fork, hide, delete) with `503 tenant_migrating` and

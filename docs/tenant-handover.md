@@ -28,3 +28,16 @@ yours to do; the tools below read and build.
    move, so a push there cannot deploy the site; use the site for a few days before moving the next one.
 
 Two repositories must never deploy the same stack: until step 7 is committed, do not push the old repository.
+
+## Adopting releases afterwards
+
+A tenant repository follows the platform and its modules through its lockfile:
+
+- `.github/dependabot.yml` (written by `hearthlog init` and `hearthlog export`) opens a weekly pull request that groups the
+  `@hearthlog/*` bumps. By hand, `pnpm update "@hearthlog/*" --no-save` takes the newest releases the ranges in `package.json` allow and
+  changes `pnpm-lock.yaml` only.
+- The pull request runs the workflow's `build` job (it builds the site, checks the module lock with `hearthlog lock --check`, and prints the
+  plan); the `deploy` job runs only on `main`, after the environment's approval.
+- `tenants/<id>/modules.lock.json` names the modules a site ships and the hash of each manifest, not versions. A release that keeps a
+  module's manifest changes nothing in it. A release that moves the contract (a new feature, route or entity) fails `lock --check` until
+  `pnpm exec hearthlog lock` rewrites the file, and the diff of that file names the module.

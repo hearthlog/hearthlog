@@ -28,6 +28,21 @@ importers:
       '@hearthlog/ledger':
         specifier: workspace:*
         version: link:packages/ledger
+      '@hearthlog/module-calc':
+        specifier: ^1.0.0
+        version: 1.0.0(@hearthlog/czech@packages+czech)(@hearthlog/sdk@packages+sdk)
+      '@hearthlog/module-finance':
+        specifier: ^1.0.0
+        version: 1.0.0(@hearthlog/contracts@packages+contracts)(@hearthlog/sdk@packages+sdk)(@internationalized/date@3.12.4)(@sveltejs/kit@3.0.0(@sveltejs/vite-plugin-svelte@7.3.1(svelte@5.57.1)(vite@8.3.1(@types/node@26.6.3)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)))(svelte@5.57.1)(typescript@6.0.3)(vite@8.3.1(@types/node@26.6.3)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)))(svelte@5.57.1)
+      '@hearthlog/module-gallery':
+        specifier: ^1.0.0
+        version: 1.0.0(@hearthlog/sdk@packages+sdk)(@internationalized/date@3.12.4)(@sveltejs/kit@3.0.0(@sveltejs/vite-plugin-svelte@7.3.1(svelte@5.57.1)(vite@8.3.1(@types/node@26.6.3)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)))(svelte@5.57.1)(typescript@6.0.3)(vite@8.3.1(@types/node@26.6.3)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)))(svelte@5.57.1)
+      '@hearthlog/module-health':
+        specifier: ^1.0.0
+        version: 1.0.1(@hearthlog/sdk@packages+sdk)(@internationalized/date@3.12.4)(@sveltejs/kit@3.0.0(@sveltejs/vite-plugin-svelte@7.3.1(svelte@5.57.1)(vite@8.3.1(@types/node@26.6.3)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)))(svelte@5.57.1)(typescript@6.0.3)(vite@8.3.1(@types/node@26.6.3)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)))(svelte@5.57.1)
+      '@hearthlog/module-invoices':
+        specifier: ^1.0.0
+        version: 1.0.0(@hearthlog/contracts@packages+contracts)(@hearthlog/czech@packages+czech)(@hearthlog/sdk@packages+sdk)(@internationalized/date@3.12.4)(@sveltejs/kit@3.0.0(@sveltejs/vite-plugin-svelte@7.3.1(svelte@5.57.1)(vite@8.3.1(@types/node@26.6.3)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)))(svelte@5.57.1)(typescript@6.0.3)(vite@8.3.1(@types/node@26.6.3)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)))(svelte@5.57.1)
       '@hearthlog/native':
         specifier: workspace:*
         version: link:packages/native
@@ -854,6 +869,35 @@ packages:
   '@fontsource-variable/inter@5.3.0':
     resolution: {integrity: sha512-OupL48va4JNofb97w6NYeF9S7W/kHNKM0Er8Dem5nqi4jeOLrVJDoE8tZEpnMJmtkvNbB1EIPPwHcdkF6b1oUA==}
 
+  '@hearthlog/module-calc@1.0.0':
+    resolution: {integrity: sha512-q/xV3CzMqR37MUBCL1W5xKyUS5b2qmjajwyQg+PM7BbCpBA6vV8gi0A5TBsld+6rUdCdvZez/ttoX8Wa3tlexA==}
+    peerDependencies:
+      '@hearthlog/czech': '>=0.1.0 <0.2.0'
+      '@hearthlog/sdk': '>=0.1.0 <0.2.0'
+
+  '@hearthlog/module-finance@1.0.0':
+    resolution: {integrity: sha512-5Y73cqdH6v54fO0iH+j3rxCHNcpRut0ql/JhyqQkD6waMuzawMPbaLqdY86Z8jFHiAORew5pCp22NDwFzCsR6A==}
+    peerDependencies:
+      '@hearthlog/contracts': '>=0.1.0 <0.2.0'
+      '@hearthlog/sdk': '>=0.1.0 <0.2.0'
+
+  '@hearthlog/module-gallery@1.0.0':
+    resolution: {integrity: sha512-K8Eo914QhguEHbKr0lUaPFJDzfs/1mLMdWrTv2zQCAHm93Wy65LG/RfOQCbK9WW8cpE4x24bJkKBo0rv27vYpQ==}
+    peerDependencies:
+      '@hearthlog/sdk': '>=0.1.0 <0.2.0'
+
+  '@hearthlog/module-health@1.0.1':
+    resolution: {integrity: sha512-gzBE3DdAwj14bYmVabhlH/izmEdQaX+gdNtSRy2QyQLBN0GZSXL2x0p8xO8osc3zwoWMEegIMLlgWMGzyI88sQ==}
+    peerDependencies:
+      '@hearthlog/sdk': '>=0.1.0 <0.2.0'
+
+  '@hearthlog/module-invoices@1.0.0':
+    resolution: {integrity: sha512-lezCWvUrAhvGJ0J1JjCjby09YXOw/KFgo9airZsMf90IjXHYS7txigxk0OB7vebybBzOel1MOk2ESXJmX7Ytdw==}
+    peerDependencies:
+      '@hearthlog/contracts': '>=0.1.0 <0.2.0'
+      '@hearthlog/czech': '>=0.1.0 <0.2.0'
+      '@hearthlog/sdk': '>=0.1.0 <0.2.0'
+
   '@highcharts/svelte@1.1.1':
     resolution: {integrity: sha512-PFbVguEn4dH0yCbFZNzvB52i12aeszgFHfoLpX7vryuVyiWAg/RlNgwzpaWIKbxOQoaImA/RSi2Y2WCCbJbuDA==}
     peerDependencies:
@@ -1223,6 +1267,12 @@ packages:
 
   '@oxc-project/types@0.151.0':
     resolution: {integrity: sha512-J1yXrIlNDZVzE3ada310xeAw7nH8yCAyLPuUIsjKatFPmfn5bS1oW+cM+QsGOtVWd5nhSpbwZWx/rue+r5Z+PA==}
+
+  '@pdf-lib/standard-fonts@1.0.0':
+    resolution: {integrity: sha512-hU30BK9IUN/su0Mn9VdlVKsWBS6GyhVfqjwl1FjZN4TxP6cCw0jP2w7V3Hf5uX7M0AZJ16vey9yE0ny7Sa59ZA==}
+
+  '@pdf-lib/upng@1.0.1':
+    resolution: {integrity: sha512-dQK2FUMQtowVP00mtIksrlZhdFXQZPC+taih1q4CvPZ5vqdxR/LKBaFg0oAfzd1GlHZXXSPdQfzQnt+ViGvEIQ==}
 
   '@playwright/test@1.63.0':
     resolution: {integrity: sha512-oxMK4vllB9RK5NQ2l1pq1IfOf2AvnEuj/vYGDj0H2nMtmtZpKtCwt/l00GEO6xjGfpBNAvjovvYdCm50dRQkpQ==}
@@ -2293,11 +2343,17 @@ packages:
   package-manager-detector@1.8.0:
     resolution: {integrity: sha512-yQA4H19AmPEoMUeavPMDIe1higySl/gH/yaQrkT/s07Qp+7pp2hYz30N3z2l5BkjVkF9Ow6o0wjJamm2y7Sn0A==}
 
+  pako@1.0.11:
+    resolution: {integrity: sha512-4hLB8Py4zZce5s4yd9XzopqwVv/yGNhV1Bl8NTmCq1763HeK2+EwVTv+leGeL13Dnh2wfbqowVPXCIO0z4taYw==}
+
   path-to-regexp@6.3.0:
     resolution: {integrity: sha512-Yhpw4T9C6hPpgPeA28us07OJeqZ5EzQTkbfwuhsUg0c237RomFoETJgmp2sa3F/41gfLE6G5cqcYwznmeEeOlQ==}
 
   pathe@2.0.3:
     resolution: {integrity: sha512-WUjGcAqP1gQacoQe+OBJsFA7Ld4DyXuUIjZ5cc75cLHvJ7dtNsTugphxIADwspS+AraAUePCKrSVtPLFj/F88w==}
+
+  pdf-lib@1.17.1:
+    resolution: {integrity: sha512-V/mpyJAoTsN4cnP31vc0wfNA1+p20evqqnap0KLoRUN0Yk/p3wN52DOEsL4oBFcLdb76hlpKPtzJIgo67j/XLw==}
 
   picocolors@1.1.1:
     resolution: {integrity: sha512-xceH2snhtb5M9liqDsmEw56le376mTZkEX/jEb/RxNFyegNul7eNslCXP9FDj/Lcu0X8KEyMceP2ntpaHrDEVA==}
@@ -2497,6 +2553,9 @@ packages:
   ts-custom-error@3.3.1:
     resolution: {integrity: sha512-5OX1tzOjxWEgsr/YEUWSuPrQ00deKLh6D7OTWcvNHm12/7QPyRh8SYpyWvA4IZv8H/+GQWQEh/kwo95Q9OVW1A==}
     engines: {node: '>=14.0.0'}
+
+  tslib@1.14.1:
+    resolution: {integrity: sha512-Xni35NKzjgMrwevysHTCArtLDpPvye8zV/0E4EyYn43P7/7qvQwPh9BGkHewbMulVntbigmcT7rdX3BNo9wRJg==}
 
   tslib@2.8.1:
     resolution: {integrity: sha512-oJFu94HQb+KVduSUQL7wnpmqnfmLsOA/nAh6b6EH0wCEoK0/mPeXU6c3wKDV83MkOuHPRHtSXKKU99IBazS/2w==}
@@ -3027,6 +3086,72 @@ snapshots:
 
   '@fontsource-variable/inter@5.3.0': {}
 
+  '@hearthlog/module-calc@1.0.0(@hearthlog/czech@packages+czech)(@hearthlog/sdk@packages+sdk)':
+    dependencies:
+      '@hearthlog/czech': link:packages/czech
+      '@hearthlog/sdk': link:packages/sdk
+      date-fns: 4.4.0
+
+  '@hearthlog/module-finance@1.0.0(@hearthlog/contracts@packages+contracts)(@hearthlog/sdk@packages+sdk)(@internationalized/date@3.12.4)(@sveltejs/kit@3.0.0(@sveltejs/vite-plugin-svelte@7.3.1(svelte@5.57.1)(vite@8.3.1(@types/node@26.6.3)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)))(svelte@5.57.1)(typescript@6.0.3)(vite@8.3.1(@types/node@26.6.3)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)))(svelte@5.57.1)':
+    dependencies:
+      '@hearthlog/contracts': link:packages/contracts
+      '@hearthlog/sdk': link:packages/sdk
+      '@tanstack/svelte-table': 9.2.4(svelte@5.57.1)
+      bits-ui: 2.19.3(@internationalized/date@3.12.4)(@sveltejs/kit@3.0.0(@sveltejs/vite-plugin-svelte@7.3.1(svelte@5.57.1)(vite@8.3.1(@types/node@26.6.3)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)))(svelte@5.57.1)(typescript@6.0.3)(vite@8.3.1(@types/node@26.6.3)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)))(svelte@5.57.1)
+      date-fns: 4.4.0
+      kysely: 0.29.6
+    transitivePeerDependencies:
+      - '@internationalized/date'
+      - '@sveltejs/kit'
+      - svelte
+
+  '@hearthlog/module-gallery@1.0.0(@hearthlog/sdk@packages+sdk)(@internationalized/date@3.12.4)(@sveltejs/kit@3.0.0(@sveltejs/vite-plugin-svelte@7.3.1(svelte@5.57.1)(vite@8.3.1(@types/node@26.6.3)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)))(svelte@5.57.1)(typescript@6.0.3)(vite@8.3.1(@types/node@26.6.3)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)))(svelte@5.57.1)':
+    dependencies:
+      '@hearthlog/sdk': link:packages/sdk
+      bits-ui: 2.19.3(@internationalized/date@3.12.4)(@sveltejs/kit@3.0.0(@sveltejs/vite-plugin-svelte@7.3.1(svelte@5.57.1)(vite@8.3.1(@types/node@26.6.3)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)))(svelte@5.57.1)(typescript@6.0.3)(vite@8.3.1(@types/node@26.6.3)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)))(svelte@5.57.1)
+      date-fns: 4.4.0
+      idb: 8.0.3
+      kysely: 0.29.6
+    transitivePeerDependencies:
+      - '@internationalized/date'
+      - '@sveltejs/kit'
+      - svelte
+
+  '@hearthlog/module-health@1.0.1(@hearthlog/sdk@packages+sdk)(@internationalized/date@3.12.4)(@sveltejs/kit@3.0.0(@sveltejs/vite-plugin-svelte@7.3.1(svelte@5.57.1)(vite@8.3.1(@types/node@26.6.3)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)))(svelte@5.57.1)(typescript@6.0.3)(vite@8.3.1(@types/node@26.6.3)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)))(svelte@5.57.1)':
+    dependencies:
+      '@hearthlog/sdk': link:packages/sdk
+      '@tanstack/svelte-table': 9.2.4(svelte@5.57.1)
+      '@zxing/browser': 0.2.1(@zxing/library@0.23.0)
+      '@zxing/library': 0.23.0
+      bits-ui: 2.19.3(@internationalized/date@3.12.4)(@sveltejs/kit@3.0.0(@sveltejs/vite-plugin-svelte@7.3.1(svelte@5.57.1)(vite@8.3.1(@types/node@26.6.3)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)))(svelte@5.57.1)(typescript@6.0.3)(vite@8.3.1(@types/node@26.6.3)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)))(svelte@5.57.1)
+      date-fns: 4.4.0
+      kysely: 0.29.6
+    transitivePeerDependencies:
+      - '@internationalized/date'
+      - '@sveltejs/kit'
+      - svelte
+
+  '@hearthlog/module-invoices@1.0.0(@hearthlog/contracts@packages+contracts)(@hearthlog/czech@packages+czech)(@hearthlog/sdk@packages+sdk)(@internationalized/date@3.12.4)(@sveltejs/kit@3.0.0(@sveltejs/vite-plugin-svelte@7.3.1(svelte@5.57.1)(vite@8.3.1(@types/node@26.6.3)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)))(svelte@5.57.1)(typescript@6.0.3)(vite@8.3.1(@types/node@26.6.3)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)))(svelte@5.57.1)':
+    dependencies:
+      '@hearthlog/contracts': link:packages/contracts
+      '@hearthlog/czech': link:packages/czech
+      '@hearthlog/sdk': link:packages/sdk
+      '@sinclair/typebox': 0.34.52
+      '@tanstack/svelte-table': 9.2.4(svelte@5.57.1)
+      bits-ui: 2.19.3(@internationalized/date@3.12.4)(@sveltejs/kit@3.0.0(@sveltejs/vite-plugin-svelte@7.3.1(svelte@5.57.1)(vite@8.3.1(@types/node@26.6.3)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)))(svelte@5.57.1)(typescript@6.0.3)(vite@8.3.1(@types/node@26.6.3)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)))(svelte@5.57.1)
+      date-fns: 4.4.0
+      highcharts: 13.1.1
+      idb: 8.0.3
+      jose: 6.2.12
+      kysely: 0.29.6
+      pdf-lib: 1.17.1
+    transitivePeerDependencies:
+      - '@internationalized/date'
+      - '@sveltejs/kit'
+      - jspdf
+      - svelte
+      - svg2pdf.js
+
   '@highcharts/svelte@1.1.1(highcharts@13.1.1)(svelte@5.57.1)':
     dependencies:
       highcharts: 13.1.1
@@ -3294,6 +3419,14 @@ snapshots:
     optional: true
 
   '@oxc-project/types@0.151.0': {}
+
+  '@pdf-lib/standard-fonts@1.0.0':
+    dependencies:
+      pako: 1.0.11
+
+  '@pdf-lib/upng@1.0.1':
+    dependencies:
+      pako: 1.0.11
 
   '@playwright/test@1.63.0':
     dependencies:
@@ -4124,9 +4257,18 @@ snapshots:
 
   package-manager-detector@1.8.0: {}
 
+  pako@1.0.11: {}
+
   path-to-regexp@6.3.0: {}
 
   pathe@2.0.3: {}
+
+  pdf-lib@1.17.1:
+    dependencies:
+      '@pdf-lib/standard-fonts': 1.0.0
+      '@pdf-lib/upng': 1.0.1
+      pako: 1.0.11
+      tslib: 1.14.1
 
   picocolors@1.1.1: {}
 
@@ -4418,6 +4560,8 @@ snapshots:
   totalist@3.0.1: {}
 
   ts-custom-error@3.3.1: {}
+
+  tslib@1.14.1: {}
 
   tslib@2.8.1: {}
 

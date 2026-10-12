@@ -1,9 +1,8 @@
 # Deploying a tenant
 
 `pnpm hearthlog` provisions one tenant from its files in `tenants/<id>/`
-(`tenant.json`, `deployment.json`, `modules.lock.json`; see
-[tenant-copy.md](tenant-copy.md) for what each holds). It is the resumable
-version of the manual runbook there, built from the same tools. They run from the `@hearthlog/tooling` package
+(`tenant.json` for what it enables, `deployment.json` for the stack it owns, `modules.lock.json` for the modules it ships). It is
+resumable, and its steps are the idempotent tools below. They run from the `@hearthlog/tooling` package
 (`hearthlog ensure`, `deploy-ledger`, `deploy`), so a tenant repository needs none of this repository's scripts.
 
 ```bash

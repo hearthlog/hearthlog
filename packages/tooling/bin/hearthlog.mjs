@@ -2,7 +2,7 @@
 // The `hearthlog` command: runs the TypeScript tools through tsx. `build`, `init`, `export`, `check-module`, `lock`, `artifact`, and
 // `gallery-public:build` start before a site has generated files (or write their own), so they run alone; the
 // `apple:*` commands run the build and then the tools of `@hearthlog/native` (a dependency of the site, not of this
-// package); `ensure`, `deploy`, `deploy-ledger`, and `split` run the build and then a deploy tool; every other
+// package); `ensure`, `deploy`, and `deploy-ledger` run the build and then a deploy tool; every other
 // command goes to the CLI.
 import { spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
@@ -33,7 +33,7 @@ if (native) {
 
 // The deploy tools read the site's generated files, so each starts with the build (which does nothing when they are
 // current). They work from a tenant repository because they run from this package, not from the host's scripts.
-const deployTools = { ensure: 'deploy/ensure-tenant.ts', deploy: 'deploy/deploy-tenant.ts', 'deploy-ledger': 'deploy/deploy-ledger.ts', split: 'deploy/split-tenant.ts' };
+const deployTools = { ensure: 'deploy/ensure-tenant.ts', deploy: 'deploy/deploy-tenant.ts', 'deploy-ledger': 'deploy/deploy-ledger.ts' };
 if (deployTools[command]) {
     const site = rest[rest.indexOf('--site') + 1];
     const env = { ...process.env, ...(rest.includes('--site') && site ? { VITE_STOR_TENANT: site } : {}) };

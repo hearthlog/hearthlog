@@ -122,16 +122,6 @@ test('a deployment that names its account pins the generated Worker configs to i
     assert.equal('account_id' in buildTenantWranglerConfig(jst, infrastructureFor(jst, infrastructure)), false);
 });
 
-test('verifying a split needs matching checksums, a files report, and a destination that refuses foreign credentials', async () => {
-    const { verificationProblems } = await import('../deploy/split-tenant.js');
-    const log = { id: 'l', headVersion: 2, eventCount: 2, sha256: 'a'.repeat(64) };
-    const files = { copiedAt: 'now', publications: 0, jobs: [] };
-    assert.deepEqual(verificationProblems({ source: [log], target: [log], files, foreignCredentialStatus: 401 }), []);
-    assert.equal(verificationProblems({ source: [log], target: [{ ...log, sha256: 'b'.repeat(64) }], files, foreignCredentialStatus: 401 }).length, 1);
-    assert.match(verificationProblems({ source: [log], target: [log], files: null, foreignCredentialStatus: 401 })[0]!, /files report/);
-    assert.match(verificationProblems({ source: [log], target: [log], files, foreignCredentialStatus: 200 })[0]!, /refuse it/);
-});
-
 const OWN_ACCOUNT = {
     schemaVersion: 1,
     resourcePrefix: 'owned-prod',
@@ -186,16 +176,6 @@ test('one shared-stack site sweeps the Gallery bucket: the configured one, else 
     } finally {
         space.cleanup();
     }
-});
-
-test('only a rehearsal on this machine may skip the file check', async () => {
-    const { maySkipFiles, verificationProblems } = await import('../deploy/split-tenant.js');
-    assert.equal(maySkipFiles('http://127.0.0.1:8792'), true);
-    assert.equal(maySkipFiles('http://localhost:8792/'), true);
-    assert.equal(maySkipFiles('https://bravo-prod-ledger.example.workers.dev'), false);
-    const log = { id: 'l', headVersion: 2, eventCount: 2, sha256: 'a'.repeat(64) };
-    assert.deepEqual(verificationProblems({ source: [log], target: [log], files: null, skipFiles: true, foreignCredentialStatus: 401 }), []);
-    assert.match(verificationProblems({ source: [log], target: [log], files: null, foreignCredentialStatus: 401 })[0]!, /files report/);
 });
 
 test('the shared stack names its account, and a malformed one is rejected', async () => {

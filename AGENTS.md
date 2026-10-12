@@ -131,8 +131,8 @@ Notes:
 - **Tenant configuration.** A site is its directory `tenants/<id>/`: `tenant.json` (features, branding, authorized
   emails), `modules.lock.json` (`pnpm lock:modules`; regenerate it when a site's modules or a module manifest change),
   `static/` (its icons and brand files, served at the same paths; `pnpm generate:icons` writes them), and optionally
-  `deployment.json`, which gives the site its own Ledger, buckets, and public Workers (`docs/tenant-copy.md`; CI does not
-  deploy such a site). `tenants.json` is optional and holds the shared stack's `infrastructure` and the `defaults` of
+  `deployment.json`, which gives the site its own Ledger, buckets, and public Workers (`docs/deploying-a-tenant.md`; a site
+  deploys from its own repository, `docs/tenant-handover.md`). `tenants.json` is optional and holds the shared stack's `infrastructure` and the `defaults` of
   the sites that use it. Never hand-write per-tenant wrangler config (`.generated/sites/<id>/wrangler.jsonc` is generated from the tenant files, the modules, and the base in
   `packages/tooling/src/tenants/wrangler-base.ts`). Run `pnpm check:tenants` after changes. Account values
   (`workersDevDomain`, Access team, admin email, renderer origin) are operator input in `tenants.json` or, for a site on

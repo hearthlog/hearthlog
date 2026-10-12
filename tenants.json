@@ -1,4 +1,5 @@
 {
+  "$schema": "./tenants.schema.json",
   "infrastructure": {
     "ledgerWorker": "example-ledger",
     "invoicePdfsBucket": "example-invoice-pdfs",
@@ -11,7 +12,22 @@
     "galleryPublicOrigin": "https://example-gallery-public.example.workers.dev",
     "workersDevDomain": "example.workers.dev",
     "ledgerAdminEmail": "owner@example.com",
-    "accessTeamDomain": "https://example.cloudflareaccess.com"
+    "accessTeamDomain": "https://your-team.cloudflareaccess.com",
+    "invoiceRendererOrigin": "https://renderer.example"
   },
-  "sites": []
+  "defaults": {
+    "features": [
+      "finance",
+      "invoices",
+      "gallery",
+      "calc",
+      "bmi",
+      "calories",
+      "activities"
+    ],
+    "home": "/",
+    "title": "hearthlog",
+    "developerNavVisible": true,
+    "entitiesNavVisible": true
+  }
 }

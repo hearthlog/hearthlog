@@ -105,7 +105,7 @@ export interface InfrastructureDefinition {
     ledgerAdminEmail: string;
     /** Shared Cloudflare Access team origin pushed to every site Worker. */
     accessTeamDomain: string;
-    /** The Cloudflare account that holds the shared stack; `tenant:split declare` pins a moved site to it. */
+    /** The Cloudflare account that holds the shared stack. */
     accountId?: string;
     /** Browser application and team-wide SSO lifetimes, in whole hours. */
     accessSessionDuration?: string;

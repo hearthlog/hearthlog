@@ -23,6 +23,16 @@ import {
 
 import { defineConfig, type ProxyOptions, type UserConfig } from 'vite';
 
+/** The `@hearthlog/*` packages the site depends on (the platform and its modules). */
+function hearthlogDependencies(): string[] {
+	try {
+		const manifest = JSON.parse(readFileSync('package.json', 'utf8')) as { dependencies?: Record<string, string>; devDependencies?: Record<string, string> };
+		return Object.keys({ ...manifest.dependencies, ...manifest.devDependencies }).filter((name) => name.startsWith('@hearthlog/') && name !== '@hearthlog/generated');
+	} catch {
+		return [];
+	}
+}
+
 function installedVersion(name: string): string {
 	try {
 		return JSON.parse(readFileSync(join('node_modules', name, 'package.json'), 'utf8')).version;
@@ -293,7 +303,9 @@ return defineConfig(({ command, mode }): UserConfig => {
 		},
 	],
 	optimizeDeps: {
-		exclude: ['sqlocal', 'microlighter']
+		// The platform and the modules ship Svelte and TypeScript source; installed from the registry they sit in node_modules,
+		// where the dependency scan cannot resolve their relative imports. They are compiled with the site, not pre-bundled.
+		exclude: ['sqlocal', 'microlighter', ...hearthlogDependencies()]
 	},
 	build: {
 		// Bundle Microlighter's lazy grammars, which Vite skips in dependencies by default.
