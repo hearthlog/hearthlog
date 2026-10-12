@@ -38,8 +38,6 @@ jobs:
           cache: pnpm
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-      - name: Plan (read-only)
-        run: pnpm exec hearthlog plan --site empty
       - name: Build and seal
         env:
           VITE_STOR_TENANT: empty
@@ -48,6 +46,9 @@ jobs:
           pnpm exec hearthlog gallery-public:build --site empty
           pnpm exec vite build
           pnpm exec hearthlog artifact manifest --site empty
+      # After the build: the plan reads the generated files the build writes.
+      - name: Plan (read-only)
+        run: pnpm exec hearthlog plan --site empty
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: release

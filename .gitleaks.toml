@@ -1,0 +1,11 @@
+title = "hearthlog"
+
+[extend]
+useDefault = true
+
+# Entity definitions name the fields of an event payload (`payloadKey: "caloriesPer100g"`); a field name that ends in
+# digits and a letter looks like a key to the generic rule, but it is not a credential.
+[[allowlists]]
+description = "payloadKey names a payload field"
+regexTarget = "line"
+regexes = ['''payloadKey:\s*["'][A-Za-z0-9_]+["']''']

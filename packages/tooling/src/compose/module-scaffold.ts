@@ -155,6 +155,7 @@ export function exportModule(modulesDirectory: string, name: string, out: string
     writeFileSync(packagePath, `${JSON.stringify(publishable, null, 2)}\n`);
     mkdirSync(join(out, ".github", "workflows"), { recursive: true });
     copyFileSync(join(TEMPLATE, "gitignore.tmpl"), join(out, ".gitignore"));
+    copyFileSync(join(TEMPLATE, "gitleaks.toml.tmpl"), join(out, ".gitleaks.toml"));
     // vitest's esbuild needs its install script; pnpm 10 asks for it by name.
     writeFileSync(join(out, "pnpm-workspace.yaml"), "onlyBuiltDependencies:\n  - esbuild\n");
     copyFileSync(join(TEMPLATE, "ci.yml.tmpl"), join(out, ".github", "workflows", "ci.yml"));

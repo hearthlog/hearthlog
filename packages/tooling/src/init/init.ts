@@ -80,7 +80,8 @@ export function renderSite(options: InitOptions): Array<[string, string]> {
     const manifest = JSON.parse(readFileSync(join(TEMPLATE, "package.json.tmpl"), "utf8")) as Record<string, unknown>;
     const dependencies: Record<string, string> = Object.fromEntries([
         ...CORE_PACKAGES.map((name) => [`@hearthlog/${name}`, own]),
-        ...modules.map(({ manifest: { package: name } }) => [name, own]),
+        // A module is released on its own version, not on the platform's.
+        ...modules.map(({ manifest: { package: name }, directory }) => [name, workspace ? own : `^${(JSON.parse(readFileSync(join(directory, "package.json"), "utf8")) as { version: string }).version}`]),
         ["@hearthlog/generated", "link:.generated"],
     ].sort(([a], [b]) => a!.localeCompare(b!)));
     const devDependencies = Object.fromEntries(Object.entries(tooling.peerDependencies ?? {}).filter(([name]) => !name.startsWith("@hearthlog/")).sort(([a], [b]) => a.localeCompare(b)));

@@ -8,6 +8,7 @@ import { validateManifest } from '@hearthlog/contracts';
 
 import { checkBoundaries } from '../check/check-modules.js';
 import { checkComposition, loadModules, modulesForFeatures, renderRoute } from './compose-modules.js';
+import { renderSite } from '../init/init.js';
 import { exportModule, moduleTemplate, scaffoldModule } from './module-scaffold.js';
 import { REPOSITORY_ROOT } from '../tenants/tenant-config.js';
 
@@ -83,7 +84,7 @@ test('an exported module is a repository of its own: a valid manifest, peer rang
         assert.match(manifest.packageManager, /^pnpm@10/);
         assert.match(readFileSync(join(out, 'pnpm-workspace.yaml'), 'utf8'), /esbuild/);
         assert.equal(manifest.devDependencies['@hearthlog/tooling'], manifest.peerDependencies['@hearthlog/sdk'], 'tested against the platform range it accepts');
-        assert.ok(files.includes('.gitignore') && files.includes('.github/workflows/ci.yml') && files.includes('.github/workflows/release.yml'));
+        assert.ok(files.includes('.gitignore') && files.includes('.gitleaks.toml') && files.includes('.github/workflows/ci.yml') && files.includes('.github/workflows/release.yml'));
         assert.match(readFileSync(join(out, '.github/workflows/release.yml'), 'utf8'), /environment: npm/);
         assert.throws(() => exportModule(space.modules, 'calc', out), /not empty/);
     } finally {
@@ -99,4 +100,16 @@ test('an export refuses a module whose sources import a platform package it does
     } finally {
         space.cleanup();
     }
+});
+
+test('a site depends on each module at the module\'s own version, not the platform\'s', () => {
+    const space = workspace();
+    const calc = loadModules(space.modules).find(({ manifest }) => manifest.package === '@hearthlog/module-calc');
+    assert.ok(calc);
+    const files = new Map(renderSite({ directory: '/unused', id: 'one', modules: ['calc'], available: [calc] }));
+    const manifest = JSON.parse(files.get('package.json')!) as { dependencies: Record<string, string> };
+    const version = (JSON.parse(readFileSync(join(calc.directory, 'package.json'), 'utf8')) as { version: string }).version;
+    assert.equal(manifest.dependencies['@hearthlog/module-calc'], `^${version}`);
+    assert.notEqual(manifest.dependencies['@hearthlog/module-calc'], manifest.dependencies['@hearthlog/sdk']);
+    space.cleanup();
 });

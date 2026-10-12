@@ -34,6 +34,11 @@ const SAFE_NOREPLY = /^(?:noreply@github\.com|[0-9]*\+?[a-z0-9-]+@users\.noreply
 
 /** Every file under the directory except `.git`, as relative paths. */
 export function listFiles(directory: string): string[] {
+    // In a repository, what could be pushed is what git tracks or would add: an ignored `node_modules` is not part of it.
+    if (existsSync(join(directory, ".git"))) {
+        const listed = execFileSync("git", ["ls-files", "-z", "--cached", "--others", "--exclude-standard"], { cwd: directory, maxBuffer: 256 * 1024 * 1024 });
+        return [...new Set(listed.toString("utf8").split("\0").filter(Boolean))].filter((file) => existsSync(join(directory, file)));
+    }
     const files: string[] = [];
     const walk = (current: string) => {
         for (const entry of readdirSync(current, { withFileTypes: true })) {

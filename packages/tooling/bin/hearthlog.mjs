@@ -41,6 +41,15 @@ if (deployTools[command]) {
     process.exit(built === 0 ? (spawnSync(process.execPath, [tsx, source(deployTools[command]), ...rest], { stdio: 'inherit', env }).status ?? 1) : built);
 }
 
+// The plan reads the site's generated files too: build them first (a no-op when they are current). `apply` does not,
+// because `apply --skip-build` deploys the release already in place and must not rewrite it.
+if (command === 'plan') {
+    const site = rest[rest.indexOf('--site') + 1];
+    const env = { ...process.env, ...(rest.includes('--site') && site ? { VITE_STOR_TENANT: site } : {}) };
+    const built = spawnSync(process.execPath, [tsx, source('generate/build-generated.ts'), '--quiet'], { stdio: 'inherit', env }).status ?? 1;
+    if (built !== 0) process.exit(built);
+}
+
 const entry = {
     build: 'generate/build-generated.ts',
     init: 'init/init.ts',
