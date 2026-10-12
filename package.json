@@ -71,7 +71,8 @@
     "check:tarballs": "tsx scripts/tarball-equivalence.ts",
     "check:examples": "node packages/tooling/bin/hearthlog.mjs init examples/empty --id empty --modules none --workspace --check",
     "examples:update": "node packages/tooling/bin/hearthlog.mjs init examples/empty --id empty --modules none --workspace --force",
-    "test:integration": "tsx scripts/integration.ts"
+    "test:integration": "tsx scripts/integration.ts",
+    "frontend:worker:typecheck": "pnpm build:generated && tsc --noEmit -p tsconfig.worker.json"
   },
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "^0.22.0",
