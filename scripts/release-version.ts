@@ -1,6 +1,7 @@
 /**
- * `pnpm release:version <x.y.z>` sets the version of every published package (one release train);
- * `pnpm release:version --check v<x.y.z>` fails unless the tag names the version they all have (the release workflow runs it).
+ * `pnpm release:version <x.y.z>` sets the version of every published package (one release train); the release workflow
+ * (`.github/workflows/release.yml`, run from the Actions tab) runs it, commits, and tags. `pnpm release:version --check v<x.y.z>`
+ * fails unless the tag names the version they all have (the workflow's publish job runs it).
  *
  * Internal dependencies are `workspace:*`, which `pnpm publish` writes as the exact version, so only the `version` fields change.
  */
@@ -52,11 +53,11 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
         if (args[0] === '--check') {
             const tag = args[1] ?? '';
             const version = currentVersion(publishedPackages(root));
-            if (tag !== `v${version}`) throw new Error(`The tag is "${tag}" but the packages are at ${version}: run pnpm release:version, commit, and tag v${version}`);
+            if (tag !== `v${version}`) throw new Error(`The tag is "${tag}" but the packages are at ${version}`);
             console.log(`The tag matches ${version}.`);
         } else if (args[0]) {
             const names = setVersion(root, args[0]);
-            console.log(`Set ${names.length} packages to ${args[0]}. Commit, then tag v${args[0]} and push the tag to release.`);
+            console.log(`Set ${names.length} packages to ${args[0]}.`);
         } else {
             throw new Error('Usage: pnpm release:version <x.y.z> | --check v<x.y.z>');
         }

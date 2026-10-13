@@ -163,9 +163,11 @@ how to contribute.
 
 ### Releasing
 
-All packages share one version. Run `pnpm release:version <x.y.z>`, commit, and push the tag
-`v<x.y.z>`. The release workflow verifies the tag and waits for approval in the protected `npm`
-environment. It then publishes through npm's trusted publishing, with provenance.
+All packages share one version. To release, run the **Release** workflow from the Actions tab on
+`main` and enter the version. It sets that version on every package, runs the release checks, and
+commits and tags `v<version>`. After approval in the protected `npm` environment, it publishes
+through npm's trusted publishing, with provenance, and creates the GitHub release. Nothing runs
+locally.
 
 ## Security
 

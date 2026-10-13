@@ -1,33 +1,72 @@
 name: Release
 
-# `pnpm release:version <x.y.z>`, commit, then push the tag `v<x.y.z>`. The publish job waits for approval in the
-# protected `npm` environment; the packages are published through npm's trusted publishing, so no registry token is stored.
+# Run it from the Actions tab ("Run workflow" on main) with the version to release. It sets that version on every
+# published package, runs the release checks, commits and tags `v<version>` on main, then publishes once the protected
+# `npm` environment approves; the packages go out through npm's trusted publishing, so no registry token is stored.
+# A failed publish can be rerun on its own: it publishes only the packages whose version is not on the registry yet.
 on:
-  push:
-    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version to release, like 0.2.0 (every published package gets it)
+        required: true
+        type: string
 
 permissions:
   contents: read
 
+concurrency:
+  group: release
+  cancel-in-progress: false
+
 jobs:
-  verify:
+  version:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # the release commit and tag
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+    env:
+      VERSION: ${{ inputs.version }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          fetch-depth: 0
       - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm release:version --check "$GITHUB_REF_NAME"
+      - name: Set the version
+        id: tag
+        run: |
+          if git rev-parse --quiet --verify "refs/tags/v$VERSION" >/dev/null; then
+            echo "::error::v$VERSION is already tagged"
+            exit 1
+          fi
+          pnpm release:version "$VERSION"
+          if git diff --quiet; then
+            echo "::error::The packages are already at $VERSION"
+            exit 1
+          fi
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
       - run: pnpm check:packages
       - run: pnpm -C dev check:ts
       - run: pnpm -C dev test:unit --run
       - run: pnpm -C dev ledger:test
+      - name: Commit and tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add packages/*/package.json
+          git commit --message "chore: release v$VERSION"
+          git tag --annotate "v$VERSION" --message "v$VERSION"
+          git push --atomic origin HEAD:main "v$VERSION"
 
   publish:
-    needs: verify
+    needs: version
     runs-on: ubuntu-latest
     environment: npm
     permissions:
@@ -35,6 +74,8 @@ jobs:
       id-token: write # provenance
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          ref: ${{ needs.version.outputs.tag }}
       - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
@@ -44,15 +85,19 @@ jobs:
       # npm's trusted publishing (OIDC) needs npm 11.5.1 or later; no token is stored anywhere.
       - run: npm install --global npm@11
       - run: pnpm install --frozen-lockfile
+      - run: pnpm release:version --check "$TAG"
+        env:
+          TAG: ${{ needs.version.outputs.tag }}
       # Publishes every package whose version is not on the registry yet, with provenance.
       - run: pnpm publish:packages
 
   release:
-    needs: publish
+    needs: [version, publish]
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-      - run: gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --title "$GITHUB_REF_NAME" --generate-notes
+      - run: gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --title "$TAG" --generate-notes --verify-tag
         env:
           GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.version.outputs.tag }}
