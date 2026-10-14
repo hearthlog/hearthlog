@@ -1,6 +1,6 @@
 {
   "name": "@hearthlog/runtime",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Hearthlog's offline runtime: the local database, events and projections, commands, the outbox and sync, the Ledger client, history, and page lifecycle",
   "license": "AGPL-3.0-only",
   "repository": {
