@@ -6,6 +6,7 @@ import Icons from 'unplugin-icons/vite'
 import { entityGeneratorPlugin } from './vite-plugin-entity-gen.js';
 import { tenantManifestPlugin } from './vite-plugin-tenant-manifest.js';
 import { workerAssetsPlugin } from './vite-plugin-worker-assets.js';
+import { sourcePackages } from './source-packages.js';
 import { readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { join, resolve } from 'node:path';
@@ -23,16 +24,6 @@ import {
 } from './dev-plugins.js';
 
 import { defineConfig, searchForWorkspaceRoot, type ProxyOptions, type UserConfig } from 'vite';
-
-/** The `@hearthlog/*` packages the site depends on (the platform and its modules). */
-function hearthlogDependencies(): string[] {
-	try {
-		const manifest = JSON.parse(readFileSync('package.json', 'utf8')) as { dependencies?: Record<string, string>; devDependencies?: Record<string, string> };
-		return Object.keys({ ...manifest.dependencies, ...manifest.devDependencies }).filter((name) => name.startsWith('@hearthlog/') && name !== '@hearthlog/generated');
-	} catch {
-		return [];
-	}
-}
 
 function installedVersion(name: string): string {
 	try {
@@ -134,6 +125,7 @@ return defineConfig(({ command, mode }): UserConfig => {
 			? readLocalLedgerCredentialSync()
 			: undefined;
 	const isE2E = process.env.VITE_E2E === '1';
+	const sources = sourcePackages();
 	const usesSameOriginLedger = Boolean(localLedgerCredential) || isE2E;
 	// The dev proxy needs both: the renderer's address and its bearer token (from .dev.vars or the environment).
 	const invoiceRendererOrigin = readDevVar('INVOICE_RENDERER_ORIGIN');
@@ -310,7 +302,12 @@ return defineConfig(({ command, mode }): UserConfig => {
 	optimizeDeps: {
 		// The platform and the modules ship Svelte and TypeScript source; installed from the registry they sit in node_modules,
 		// where the dependency scan cannot resolve their relative imports. They are compiled with the site, not pre-bundled.
-		exclude: ['sqlocal', 'microlighter', ...hearthlogDependencies()]
+		exclude: ['sqlocal', 'microlighter', ...sources.filter((name) => name !== '@hearthlog/generated')]
+	},
+	ssr: {
+		// For the same reason server rendering must compile them: externalized, Node would load their TypeScript from
+		// node_modules, which it refuses to strip. The pattern also catches a platform package the walk did not reach.
+		noExternal: [/^@hearthlog\//, ...sources],
 	},
 	build: {
 		// Bundle Microlighter's lazy grammars, which Vite skips in dependencies by default.
