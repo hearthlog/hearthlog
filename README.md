@@ -88,6 +88,19 @@ features in `tenants/<id>/tenant.json`, and run `pnpm exec hearthlog lock` to up
 collides with a core or module route is an error. [`examples/empty`](examples/empty) shows
 what `init` writes.
 
+`pnpm dev` runs the app on the browser's own storage. `pnpm dev:ledger` (`hearthlog dev-ledger`)
+also runs the site's Ledger on this machine: it starts the Ledger Worker with `wrangler dev` on
+127.0.0.1:8787, gives the dev server a credential for it, and starts Vite; Ctrl+C stops both. Its
+secrets, data, and credential live in the gitignored `.wrangler/development/`; delete that folder
+to start from an empty Ledger.
+
+A module can be private: publish it to GitHub Packages under its organization's scope, and give
+the site an `.npmrc` that sends only that scope there (`@my-org:registry=https://npm.pkg.github.com`).
+On a machine, a pnpm `tokenHelper` in `~/.npmrc` supplies the token
+(`//npm.pkg.github.com/:tokenHelper=<absolute path of a script that prints "Bearer $(gh auth token)">`);
+in the deploy workflow, `setup-node` with `registry-url` and `scope` writes it from the job's own
+token, given `packages: read` and the package's Actions access for the site's repository.
+
 ## Deploying
 
 `hearthlog` provisions one site from `tenants/<id>/`: `tenant.json` for what it enables,

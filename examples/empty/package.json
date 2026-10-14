@@ -6,6 +6,7 @@
   "scripts": {
     "build:generated": "hearthlog build",
     "dev": "hearthlog build && vite dev",
+    "dev:ledger": "hearthlog dev-ledger",
     "build": "hearthlog build && vite build",
     "check": "hearthlog build && svelte-kit sync && tsc --noEmit -p tsconfig.json --skipLibCheck"
   },

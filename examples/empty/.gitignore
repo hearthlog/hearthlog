@@ -9,3 +9,6 @@ node_modules/
 # Native apps (`hearthlog apple:*`): build output and personal device settings
 /.apple-build/
 /resign.local.json
+# Deployment token files and the local Ledger's secrets, data and credential (`pnpm dev:ledger`): never committed
+/.wrangler/
+.dev.vars

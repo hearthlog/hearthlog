@@ -33,3 +33,11 @@ test('init refuses an unknown module and an id that is not a safe name', () => {
     assert.throws(() => files({ directory: 'unused', id: 'x', modules: ['nothing'] }), /No installed module is called "nothing"/);
     for (const id of ['', 'Upper', '../escape', '1abc']) assert.throws(() => files({ directory: 'unused', id }), /must be lowercase/);
 });
+
+test('a site runs with a local Ledger in one command and never commits its secrets', () => {
+    const site = files({ directory: 'unused', id: 'plain', modules: [], workspace: true });
+    const { scripts } = JSON.parse(site.get('package.json')!) as { scripts: Record<string, string> };
+    assert.equal(scripts['dev:ledger'], 'hearthlog dev-ledger');
+    const ignored = site.get('.gitignore')!.split('\n');
+    assert.ok(ignored.includes('/.wrangler/') && ignored.includes('.dev.vars'));
+});
