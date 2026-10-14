@@ -2,8 +2,8 @@
 // The `hearthlog` command: runs the TypeScript tools through tsx. `build`, `init`, `export`, `check-module`, `lock`, `artifact`, and
 // `gallery-public:build` start before a site has generated files (or write their own), so they run alone; the
 // `apple:*` commands run the build and then the tools of `@hearthlog/native` (a dependency of the site, not of this
-// package); `ensure`, `deploy`, and `deploy-ledger` run the build and then a deploy tool; every other
-// command goes to the CLI.
+// package); `ensure`, `deploy`, and `deploy-ledger` run the build and then a deploy tool; `dev-ledger` runs the build
+// and then the dev server with a local Ledger; every other command goes to the CLI.
 import { spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { join } from 'node:path';
@@ -39,6 +39,12 @@ if (deployTools[command]) {
     const env = { ...process.env, ...(rest.includes('--site') && site ? { VITE_STOR_TENANT: site } : {}) };
     const built = spawnSync(process.execPath, [tsx, source('generate/build-generated.ts'), '--quiet'], { stdio: 'inherit', env }).status ?? 1;
     process.exit(built === 0 ? (spawnSync(process.execPath, [tsx, source(deployTools[command]), ...rest], { stdio: 'inherit', env }).status ?? 1) : built);
+}
+
+// The dev server with a local Ledger starts that Ledger from the generated configuration: build it first.
+if (command === 'dev-ledger') {
+    const built = run([source('generate/build-generated.ts'), '--quiet']);
+    process.exit(built === 0 ? run([source('dev/dev-ledger.ts'), ...rest]) : built);
 }
 
 // The plan reads the site's generated files too: build them first (a no-op when they are current). `apply` does not,

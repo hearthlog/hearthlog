@@ -6,8 +6,13 @@ modules it ships, and everything else the app needs is written by `pnpm build:ge
 ```bash
 pnpm install
 pnpm dev     # builds the generated files, then starts Vite
+pnpm dev:ledger   # the same, with a Ledger of its own on this machine (127.0.0.1:8787)
 pnpm build   # a static build in build/
 ```
 
 `tenants.json` holds placeholder infrastructure names: it makes the site load, and it cannot be deployed until real
 values replace them.
+
+`pnpm dev:ledger` runs the site's Ledger Worker with `wrangler dev`, gives the dev server a credential for it, and
+starts Vite; Ctrl+C stops both. Its secrets, data, and credential live in `.wrangler/development/` (ignored): delete
+that folder to start from an empty Ledger.
