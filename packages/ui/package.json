@@ -26,9 +26,9 @@
   },
   "dependencies": {
     "@internationalized/date": "^3.12.4",
-    "@tanstack/svelte-table": "^9.2.4",
-    "@tanstack/svelte-virtual": "^3.13.39",
-    "bits-ui": "^2.19.3",
+    "@tanstack/svelte-table": "^9.2.8",
+    "@tanstack/svelte-virtual": "^3.13.42",
+    "bits-ui": "^2.19.5",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "microlighter": "^2.2.0",
