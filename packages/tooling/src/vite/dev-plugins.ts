@@ -5,6 +5,7 @@
  */
 
 import type { Plugin } from 'vite';
+import { fileURLToPath } from 'node:url';
 
 import { localGatewayOriginAllowed } from '../dev/local-development.js';
 
@@ -348,9 +349,17 @@ export function localStashMediaPlugin(credential?: import('../dev/local-developm
                 if (!localGatewayOriginAllowed(incoming.headers.origin, incoming.headers.host) || incoming.headers['sec-fetch-site'] === 'cross-site') return respond(403, 'Cross-origin local media requests are not allowed');
                 if (!credential) return respond(503, 'Start the local Ledger and run ledger:provision-local before uploading videos locally');
                 try {
-                    const [{ loadModules }, { loadTenantConfig }, { activeSiteId }] = await Promise.all([import('../compose/compose-modules.js'), import('../tenants/tenant-config.js'), import('../root.js')]);
-                    const config = await loadTenantConfig(), site = config.sites.find(site => site.id === activeSiteId());
-                    const module = loadModules().find(module => module.manifest.server?.routes?.includes('/api/stash-media/v1') && module.manifest.features.some(feature => site?.features.some(enabled => enabled === feature.id)));
+                    // Vite's config bundler follows literal imports even inside this dev-only callback.
+                    // Load these through Vite so their TypeScript package dependencies stay out of config loading.
+                    const [{ loadModules }, { loadTenantConfig }, { activeSiteId }] = await Promise.all([
+                        server.ssrLoadModule(fileURLToPath(new URL('../compose/compose-modules.js', import.meta.url))),
+                        server.ssrLoadModule(fileURLToPath(new URL('../tenants/tenant-config.js', import.meta.url))),
+                        server.ssrLoadModule(fileURLToPath(new URL('../root.js', import.meta.url))),
+                    ]);
+                    const config: Awaited<ReturnType<typeof import('../tenants/tenant-config.js').loadTenantConfig>> = await loadTenantConfig();
+                    const site = config.sites.find(site => site.id === activeSiteId());
+                    const modules: ReturnType<typeof import('../compose/compose-modules.js').loadModules> = loadModules();
+                    const module = modules.find(module => module.manifest.server?.routes?.includes('/api/stash-media/v1') && module.manifest.features.some(feature => site?.features.some(enabled => enabled === feature.id)));
                     if (!module) return respond(404, 'Video media is not enabled for this site');
                     const endpoint = new URL(process.env.STASH_MEDIA_DEV_ENDPOINT || 'http://127.0.0.1:9000');
                     if (!['localhost', '127.0.0.1', '[::1]'].includes(endpoint.hostname)) return respond(503, 'Development media storage must use a loopback MinIO endpoint');

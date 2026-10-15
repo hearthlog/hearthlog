@@ -78,6 +78,24 @@
           "type": "string",
           "pattern": "^https://[^/?#@]+/?$"
         },
+        "stashMediaEndpoint": {
+          "type": "string",
+          "pattern": "^https://[^/?#@]+/?$"
+        },
+        "stashMediaBucket": {
+          "type": "string",
+          "minLength": 1
+        },
+        "stashMediaRegion": {
+          "type": "string",
+          "minLength": 1
+        },
+        "stashMediaProxy": {
+          "enum": [
+            "0",
+            "1"
+          ]
+        },
         "ledgerAdminEmail": {
           "type": "string",
           "format": "email"
@@ -252,6 +270,24 @@
           "hostname": {
             "type": "string",
             "format": "uri"
+          },
+          "stashMediaEndpoint": {
+            "type": "string",
+            "pattern": "^https://[^/?#@]+/?$"
+          },
+          "stashMediaBucket": {
+            "type": "string",
+            "minLength": 1
+          },
+          "stashMediaRegion": {
+            "type": "string",
+            "minLength": 1
+          },
+          "stashMediaProxy": {
+            "enum": [
+              "0",
+              "1"
+            ]
           }
         }
       }
