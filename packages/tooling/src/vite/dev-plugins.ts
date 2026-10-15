@@ -336,3 +336,42 @@ export async function readJsonBody(request: import('node:http').IncomingMessage)
         return undefined;
     }
 }
+
+/** Real S3 signing against loopback MinIO; no production credentials or Access bypass reach a deployed build. */
+export function localStashMediaPlugin(credential?: import('../dev/local-development.js').LocalLedgerCredential): Plugin {
+    return {
+        name: 'local-stash-media',
+        configureServer(server) {
+            server.middlewares.use(async (incoming, outgoing, next) => {
+                if (!incoming.url?.startsWith('/api/stash-media/v1/')) return next();
+                const respond = (status: number, message: string) => { outgoing.statusCode = status; outgoing.setHeader('Content-Type', 'application/json'); outgoing.end(JSON.stringify({ error: message, code: 'local_media_unavailable' })); };
+                if (!localGatewayOriginAllowed(incoming.headers.origin, incoming.headers.host) || incoming.headers['sec-fetch-site'] === 'cross-site') return respond(403, 'Cross-origin local media requests are not allowed');
+                if (!credential) return respond(503, 'Start the local Ledger and run ledger:provision-local before uploading videos locally');
+                try {
+                    const [{ loadModules }, { loadTenantConfig }, { activeSiteId }] = await Promise.all([import('../compose/compose-modules.js'), import('../tenants/tenant-config.js'), import('../root.js')]);
+                    const config = await loadTenantConfig(), site = config.sites.find(site => site.id === activeSiteId());
+                    const module = loadModules().find(module => module.manifest.server?.routes?.includes('/api/stash-media/v1') && module.manifest.features.some(feature => site?.features.some(enabled => enabled === feature.id)));
+                    if (!module) return respond(404, 'Video media is not enabled for this site');
+                    const endpoint = new URL(process.env.STASH_MEDIA_DEV_ENDPOINT || 'http://127.0.0.1:9000');
+                    if (!['localhost', '127.0.0.1', '[::1]'].includes(endpoint.hostname)) return respond(503, 'Development media storage must use a loopback MinIO endpoint');
+                    const { handleStashMediaRequest } = await server.ssrLoadModule(`${module.directory}/src/server/media.ts`);
+                    const chunks: Buffer[] = []; let size = 0;
+                    for await (const chunk of incoming) { size += chunk.length; if (size > 1024 * 1024) return respond(413, 'Media control request is too large'); chunks.push(Buffer.from(chunk)); }
+                    const headers = new Headers();
+                    for (const [name, value] of Object.entries(incoming.headers)) if (typeof value === 'string') headers.set(name, value);
+                    const request = new Request(new URL(incoming.url, `http://${incoming.headers.host}`), { method: incoming.method, headers, ...(size ? { body: Buffer.concat(chunks) } : {}) });
+                    const env = {
+                        STASH_MEDIA_ENDPOINT: endpoint.origin, STASH_MEDIA_BUCKET: 'hearthlog-dev', STASH_MEDIA_REGION: 'us-east-1',
+                        STASH_MEDIA_KEY_ID: 'hearthlog-local', STASH_MEDIA_APP_KEY: 'hearthlog-local-only', LEDGER_AUTH_TOKEN: credential.token,
+                        LEDGER: { fetch: (request: Request) => { const url = new URL(request.url); return fetch(new URL(`${url.pathname}${url.search}`, credential.baseUrl), { method: request.method, headers: request.headers }); } },
+                    };
+                    const response: Response = await handleStashMediaRequest(request, env, async () => ({ email: 'local@example.invalid' }));
+                    outgoing.statusCode = response.status;
+                    response.headers.forEach((value, name) => outgoing.setHeader(name, value));
+                    if (response.body) for await (const chunk of response.body) outgoing.write(chunk);
+                    outgoing.end();
+                } catch { respond(503, 'Local video storage is unavailable. Check that MinIO and the local Ledger are running'); }
+            });
+        },
+    };
+}

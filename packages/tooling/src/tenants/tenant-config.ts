@@ -54,6 +54,11 @@ export interface SiteTheme {
 }
 
 export interface SiteDefinition {
+    stashMediaEndpoint?: string;
+    stashMediaBucket?: string;
+    stashMediaRegion?: string;
+    stashMediaProxy?: string;
+
     id: string;
     ledgerAppName?: string;
     admin?: boolean;
@@ -95,6 +100,12 @@ export interface InfrastructureDefinition {
     galleryPublicBucket: string;
     galleryPublicWorker: string;
     galleryPublicOrigin: string;
+    /** Private S3-compatible video storage, provisioned separately by the site operator. */
+    stashMediaEndpoint?: string;
+    stashMediaBucket?: string;
+    stashMediaRegion?: string;
+    /** "1" streams playback through the gateway instead of redirecting to storage. */
+    stashMediaProxy?: string;
     /** The account's workers.dev subdomain, for example `example.workers.dev`; Worker URLs derive from it. */
     workersDevDomain: string;
     /** The invoice renderer's HTTPS origin; Invoices answers 503 without one. */
@@ -119,6 +130,13 @@ export interface InfrastructureDefinition {
 
 /** `tenants/<site>/deployment.json`: a site that runs on its own stack. */
 export interface SiteDeployment {
+    /** Private S3-compatible video storage, provisioned separately by the site operator. */
+    stashMediaEndpoint?: string;
+    stashMediaBucket?: string;
+    stashMediaRegion?: string;
+    /** "1" streams playback through the gateway instead of redirecting to storage. */
+    stashMediaProxy?: string;
+
     schemaVersion: 1;
     /**
      * Prefix of every resource the site owns, starting with the site id, for
@@ -160,6 +178,11 @@ export interface TenantFile {
 }
 
 export interface ResolvedSite {
+    stashMediaEndpoint?: string;
+    stashMediaBucket?: string;
+    stashMediaRegion?: string;
+    stashMediaProxy?: string;
+
     id: string;
     ledgerAppName: string;
     features: FeatureId[];
@@ -208,10 +231,12 @@ const SITE_KEYS = [
     "dynamicEntities",
     "theme",
     "hostname",
+    "stashMediaEndpoint", "stashMediaBucket", "stashMediaRegion", "stashMediaProxy",
 ] as const satisfies readonly (keyof SiteDefinition)[];
 const DEPLOYMENT_KEYS = [
     "$schema", "schemaVersion", "resourcePrefix", "ledger", "accountId", "workersDevDomain", "authentication",
     "ledgerAdminEmail", "invoiceRendererOrigin", "kalApiOrigin", "accessSessionDuration", "accessGlobalSessionDuration",
+    "stashMediaEndpoint", "stashMediaBucket", "stashMediaRegion", "stashMediaProxy",
 ] as const;
 const TENANT_FILE_KEYS = ["$schema", "schemaVersion", ...SITE_KEYS] as const;
 const WORKERS_DEV_PATTERN = /^[a-z0-9][a-z0-9-]*\.workers\.dev$/;
@@ -240,6 +265,7 @@ const INFRASTRUCTURE_KEYS = [
     "accessSessionDuration",
     "accessGlobalSessionDuration",
     "gallerySweeper",
+    "stashMediaEndpoint", "stashMediaBucket", "stashMediaRegion", "stashMediaProxy",
     "accountId",
 ] as const satisfies readonly (keyof InfrastructureDefinition)[];
 
@@ -491,10 +517,27 @@ export function parseSiteDeployment(
         requireSessionDuration(`${label} ${key}`, duration);
         result[key] = duration;
     }
+    Object.assign(result, parseStashMediaConfiguration(deployment, label));
     if (options.standalone) {
         for (const key of ["workersDevDomain", "ledgerAdminEmail", "authentication"] as const) {
             if (result[key] === undefined) throw new TenantConfigError(`${label}: ${key} is required when there is no tenants.json`);
         }
+    }
+    return result;
+}
+
+/** Validate optional media settings without requiring storage for sites that do not enable it. */
+export function parseStashMediaConfiguration(value: Partial<InfrastructureDefinition>, label: string): Partial<InfrastructureDefinition> {
+    const result: Partial<InfrastructureDefinition> = {};
+    for (const key of ['stashMediaEndpoint', 'stashMediaBucket', 'stashMediaRegion', 'stashMediaProxy'] as const) {
+        const text = value[key];
+        if (text === undefined) continue;
+        if (typeof text !== 'string' || !text.trim()) throw new TenantConfigError(`${label}.${key} must be a non-empty string`);
+        if (key === 'stashMediaEndpoint') requireHttpsOrigin(`${label}.${key}`, text);
+        if (key === 'stashMediaBucket' && !/^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/.test(text)) throw new TenantConfigError(`${label}.${key} must be an S3 bucket name`);
+        if (key === 'stashMediaRegion' && !/^[a-z0-9-]+$/.test(text)) throw new TenantConfigError(`${label}.${key} must be an S3 region`);
+        if (key === 'stashMediaProxy' && !['0', '1'].includes(text)) throw new TenantConfigError(`${label}.${key} must be 0 or 1`);
+        result[key] = text;
     }
     return result;
 }
@@ -527,10 +570,10 @@ export function workersDevDomainFor(site: Pick<ResolvedSite, "deployment">, shar
  * every name from its resource prefix. Account-wide settings stay shared.
  */
 export function infrastructureFor(
-    site: Pick<ResolvedSite, "deployment">,
+    site: Pick<ResolvedSite, "deployment"> & Partial<Pick<ResolvedSite, "stashMediaEndpoint" | "stashMediaBucket" | "stashMediaRegion" | "stashMediaProxy">>,
     shared: InfrastructureDefinition,
 ): InfrastructureDefinition {
-    if (!site.deployment) return shared;
+    if (!site.deployment) return { ...shared, ...parseStashMediaConfiguration(site, "site") };
     const prefix = site.deployment.resourcePrefix;
     const origin = (worker: string) => `https://${worker}.${workersDevDomainFor(site, shared)}`;
     const names = {
@@ -547,6 +590,8 @@ export function infrastructureFor(
     return {
         ...shared,
         ...names,
+        ...parseStashMediaConfiguration(site.deployment, "site deployment"),
+        ...parseStashMediaConfiguration(site, "site"),
         workersDevDomain: workersDevDomainFor(site, shared),
         ...(site.deployment.authentication ? { accessTeamDomain: site.deployment.authentication.teamDomain } : {}),
         ...(site.deployment.ledgerAdminEmail ? { ledgerAdminEmail: site.deployment.ledgerAdminEmail } : {}),
@@ -670,6 +715,7 @@ export function resolveSite(
     return {
         id: site.id,
         ledgerAppName: site.ledgerAppName ?? site.id,
+        ...parseStashMediaConfiguration(site, label),
         features: [...features],
         ai: [...ai],
         integrations,
@@ -824,6 +870,7 @@ export function resolveInfrastructure(
         const duration = infrastructure[key];
         if (duration !== undefined) requireSessionDuration(`tenants.json infrastructure.${key}`, duration);
     }
+    parseStashMediaConfiguration(infrastructure, "tenants.json infrastructure");
     return infrastructure;
 }
 

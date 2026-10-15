@@ -60,3 +60,12 @@ test('the administrator proxy gets the token of the Ledger the gateway is bound 
         else process.env.LEDGER_ADMIN_TOKEN = before;
     }
 });
+
+test('module secrets use the selected site, require declared credentials, and ignore undeclared environment values', async () => {
+    const { moduleSecretsFromEnvironment } = await import('./ensure-tenant.js');
+    const declarations = [{ secrets: [{ name: 'MEDIA_KEY' }] }];
+    assert.deepEqual(moduleSecretsFromEnvironment('alpha', declarations, { MEDIA_KEY: 'generic', MEDIA_KEY_ALPHA: 'alpha-only', OTHER: 'ignored' }), { MEDIA_KEY: 'alpha-only' });
+    assert.deepEqual(moduleSecretsFromEnvironment('beta', declarations, { MEDIA_KEY: 'generic' }), { MEDIA_KEY: 'generic' });
+    assert.throws(() => moduleSecretsFromEnvironment('beta', declarations, {}), /supply MEDIA_KEY_BETA/);
+    assert.deepEqual(moduleSecretsFromEnvironment('beta', [], { MEDIA_KEY: 'ignored' }), {});
+});

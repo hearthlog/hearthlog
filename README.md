@@ -138,6 +138,10 @@ declare: features and routes, layouts, entities and repositories, a projection v
 code, attention badges, styles, gateway routes and bindings, and a public Worker. An exported
 module tests itself with `hearthlog check-module`, which builds a throwaway site that enables it.
 
+A server module may declare write-only `server.secrets: [{ "name": "MEDIA_KEY" }]` alongside its bindings and variables. The manifest lists names only. During the existing secrets phase, the operator supplies `MEDIA_KEY_<SITE>` (uppercase site id, hyphens replaced by underscores), or `MEDIA_KEY` for a selected site. Missing declared values fail the secrets refresh; values are sent through Wrangler stdin and never written to generated configuration. Reserved gateway bindings and collisions with other module bindings/variables are rejected.
+
+Private S3 media configuration (`stashMediaEndpoint`, `stashMediaBucket`, `stashMediaRegion`, optional `stashMediaProxy`) may live on an individual site, its dedicated deployment, or shared infrastructure, in that precedence order. The module's required variables participate in ordinary generation and tenant checks. Local Vite media middleware signs only against a loopback MinIO endpoint and verifies references using the local Ledger; it is absent from production builds. Module server code can use `selectReplayEvents` from `@hearthlog/sdk/server` to honor accepted history when checking references.
+
 ## Developing the platform
 
 Prerequisites: Node.js 24 and pnpm 10.32.1 (pinned in `package.json`).

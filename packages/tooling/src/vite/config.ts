@@ -21,6 +21,7 @@ import {
 	localLedgerGatewayPath,
 	localLedgerOriginGuardPlugin,
 	localReceivedInvoiceFilesPlugin,
+	localStashMediaPlugin,
 } from './dev-plugins.js';
 
 import { defineConfig, searchForWorkspaceRoot, type ProxyOptions, type UserConfig } from 'vite';
@@ -275,6 +276,7 @@ return defineConfig(({ command, mode }): UserConfig => {
                 localLedgerOriginGuardPlugin(Boolean(localLedgerCredential)),
                 localInvoicePdfGatewayFallbackPlugin(Boolean(invoiceRendererToken)),
                 localReceivedInvoiceFilesPlugin(),
+                localStashMediaPlugin(localLedgerCredential),
                 localInvoiceExtractionPlugin(),
                 localAiDecisionsPlugin(isE2E),
                 e2eLedgerStubPlugin(isE2E),

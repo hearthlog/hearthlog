@@ -133,3 +133,14 @@ test('generated files are imported only through #generated, not by path', () => 
         rmSync(root, { recursive: true, force: true });
     }
 });
+
+test('module secrets are named, write-only, and cannot overwrite variables or reserved credentials', () => {
+    const server = { entry: './src/server/index.ts', secrets: [{ name: 'MEDIA_KEY' }] };
+    assert.doesNotThrow(() => validateManifest(manifest({ server })));
+    for (const secrets of [[{ name: 'bad-name' }], [{ name: 'LEDGER_AUTH_TOKEN' }], [{ name: 'MEDIA_KEY', value: 'never-in-a-manifest' }], [{ name: 'MEDIA_KEY' }, { name: 'MEDIA_KEY' }]]) {
+        assert.throws(() => validateManifest(manifest({ server: { ...server, secrets } })), ManifestError);
+    }
+    assert.throws(() => validateManifest(manifest({ server: { ...server, vars: [{ name: 'MEDIA_KEY', resource: 'mediaOrigin' }] } })), ManifestError);
+    const other = manifest({ id: 'org.example.other', package: '@hearthlog/module-other', features: [], routes: [], server });
+    assert.ok(findCollisions([manifest({ server }), other], { featureIds: [], routePaths: [], refreshKeys: [] }).some(problem => problem.includes('MEDIA_KEY')));
+});

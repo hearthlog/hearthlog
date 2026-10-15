@@ -108,6 +108,7 @@ import {
 import {
 	generateTenantWranglerConfigs,
 	moduleBindings,
+	serverDeclarations,
 	resolveFrontendWranglerTarget,
 } from "../tenants/wrangler-config.js";
 
@@ -694,7 +695,7 @@ async function ensureLedgerApp(
  * `LEDGER_ADMIN_TOKEN` environment variable is only the fallback when no Ledger was contacted (`--skip-ledger`).
  */
 export async function collectSecrets(
-	site: Pick<ResolvedSite, "id" | "admin" | "integrations">,
+	site: Pick<ResolvedSite, "id" | "admin" | "integrations"> & Partial<Pick<ResolvedSite, "features">>,
 	infrastructure: Pick<InfrastructureDefinition, "accessTeamDomain">,
 	ledgerToken: string | null,
 	accessAud: string | undefined,
@@ -718,8 +719,24 @@ export async function collectSecrets(
 	// The renderer's credential comes from the operator's environment; without one the renderer routes answer 503.
 	const rendererToken = process.env.INVOICE_RENDERER_TOKEN?.trim();
 	if (rendererToken) secrets.INVOICE_RENDERER_TOKEN = rendererToken;
-	Object.assign(secrets, extractionSecretsFromEnvironment());
+	Object.assign(secrets, extractionSecretsFromEnvironment(), moduleSecretsFromEnvironment(site.id, serverDeclarations(site.features ?? [])));
 	return secrets;
+}
+
+/** Site-scoped operator variables take precedence when provisioning several gateways. Values never enter generated files. */
+export function moduleSecretsFromEnvironment(
+    siteId: string,
+    servers: ReadonlyArray<{ secrets?: ReadonlyArray<{ name: string }> }>,
+    environment: Record<string, string | undefined> = process.env,
+): Record<string, string> {
+    const result: Record<string, string> = {};
+    const suffix = siteId.toUpperCase().replace(/-/g, '_');
+    for (const server of servers) for (const { name } of server.secrets ?? []) {
+        const value = environment[`${name}_${suffix}`]?.trim() || environment[name]?.trim();
+        if (!value) throw new TenantConfigError(`Site ${siteId}: supply ${name}_${suffix} (or ${name}) in the operator environment before setting module secrets`);
+        result[name] = value;
+    }
+    return result;
 }
 
 /**

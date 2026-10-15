@@ -78,3 +78,23 @@ test('Calendar comes after the features a site lists', needsModules, () => {
     assert.deepEqual(resolveForTest(undefined, { ...base, features: ids('calories') }).features, ['calories', 'calendar']);
     assert.deepEqual(resolveForTest(undefined, { ...base, features: ids('calendar', 'calories') }).features, ['calories', 'calendar']);
 });
+
+test('private media configuration is validated and overridden by a dedicated site', async () => {
+    const { parseStashMediaConfiguration } = await import('./tenant-config.js');
+    assert.deepEqual(parseStashMediaConfiguration({ stashMediaEndpoint: 'https://s3.example.com', stashMediaBucket: 'private-media', stashMediaRegion: 'eu-central-003', stashMediaProxy: '1' }, 'site'), {
+        stashMediaEndpoint: 'https://s3.example.com', stashMediaBucket: 'private-media', stashMediaRegion: 'eu-central-003', stashMediaProxy: '1',
+    });
+    assert.throws(() => parseStashMediaConfiguration({ stashMediaEndpoint: 'http://storage.example.com' }, 'site'), /HTTPS/);
+    assert.throws(() => parseStashMediaConfiguration({ stashMediaProxy: 'true' }, 'site'), /0 or 1/);
+    const { sites, infrastructure } = await loadTenantConfig();
+    const solo = siteById(sites, 'solo');
+    const shared = { ...infrastructure, stashMediaEndpoint: 'https://shared.example.com', stashMediaBucket: 'shared-media', stashMediaRegion: 'us-east-1' };
+    const deployment = { ...solo.deployment!, stashMediaBucket: 'deployment-media' };
+    expectSiteBucket(infrastructureFor({ ...solo, deployment }, shared), 'deployment-media');
+    expectSiteBucket(infrastructureFor({ ...solo, deployment, stashMediaBucket: 'site-media' }, shared), 'site-media');
+    expectSiteBucket(infrastructureFor({ deployment: null, stashMediaBucket: 'shared-site-media' }, shared), 'shared-site-media');
+    function expectSiteBucket(value: typeof infrastructure, bucket: string) {
+        assert.equal(value.stashMediaBucket, bucket);
+        assert.equal(value.stashMediaEndpoint, 'https://shared.example.com');
+    }
+});

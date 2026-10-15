@@ -189,6 +189,8 @@ export interface ModuleServer {
     bindings?: ModuleBinding[];
     /** Worker variables copied from a tenant's infrastructure (by key); an `optional` one is left out when the infrastructure has none. */
     vars?: Array<{ name: string; resource: string; optional?: boolean }>;
+    /** Write-only Worker secrets supplied by the operator, never emitted into configuration or browser code. */
+    secrets?: Array<{ name: string }>;
 }
 
 /** A logical binding the module needs; the physical resource name comes from the tenant's infrastructure. */
@@ -448,7 +450,7 @@ export function validateManifest(value: unknown, source = 'hearthlog.module.json
     }
     if (manifest.server !== undefined) {
         const label = `${id} server`;
-        const server = keys(label, manifest.server, ['entry', 'routes', 'scheduled', 'bindings', 'vars']);
+        const server = keys(label, manifest.server, ['entry', 'routes', 'scheduled', 'bindings', 'vars', 'secrets']);
         if (!/^\.\/src\/server\/[A-Za-z0-9_-]+\.ts$/.test(entry(`${label} entry`, server.entry))) fail(label, 'entry must be a file in src/server/');
         for (const prefix of (server.routes ?? []) as unknown[]) text(`${label} routes`, prefix, /^\/api\/[a-z0-9-]+(\/[a-z0-9-]+)*$/);
         for (const [index, raw] of ((server.bindings ?? []) as unknown[]).entries()) {
@@ -461,6 +463,19 @@ export function validateManifest(value: unknown, source = 'hearthlog.module.json
             const variable = keys(`${label} vars[${index}]`, raw, ['name', 'resource', 'optional']);
             text(`${label} vars[${index}] name`, variable.name, /^[A-Z][A-Z0-9_]*$/);
             text(`${label} vars[${index}] resource`, variable.resource, /^[a-zA-Z]+$/);
+        }
+        if (server.secrets !== undefined && !Array.isArray(server.secrets)) fail(label, 'secrets must be an array');
+        const names = new Set<string>([
+            ...((server.bindings ?? []) as Array<{ binding: string }>).map(binding => binding.binding),
+            ...((server.vars ?? []) as Array<{ name: string }>).map(variable => variable.name),
+        ]);
+        for (const [index, raw] of ((server.secrets ?? []) as unknown[]).entries()) {
+            const secret = keys(`${label} secrets[${index}]`, raw, ['name']);
+            const name = text(`${label} secrets[${index}] name`, secret.name, /^[A-Z][A-Z0-9_]*$/);
+            if (names.has(name) || /^(?:LEDGER(?:_|$)|CF_ACCESS_|STOR_|INVOICE_|AI(?:_|$)|CALENDAR_|ASSETS$|INTEGRATIONS$)/.test(name)) {
+                fail(label, `secret ${name} collides with an existing or reserved Worker binding`);
+            }
+            names.add(name);
         }
     }
     if (manifest.publicWorker !== undefined) {
@@ -501,6 +516,8 @@ export function findCollisions(manifests: readonly ModuleManifest[], reserved: R
         for (const route of manifest.routes) claim('route', route.path, manifest.id);
         for (const key of manifest.refreshKeys ?? []) claim('refresh key', key, manifest.id);
         for (const binding of manifest.server?.bindings ?? []) claim('binding', binding.binding, manifest.id);
+        for (const variable of manifest.server?.vars ?? []) claim('binding', variable.name, manifest.id);
+        for (const secret of manifest.server?.secrets ?? []) claim('binding', secret.name, manifest.id);
     }
     // API prefixes collide when one is the other or lies beneath it.
     const overlaps = (a: string, b: string) => a === b || a.startsWith(`${b}/`) || b.startsWith(`${a}/`);

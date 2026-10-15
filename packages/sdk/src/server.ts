@@ -17,3 +17,6 @@ export type {
 } from '@hearthlog/contracts';
 export { deterministicUuid } from '@hearthlog/contracts/integrations/ids';
 export { IntegrationRequestError } from '@hearthlog/contracts/integrations/service';
+
+// Shared accepted-history semantics for module-owned private file references.
+export { selectReplayEvents, type ReplayEvent } from "@hearthlog/contracts/history/replay-selection";

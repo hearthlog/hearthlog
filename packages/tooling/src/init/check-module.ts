@@ -43,6 +43,14 @@ export function assembleCheckSite(options: Required<Pick<CheckModuleOptions, "di
         mkdirSync(dirname(target), { recursive: true });
         writeFileSync(target, content, "utf8");
     }
+    // Required external module variables need harmless placeholders in this isolated build, not operator storage.
+    const configPath = join(options.work, "tenants.json");
+    const config = JSON.parse(readFileSync(configPath, "utf8"));
+    for (const variable of loaded.manifest.server?.vars ?? []) {
+        if (variable.optional || config.infrastructure[variable.resource]) continue;
+        config.infrastructure[variable.resource] = /Endpoint$|Origin$/.test(variable.resource) ? 'https://storage.example.invalid' : /Region$/.test(variable.resource) ? 'us-east-1' : 'module-check-storage';
+    }
+    writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`);
     const manifestPath = join(options.work, "package.json");
     const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as { dependencies: Record<string, string> };
     manifest.dependencies[name] = `file:${directory}`;
@@ -82,6 +90,12 @@ export function testConfig(directory: string, work: string): string {
         { find: "$tenant/generated", replacement: join(work, ".generated", "sites", "st", "tenant.ts") },
         { find: /^\$app\/.*/ as unknown as string, replacement: join(work, "app-stub.mjs") },
     ];
+    // Test the same platform the composed site built, including unreleased --overrides, rather than the module's older dev dependency.
+    const sdk = join(work, "node_modules", "@hearthlog", "sdk");
+    const sdkManifest = JSON.parse(readFileSync(join(sdk, "package.json"), "utf8")) as { exports: Record<string, string> };
+    for (const [entry, file] of Object.entries(sdkManifest.exports)) {
+        if (entry.startsWith('./') && typeof file === 'string') alias.push({ find: `@hearthlog/sdk/${entry.slice(2)}`, replacement: join(sdk, file) });
+    }
     const stub = join(work, "node_modules", "@hearthlog", "cloudflare", "src", "testing", "cloudflare-workers.ts");
     if (existsSync(stub)) alias.push({ find: "cloudflare:workers", replacement: stub });
     const options = JSON.stringify({ root: directory, resolve: { alias } }, null, 2).replace('"find": {}', '"find": /^\\$app\\/.*/');
