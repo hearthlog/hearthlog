@@ -30,7 +30,7 @@ export interface PushFinding {
     detail: string;
 }
 
-const SAFE_NOREPLY = /^(?:noreply@github\.com|[0-9]*\+?[a-z0-9-]+@users\.noreply\.github\.com)$/i;
+const SAFE_NOREPLY = /^(?:noreply@github\.com|[0-9]*\+?[a-z0-9-]+(?:\[bot\])?@users\.noreply\.github\.com)$/i;
 
 /** Every file under the directory except `.git`, as relative paths. */
 export function listFiles(directory: string): string[] {
