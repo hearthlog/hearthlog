@@ -1,6 +1,6 @@
 {
   "name": "@hearthlog/ledger",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "description": "Hearthlog's Ledger: the event store Worker (Elysia over SQLite Durable Objects), its contracts and tests, and the logical backup tooling",
   "license": "AGPL-3.0-only",
   "repository": {
