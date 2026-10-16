@@ -79,22 +79,22 @@ test('Calendar comes after the features a site lists', needsModules, () => {
     assert.deepEqual(resolveForTest(undefined, { ...base, features: ids('calendar', 'calories') }).features, ['calories', 'calendar']);
 });
 
-test('private media configuration is validated and overridden by a dedicated site', async () => {
-    const { parseStashMediaConfiguration } = await import('./tenant-config.js');
-    assert.deepEqual(parseStashMediaConfiguration({ stashMediaEndpoint: 'https://s3.example.com', stashMediaBucket: 'private-media', stashMediaRegion: 'eu-central-003', stashMediaProxy: '1' }, 'site'), {
-        stashMediaEndpoint: 'https://s3.example.com', stashMediaBucket: 'private-media', stashMediaRegion: 'eu-central-003', stashMediaProxy: '1',
-    });
-    assert.throws(() => parseStashMediaConfiguration({ stashMediaEndpoint: 'http://storage.example.com' }, 'site'), /HTTPS/);
-    assert.throws(() => parseStashMediaConfiguration({ stashMediaProxy: 'true' }, 'site'), /0 or 1/);
+test('module settings are shape-checked and layered key by key, site over deployment over shared', async () => {
+    const { parseModuleSettings } = await import('./tenant-config.js');
+    assert.deepEqual(parseModuleSettings({ 'org.example.media': { endpoint: 'https://s3.example.com' } }, 'site'), { 'org.example.media': { endpoint: 'https://s3.example.com' } });
+    for (const invalid of [[], { Media: {} }, { 'org.example.media': 'x' }, { 'org.example.media': { 'bad-key': 'x' } }, { 'org.example.media': { endpoint: '' } }, { 'org.example.media': { endpoint: 1 } }]) {
+        assert.throws(() => parseModuleSettings(invalid, 'site'), TenantConfigError);
+    }
     const { sites, infrastructure } = await loadTenantConfig();
     const solo = siteById(sites, 'solo');
-    const shared = { ...infrastructure, stashMediaEndpoint: 'https://shared.example.com', stashMediaBucket: 'shared-media', stashMediaRegion: 'us-east-1' };
-    const deployment = { ...solo.deployment!, stashMediaBucket: 'deployment-media' };
-    expectSiteBucket(infrastructureFor({ ...solo, deployment }, shared), 'deployment-media');
-    expectSiteBucket(infrastructureFor({ ...solo, deployment, stashMediaBucket: 'site-media' }, shared), 'site-media');
-    expectSiteBucket(infrastructureFor({ deployment: null, stashMediaBucket: 'shared-site-media' }, shared), 'shared-site-media');
-    function expectSiteBucket(value: typeof infrastructure, bucket: string) {
-        assert.equal(value.stashMediaBucket, bucket);
-        assert.equal(value.stashMediaEndpoint, 'https://shared.example.com');
+    const shared = { ...infrastructure, moduleSettings: { 'org.example.media': { endpoint: 'https://shared.example.com', bucket: 'shared-media' } } };
+    const deployment = { ...solo.deployment!, moduleSettings: { 'org.example.media': { bucket: 'deployment-media' } } };
+    expectBucket(infrastructureFor({ ...solo, deployment }, shared), 'deployment-media');
+    expectBucket(infrastructureFor({ ...solo, deployment, moduleSettings: { 'org.example.media': { bucket: 'site-media' } } }, shared), 'site-media');
+    expectBucket(infrastructureFor({ deployment: null, moduleSettings: { 'org.example.media': { bucket: 'shared-site-media' } } }, shared), 'shared-site-media');
+    assert.equal(infrastructureFor({ deployment: null }, infrastructure).moduleSettings, undefined);
+    function expectBucket(value: typeof infrastructure, bucket: string) {
+        assert.equal(value.moduleSettings?.['org.example.media']?.bucket, bucket);
+        assert.equal(value.moduleSettings?.['org.example.media']?.endpoint, 'https://shared.example.com');
     }
 });
