@@ -28,6 +28,13 @@ inventory outside the public repository. The coordinator clones through `gh`,
 does not copy local credentials into its checkouts, and uses your existing package
 registry configuration. Configure Git author identity before executing.
 
+Each public npm package must authorize its own release workflow in npm's
+[trusted publisher settings](https://docs.npmjs.com/trusted-publishers/): match
+the GitHub owner, repository, `release.yml` filename, and `npm` environment used
+by that repository, and allow direct `npm publish`. Approving GitHub's environment
+does not configure npm's publishing authorization. For private GitHub Packages,
+grant the tenant repository Actions read access to the module package.
+
 A module entry can use `sourceRef` to validate changes from a prepared source
 branch while keeping `branch` as the PR target (normally `main`). This supports
 module fixes that depend on the unpublished core: push the source branch first;
@@ -138,6 +145,12 @@ retries failed Actions jobs. Use GitHub's rerun control or explicitly add
 `--retry-failed`. Missing packages are polled for up to ten minutes; registry/auth
 errors stop. Workflow discovery is bounded to five minutes and waiting to two
 hours. Environment approval remains in GitHub.
+
+If npm rejects the publish request with `E404` even though the package exists,
+inspect the failed job and its npm trusted publisher configuration before
+retrying. A missing or mismatched publisher can produce that response. Correct
+the registry authorization, then repeat the same command with `--retry-failed`
+to rerun failed jobs; the existing release commit, tag, and PR are reused.
 
 State writes are atomic. A workspace lock prevents overlapping commands and can
 recover from a dead process on the same host. Do not share a running state directory
