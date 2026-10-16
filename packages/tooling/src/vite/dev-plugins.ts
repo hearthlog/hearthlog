@@ -338,48 +338,57 @@ export async function readJsonBody(request: import('node:http').IncomingMessage)
     }
 }
 
-/** Real S3 signing against loopback MinIO; no production credentials or Access bypass reach a deployed build. */
-export function localStashMediaPlugin(credential?: import('../dev/local-development.js').LocalLedgerCredential): Plugin {
+/**
+ * Serves the routes of modules that declare a `server.dev` entry, for the active site's enabled modules only. The
+ * entry gets the local Ledger and a stand-in identity; nothing here, nor any module's dev entry, reaches a deployed build.
+ */
+export function localModuleServerPlugin(credential?: import('../dev/local-development.js').LocalLedgerCredential): Plugin {
     return {
-        name: 'local-stash-media',
+        name: 'local-module-server',
         configureServer(server) {
+            type DevModule = { id: string; directory: string; dev: string; routes: string[]; features: string[] };
+            let declared: Promise<DevModule[]> | undefined;
+            // Vite's config bundler follows literal imports even inside this dev-only callback.
+            // Load these through Vite so their TypeScript package dependencies stay out of config loading.
+            const load = (path: string) => server.ssrLoadModule(fileURLToPath(new URL(path, import.meta.url)));
+            const devModules = () => declared ??= load('../compose/compose-modules.js').then(({ loadModules }) =>
+                (loadModules() as ReturnType<typeof import('../compose/compose-modules.js').loadModules>).flatMap(({ directory, manifest }) =>
+                    manifest.server?.dev ? [{ id: manifest.id, directory, dev: manifest.server.dev, routes: manifest.server.routes ?? [], features: manifest.features.map(feature => feature.id) }] : []));
             server.middlewares.use(async (incoming, outgoing, next) => {
-                if (!incoming.url?.startsWith('/api/stash-media/v1/')) return next();
-                const respond = (status: number, message: string) => { outgoing.statusCode = status; outgoing.setHeader('Content-Type', 'application/json'); outgoing.end(JSON.stringify({ error: message, code: 'local_media_unavailable' })); };
-                if (!localGatewayOriginAllowed(incoming.headers.origin, incoming.headers.host) || incoming.headers['sec-fetch-site'] === 'cross-site') return respond(403, 'Cross-origin local media requests are not allowed');
-                if (!credential) return respond(503, 'Start the local Ledger and run ledger:provision-local before uploading videos locally');
+                const path = incoming.url?.split('?')[0];
+                if (!path?.startsWith('/api/')) return next();
+                const respond = (status: number, message: string) => { outgoing.statusCode = status; outgoing.setHeader('Content-Type', 'application/json'); outgoing.end(JSON.stringify({ error: message, code: 'local_module_unavailable' })); };
+                let found: DevModule | undefined;
                 try {
-                    // Vite's config bundler follows literal imports even inside this dev-only callback.
-                    // Load these through Vite so their TypeScript package dependencies stay out of config loading.
-                    const [{ loadModules }, { loadTenantConfig }, { activeSiteId }] = await Promise.all([
-                        server.ssrLoadModule(fileURLToPath(new URL('../compose/compose-modules.js', import.meta.url))),
-                        server.ssrLoadModule(fileURLToPath(new URL('../tenants/tenant-config.js', import.meta.url))),
-                        server.ssrLoadModule(fileURLToPath(new URL('../root.js', import.meta.url))),
-                    ]);
+                    found = (await devModules()).find(candidate => candidate.routes.some(prefix => path === prefix || path.startsWith(`${prefix}/`)));
+                } catch { return respond(503, 'Local module routes could not be loaded'); }
+                if (!found) return next();
+                const module = found;
+                if (!localGatewayOriginAllowed(incoming.headers.origin, incoming.headers.host) || incoming.headers['sec-fetch-site'] === 'cross-site') return respond(403, 'Cross-origin local module requests are not allowed');
+                if (!credential) return respond(503, 'Start the local Ledger and run ledger:provision-local before using this locally');
+                try {
+                    const [{ loadTenantConfig }, { activeSiteId }] = await Promise.all([load('../tenants/tenant-config.js'), load('../root.js')]);
                     const config: Awaited<ReturnType<typeof import('../tenants/tenant-config.js').loadTenantConfig>> = await loadTenantConfig();
                     const site = config.sites.find(site => site.id === activeSiteId());
-                    const modules: ReturnType<typeof import('../compose/compose-modules.js').loadModules> = loadModules();
-                    const module = modules.find(module => module.manifest.server?.routes?.includes('/api/stash-media/v1') && module.manifest.features.some(feature => site?.features.some(enabled => enabled === feature.id)));
-                    if (!module) return respond(404, 'Video media is not enabled for this site');
-                    const endpoint = new URL(process.env.STASH_MEDIA_DEV_ENDPOINT || 'http://127.0.0.1:9000');
-                    if (!['localhost', '127.0.0.1', '[::1]'].includes(endpoint.hostname)) return respond(503, 'Development media storage must use a loopback MinIO endpoint');
-                    const { handleStashMediaRequest } = await server.ssrLoadModule(`${module.directory}/src/server/media.ts`);
+                    if (!site?.features.some(enabled => module.features.includes(enabled))) return respond(404, `${module.id} is not enabled for this site`);
                     const chunks: Buffer[] = []; let size = 0;
-                    for await (const chunk of incoming) { size += chunk.length; if (size > 1024 * 1024) return respond(413, 'Media control request is too large'); chunks.push(Buffer.from(chunk)); }
+                    for await (const chunk of incoming) { size += chunk.length; if (size > 1024 * 1024) return respond(413, 'Local module request is too large'); chunks.push(Buffer.from(chunk)); }
                     const headers = new Headers();
                     for (const [name, value] of Object.entries(incoming.headers)) if (typeof value === 'string') headers.set(name, value);
-                    const request = new Request(new URL(incoming.url, `http://${incoming.headers.host}`), { method: incoming.method, headers, ...(size ? { body: Buffer.concat(chunks) } : {}) });
-                    const env = {
-                        STASH_MEDIA_ENDPOINT: endpoint.origin, STASH_MEDIA_BUCKET: 'hearthlog-dev', STASH_MEDIA_REGION: 'us-east-1',
-                        STASH_MEDIA_KEY_ID: 'hearthlog-local', STASH_MEDIA_APP_KEY: 'hearthlog-local-only', LEDGER_AUTH_TOKEN: credential.token,
-                        LEDGER: { fetch: (request: Request) => { const url = new URL(request.url); return fetch(new URL(`${url.pathname}${url.search}`, credential.baseUrl), { method: request.method, headers: request.headers }); } },
-                    };
-                    const response: Response = await handleStashMediaRequest(request, env, async () => ({ email: 'local@example.invalid' }));
+                    const request = new Request(new URL(incoming.url!, `http://${incoming.headers.host}`), { method: incoming.method, headers, ...(size ? { body: Buffer.concat(chunks) } : {}) });
+                    const { default: dev } = await server.ssrLoadModule(`${module.directory}/${module.dev.slice(2)}`) as { default: import('@hearthlog/contracts').DevServerModule };
+                    const response = await dev.handle(request, {
+                        env: {
+                            LEDGER_AUTH_TOKEN: credential.token,
+                            LEDGER: { fetch: (request: Request) => { const url = new URL(request.url); return fetch(new URL(`${url.pathname}${url.search}`, credential.baseUrl), { method: request.method, headers: request.headers }); } },
+                        },
+                        identity: { email: 'local@example.invalid' },
+                    });
                     outgoing.statusCode = response.status;
                     response.headers.forEach((value, name) => outgoing.setHeader(name, value));
                     if (response.body) for await (const chunk of response.body) outgoing.write(chunk);
                     outgoing.end();
-                } catch { respond(503, 'Local video storage is unavailable. Check that MinIO and the local Ledger are running'); }
+                } catch { respond(503, `${module.id} is unavailable locally. Check that its local services and the local Ledger are running`); }
             });
         },
     };

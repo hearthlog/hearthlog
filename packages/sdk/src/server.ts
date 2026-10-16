@@ -13,7 +13,8 @@ export {
 export { isUuid, LedgerScopeError, verifyLogAppId, type LedgerScopeEnv } from '@hearthlog/cloudflare/ledger-scope.js';
 export { readBodyCapped } from '@hearthlog/cloudflare/request-body.js';
 export type {
-    FileContributor, ForkFile, ForkHistoryEvent, IntegrationHandler, IntegrationRequest, ServerModule, ServiceAppend, ServiceEvent,
+    DevServerContext, DevServerModule, FileContributor, ForkFile, ForkHistoryEvent, IntegrationHandler, IntegrationRequest, ServerModule, ServiceAppend,
+    ServiceEvent,
 } from '@hearthlog/contracts';
 export { deterministicUuid } from '@hearthlog/contracts/integrations/ids';
 export { IntegrationRequestError } from '@hearthlog/contracts/integrations/service';

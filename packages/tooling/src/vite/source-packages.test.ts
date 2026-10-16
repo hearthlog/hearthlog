@@ -27,19 +27,19 @@ test('every @hearthlog package and every module is found, direct or transitive, 
         const calc = install('calc', '@hearthlog/module-calc', { dependencies: { 'date-fns': '*' }, peerDependencies: { '@hearthlog/czech': '*' } }, true);
         link(czech, '@hearthlog/czech', store('calc'));
         link(install('date-fns', 'date-fns', {}), 'date-fns', store('calc'));
-        const stash = install('stash', '@acme/module-stash', { dependencies: { '@acme/helpers': '*' } }, true);
-        link(install('helpers', '@acme/helpers', {}), '@acme/helpers', store('stash'));
+        const notes = install('notes', '@acme/module-notes', { dependencies: { '@acme/helpers': '*' } }, true);
+        link(install('helpers', '@acme/helpers', {}), '@acme/helpers', store('notes'));
         const svelte = install('svelte', 'svelte', {});
 
         writeFileSync(join(root, 'package.json'), JSON.stringify({
-            dependencies: { '@hearthlog/module-calc': '*', '@acme/module-stash': '*', '@hearthlog/missing': '*' },
+            dependencies: { '@hearthlog/module-calc': '*', '@acme/module-notes': '*', '@hearthlog/missing': '*' },
             devDependencies: { svelte: '*' },
         }));
         link(calc, '@hearthlog/module-calc', join(root, 'node_modules'));
-        link(stash, '@acme/module-stash', join(root, 'node_modules'));
+        link(notes, '@acme/module-notes', join(root, 'node_modules'));
         link(svelte, 'svelte', join(root, 'node_modules'));
 
-        assert.deepEqual(sourcePackages(root), ['@acme/module-stash', '@hearthlog/czech', '@hearthlog/module-calc']);
+        assert.deepEqual(sourcePackages(root), ['@acme/module-notes', '@hearthlog/czech', '@hearthlog/module-calc']);
     } finally {
         rmSync(root, { recursive: true, force: true });
     }

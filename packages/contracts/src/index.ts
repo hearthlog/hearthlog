@@ -187,10 +187,63 @@ export interface ModuleServer {
     /** The module runs a daily job (the gateway's `scheduled` handler). */
     scheduled?: boolean;
     bindings?: ModuleBinding[];
-    /** Worker variables copied from a tenant's infrastructure (by key); an `optional` one is left out when the infrastructure has none. */
-    vars?: Array<{ name: string; resource: string; optional?: boolean }>;
+    /** Worker variables, each copied from the tenant's infrastructure or from the module's own settings; an `optional` one is left out when unset. */
+    vars?: ModuleVariable[];
     /** Write-only Worker secrets supplied by the operator, never emitted into configuration or browser code. */
     secrets?: Array<{ name: string }>;
+    /**
+     * A file in `src/server/` whose default export is a `DevServerModule`. The Vite dev server hands it the
+     * requests under `routes`; it is never bundled into a deployed gateway.
+     */
+    dev?: string;
+}
+
+/**
+ * A Worker variable. `resource` names a key of the core's infrastructure; `setting` names a key of the
+ * module's own block in the tenant's `moduleSettings`, which the core validates against `format`.
+ */
+export type ModuleVariable =
+    | { name: string; resource: string; optional?: boolean }
+    | { name: string; setting: string; format?: ModuleSettingFormat; values?: string[]; optional?: boolean };
+
+/** How the core validates a module setting. `values`, when present, also limits it to those strings. */
+export type ModuleSettingFormat = 'text' | 'https-origin' | 's3-bucket' | 's3-region';
+
+export const MODULE_SETTING_FORMATS: readonly ModuleSettingFormat[] = ['text', 'https-origin', 's3-bucket', 's3-region'];
+
+/** Why a module setting value is invalid, or null when it is valid. */
+export function moduleSettingProblem(variable: { format?: ModuleSettingFormat; values?: readonly string[] }, value: unknown): string | null {
+    if (typeof value !== 'string' || !value.trim()) return 'must be a non-empty string';
+    if (variable.values && !variable.values.includes(value)) return `must be one of ${variable.values.map((option) => `"${option}"`).join(', ')}`;
+    switch (variable.format ?? 'text') {
+        case 'https-origin': {
+            let url: URL | null = null;
+            try { url = new URL(value); } catch { url = null; }
+            return url && url.protocol === 'https:' && !url.username && !url.password && !url.search && !url.hash && url.pathname === '/' ? null : 'must be an HTTPS origin';
+        }
+        case 's3-bucket': return /^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/.test(value) ? null : 'must be an S3 bucket name';
+        case 's3-region': return /^[a-z0-9-]+$/.test(value) ? null : 'must be an S3 region';
+        default: return null;
+    }
+}
+
+/** A harmless value of the right shape, for builds that check a module without real configuration. */
+export function moduleSettingPlaceholder(variable: { format?: ModuleSettingFormat; values?: readonly string[] }): string {
+    if (variable.values?.length) return variable.values[0];
+    return { 'https-origin': 'https://module-check.example.invalid', 's3-bucket': 'module-check', 's3-region': 'us-east-1', text: 'module-check' }[variable.format ?? 'text'];
+}
+
+/** What the Vite dev server gives a module's `dev` entry for one request. Never available in a deployed build. */
+export interface DevServerContext {
+    /** The local Ledger binding and its token, shaped like the gateway's `LEDGER` and `LEDGER_AUTH_TOKEN`. */
+    env: { LEDGER: { fetch(request: Request): Promise<Response> }; LEDGER_AUTH_TOKEN: string };
+    /** The local developer, standing in for the Access identity a deployed gateway verifies. */
+    identity: { email: string };
+}
+
+/** What a module's `dev` entry exports. */
+export interface DevServerModule {
+    handle(request: Request, context: DevServerContext): Promise<Response>;
 }
 
 /** A logical binding the module needs; the physical resource name comes from the tenant's infrastructure. */
@@ -450,8 +503,13 @@ export function validateManifest(value: unknown, source = 'hearthlog.module.json
     }
     if (manifest.server !== undefined) {
         const label = `${id} server`;
-        const server = keys(label, manifest.server, ['entry', 'routes', 'scheduled', 'bindings', 'vars', 'secrets']);
+        const server = keys(label, manifest.server, ['entry', 'routes', 'scheduled', 'bindings', 'vars', 'secrets', 'dev']);
         if (!/^\.\/src\/server\/[A-Za-z0-9_-]+\.ts$/.test(entry(`${label} entry`, server.entry))) fail(label, 'entry must be a file in src/server/');
+        if (server.dev !== undefined) {
+            if (!/^\.\/src\/server\/[A-Za-z0-9_-]+\.ts$/.test(entry(`${label} dev`, server.dev))) fail(label, 'dev must be a file in src/server/');
+            if (server.dev === server.entry) fail(label, 'dev must not be the gateway entry');
+            if (!(server.routes as unknown[] | undefined)?.length) fail(label, 'dev needs routes to serve');
+        }
         for (const prefix of (server.routes ?? []) as unknown[]) text(`${label} routes`, prefix, /^\/api\/[a-z0-9-]+(\/[a-z0-9-]+)*$/);
         for (const [index, raw] of ((server.bindings ?? []) as unknown[]).entries()) {
             const binding = keys(`${label} bindings[${index}]`, raw, ['binding', 'type', 'resource']);
@@ -459,10 +517,26 @@ export function validateManifest(value: unknown, source = 'hearthlog.module.json
             if (binding.type === 'r2') text(`${label} bindings[${index}] resource`, binding.resource, /^[a-zA-Z]+$/);
             else if (binding.type !== 'images' || binding.resource !== undefined) fail(label, `bindings[${index}] must be an r2 bucket (with a resource) or images`);
         }
+        const settings = new Set<string>();
         for (const [index, raw] of ((server.vars ?? []) as unknown[]).entries()) {
-            const variable = keys(`${label} vars[${index}]`, raw, ['name', 'resource', 'optional']);
-            text(`${label} vars[${index}] name`, variable.name, /^[A-Z][A-Z0-9_]*$/);
-            text(`${label} vars[${index}] resource`, variable.resource, /^[a-zA-Z]+$/);
+            const at = `${label} vars[${index}]`;
+            const variable = keys(at, raw, ['name', 'resource', 'setting', 'format', 'values', 'optional']);
+            text(`${at} name`, variable.name, /^[A-Z][A-Z0-9_]*$/);
+            if (variable.optional !== undefined && typeof variable.optional !== 'boolean') fail(at, 'optional must be a boolean');
+            if ((variable.resource === undefined) === (variable.setting === undefined)) fail(at, 'needs either a resource or a setting');
+            if (variable.resource !== undefined) {
+                text(`${at} resource`, variable.resource, /^[a-zA-Z]+$/);
+                if (variable.format !== undefined || variable.values !== undefined) fail(at, 'format and values belong to a setting');
+                continue;
+            }
+            const setting = text(`${at} setting`, variable.setting, /^[a-z][a-zA-Z0-9]*$/);
+            if (settings.has(setting)) fail(at, `setting "${setting}" is declared twice`);
+            settings.add(setting);
+            if (variable.format !== undefined && !MODULE_SETTING_FORMATS.includes(variable.format as ModuleSettingFormat)) fail(at, `format must be one of ${MODULE_SETTING_FORMATS.join(', ')}`);
+            if (variable.values !== undefined) {
+                if (!Array.isArray(variable.values) || !variable.values.length) fail(at, 'values must be a non-empty array');
+                for (const option of variable.values) text(`${at} values`, option);
+            }
         }
         if (server.secrets !== undefined && !Array.isArray(server.secrets)) fail(label, 'secrets must be an array');
         const names = new Set<string>([

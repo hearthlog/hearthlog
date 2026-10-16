@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 
-import { findCollisions, ManifestError, validateManifest, type ModuleManifest } from '@hearthlog/contracts';
+import { findCollisions, ManifestError, moduleSettingPlaceholder, moduleSettingProblem, validateManifest, type ModuleManifest } from '@hearthlog/contracts';
 
 import { coreNamesNoDomain, directGeneratedImports, moduleImportProblem } from '../check/check-modules.js';
 import { loadModules, modulesForFeatures, renderRoute } from './compose-modules.js';
@@ -143,4 +143,35 @@ test('module secrets are named, write-only, and cannot overwrite variables or re
     assert.throws(() => validateManifest(manifest({ server: { ...server, vars: [{ name: 'MEDIA_KEY', resource: 'mediaOrigin' }] } })), ManifestError);
     const other = manifest({ id: 'org.example.other', package: '@hearthlog/module-other', features: [], routes: [], server });
     assert.ok(findCollisions([manifest({ server }), other], { featureIds: [], routePaths: [], refreshKeys: [] }).some(problem => problem.includes('MEDIA_KEY')));
+});
+
+test('module settings and dev entries are declared, typed, and kept apart from infrastructure resources', () => {
+    const vars = [{ name: 'MEDIA_ENDPOINT', setting: 'mediaEndpoint', format: 'https-origin' as const }, { name: 'MEDIA_PROXY', setting: 'mediaProxy', values: ['0', '1'], optional: true }];
+    const server = { entry: './src/server/index.ts', routes: ['/api/media/v1'], vars, dev: './src/server/dev.ts' };
+    assert.doesNotThrow(() => validateManifest(manifest({ server })));
+    for (const invalid of [
+        { ...server, vars: [{ name: 'MEDIA_ENDPOINT', setting: 'mediaEndpoint', resource: 'galleryPublicOrigin' }] },
+        { ...server, vars: [{ name: 'MEDIA_ENDPOINT' }] },
+        { ...server, vars: [{ name: 'MEDIA_ENDPOINT', setting: 'media-endpoint' }] },
+        { ...server, vars: [{ name: 'MEDIA_ENDPOINT', setting: 'mediaEndpoint', format: 'url' }] },
+        { ...server, vars: [{ name: 'MEDIA_ENDPOINT', setting: 'mediaEndpoint', values: [] }] },
+        { ...server, vars: [{ name: 'MEDIA_ENDPOINT', resource: 'galleryPublicOrigin', format: 'https-origin' }] },
+        { ...server, vars: [vars[0], { ...vars[0], name: 'OTHER' }] },
+        { ...server, dev: './src/server/index.ts' },
+        { ...server, dev: './src/dev.ts' },
+        { ...server, routes: [] },
+    ]) assert.throws(() => validateManifest(manifest({ server: invalid as never })), ManifestError, JSON.stringify(invalid));
+});
+
+test('module setting formats accept only values of their shape', () => {
+    assert.equal(moduleSettingProblem({ format: 'https-origin' }, 'https://s3.example.com'), null);
+    assert.match(moduleSettingProblem({ format: 'https-origin' }, 'http://s3.example.com') ?? '', /HTTPS/);
+    assert.match(moduleSettingProblem({ format: 'https-origin' }, 'https://s3.example.com/bucket') ?? '', /HTTPS/);
+    assert.equal(moduleSettingProblem({ format: 's3-bucket' }, 'private-media'), null);
+    assert.match(moduleSettingProblem({ format: 's3-bucket' }, 'Private_Media') ?? '', /bucket/);
+    assert.match(moduleSettingProblem({ format: 's3-region' }, 'EU 1') ?? '', /region/);
+    assert.match(moduleSettingProblem({ values: ['0', '1'] }, 'true') ?? '', /one of/);
+    assert.match(moduleSettingProblem({}, ' ') ?? '', /non-empty/);
+    assert.equal(moduleSettingPlaceholder({ values: ['0', '1'] }), '0');
+    for (const format of ['text', 'https-origin', 's3-bucket', 's3-region'] as const) assert.equal(moduleSettingProblem({ format }, moduleSettingPlaceholder({ format })), null);
 });
