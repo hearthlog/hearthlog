@@ -155,6 +155,58 @@ test('installed Hearthlog versions and module peers are checked independently of
     assert.throws(() => instance.validateInstalled(paths.tenant, plan), /must resolve to core/);
 });
 
+test('explicit tenant compiler dependencies enter the package without changing the generated link', (t) => {
+    const { instance, paths, config } = coordinator(t);
+    config.tenants.home.devDependencies = { '@types/node': '^24.0.0', kysely: '^0.29.6' };
+    const plan = makePlan(config, parseArgs(['core', '0.2.0', '--tenant', 'home']), paths);
+    instance.setTenantVersions(paths.tenant, plan);
+    const manifest = readJson(join(paths.tenant, 'package.json'));
+    assert.deepEqual(manifest.devDependencies, config.tenants.home.devDependencies);
+    assert.equal(manifest.dependencies['@hearthlog/generated'], 'link:.generated');
+});
+
+test('standard type checks warn only for installed-dependency unused symbols; real type errors still block', async (t) => {
+    let output = "node_modules/@hearthlog/contracts/src/definitions.ts(1,1): error TS6133: 'helper' is declared but never read.";
+    const { instance, paths } = coordinator(t, { run: async () => ({ code: 2, stdout: output, stderr: '' }) });
+    const manifest = readJson(join(paths.tenant, 'package.json'));
+    manifest.scripts = { check: 'hearthlog build && svelte-kit sync && tsc --noEmit -p tsconfig.json --skipLibCheck' };
+    writeJson(join(paths.tenant, 'package.json'), manifest);
+    await instance.checkSiteTypes(paths.tenant);
+    output = 'node_modules/@private/module-photos/src/page.ts(1,1): error TS2345: Argument has the wrong type.';
+    await assert.rejects(instance.checkSiteTypes(paths.tenant), /Site check failed/);
+    output = ".generated/src/page.ts(1,1): error TS6133: 'helper' is declared but never read.";
+    await assert.rejects(instance.checkSiteTypes(paths.tenant), /Site check failed/);
+    output = "node_modules/library/index.ts(1,1): error TS6133: 'helper' is declared but never read.";
+    manifest.scripts.check = 'custom-check';
+    writeJson(join(paths.tenant, 'package.json'), manifest);
+    await assert.rejects(instance.checkSiteTypes(paths.tenant), /Site check failed/);
+});
+
+test('a prepared module source branch is cloned without changing its release PR target', async (t) => {
+    const { instance, calls } = coordinator(t);
+    const entry = { repo: 'example/photos', sourceRef: 'fix/prepared-source' };
+    await instance.clone('module-photos', entry);
+    const clone = calls.find((call) => call.program === 'gh' && call.args[0] === 'repo');
+    assert.equal(clone.args[clone.args.indexOf('--branch') + 1], 'fix/prepared-source');
+    assert.equal(entry.branch ?? 'main', 'main');
+});
+
+test('a prepared source branch still goes through a PR when its release metadata is already set', async (t) => {
+    const { instance, paths, manifest, contract } = coordinator(t);
+    instance.state.repositories['module-photos'] = { sha: 'prepared-source-sha' };
+    instance.commit = async () => null;
+    let checked = false;
+    instance.pullRequest = async (key, entry, path, commit) => {
+        assert.equal(key, 'module-photos');
+        assert.equal(commit.sha, 'prepared-source-sha');
+        assert.equal(commit.existing, false);
+        checked = true;
+        throw new Pending('PR review');
+    };
+    await assert.rejects(instance.publishModule({ alias: 'photos', directory: paths.modules.photos, manifest, contract, sourceRef: 'fix/prepared-source' }, {}), Pending);
+    assert.equal(checked, true);
+});
+
 test('successful checkpoints survive a restart while failed actions run again', async (t) => {
     const { instance, config, options, directory, dependencies } = coordinator(t);
     let count = 0;

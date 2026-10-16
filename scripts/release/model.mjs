@@ -179,6 +179,7 @@ export function makePlan(config, options, paths) {
     }
     return { kind: options.kind, core: target, publishCore: options.kind === 'core', platformNames, modules: selected,
         tenant: options.tenant, site: config.tenants[options.tenant].site ?? options.tenant,
+        devDependencies: config.tenants[options.tenant].devDependencies ?? {},
         migrations: (config.tenants[options.tenant].migrations ?? []).filter((migration) => !migration.whenCore || satisfies(target, migration.whenCore)) };
 }
 
@@ -189,5 +190,6 @@ export function printPlan(plan, log = console.log) {
         for (const change of item.changes) log(`    ${change}`);
     }
     log(`Tenant ${plan.tenant}: validate composition → dependency/lock PR → deploy and verify receipt`);
+    for (const [name, range] of Object.entries(plan.devDependencies ?? {})) log(`  development dependency ${name}: ${range}`);
     for (const migration of plan.migrations ?? []) log(`  ${migration.file}: ${migration.from.join('/')} → ${migration.to.join('/')} (preserve existing value)`);
 }

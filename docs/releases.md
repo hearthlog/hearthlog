@@ -28,6 +28,18 @@ inventory outside the public repository. The coordinator clones through `gh`,
 does not copy local credentials into its checkouts, and uses your existing package
 registry configuration. Configure Git author identity before executing.
 
+A module entry can use `sourceRef` to validate changes from a prepared source
+branch while keeping `branch` as the PR target (normally `main`). This supports
+module fixes that depend on the unpublished core: push the source branch first;
+the coordinator tests it, publishes core, then opens the combined module release
+PR. Remove the temporary `sourceRef` after the completed release merges it.
+Use `--module alias@version` when a source change needs a release but its dependency
+ranges already support the selected core, so the core upgrade alone would keep it.
+
+A tenant entry can declare `devDependencies`, such as `@types/node` and `kysely`,
+when its TypeScript configuration or generated schema needs them directly. They
+are included in candidate validation and the tenant's package/lock PR.
+
 ```sh
 node platform/scripts/release/release.mjs --config release.config.json \
   core 0.2.0 --tenant personal
@@ -106,6 +118,10 @@ It does not infer source fixes or change manifest module API/projection versions
 Installed core versions and each module's core dependency/peer ranges are checked
 explicitly before site validation. Third-party peer warnings remain warnings, as
 in the existing workflows; builds, type checks, and unit tests still have to pass.
+For the standard site check, unused-symbol diagnostics (TS6133) in installed
+`node_modules` sources are reported as dependency warnings. Type errors in those
+dependencies, unused symbols in application/generated code, and failures from
+custom site check scripts still block the release.
 
 The core source tests use candidate source; unchanged module source tests use the
 configured remote module branch. The complete candidate tenant additionally tests
