@@ -34,6 +34,9 @@ the GitHub owner, repository, `release.yml` filename, and `npm` environment used
 by that repository, and allow direct `npm publish`. Approving GitHub's environment
 does not configure npm's publishing authorization. For private GitHub Packages,
 grant the tenant repository Actions read access to the module package.
+New npm connections remain pending until their first successful publish; npm's
+settings show the validation deadline. If a pending connection expires, renew it
+with the same repository, workflow, environment, and permissions before retrying.
 
 A module entry can use `sourceRef` to validate changes from a prepared source
 branch while keeping `branch` as the PR target (normally `main`). This supports
