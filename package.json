@@ -18,6 +18,7 @@
     "test:worker": "playwright test -c tests/playwright.worker.config.ts",
     "test:integration": "tsx scripts/integration.ts",
     "release:version": "tsx scripts/release-version.ts",
+    "test:release": "node --test scripts/release/*.test.mjs",
     "publish:packages": "tsx scripts/publish-packages.ts",
     "audit:push": "tsx packages/tooling/src/security/audit-push.ts",
     "audit:forbidden:init": "tsx packages/tooling/src/security/forbidden-init.ts"

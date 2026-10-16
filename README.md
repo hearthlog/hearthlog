@@ -186,6 +186,10 @@ commits and tags `v<version>`. After approval in the protected `npm` environment
 through npm's trusted publishing, with provenance, and creates the GitHub release. Nothing runs
 locally.
 
+For a coordinated core → modules → site upgrade, use the optional
+[workspace release coordinator](docs/releases.md). It validates the full site before core publication,
+opens downstream dependency PRs, and resumes across publishing and deployment steps.
+
 ## Security
 
 Report vulnerabilities as described in [`SECURITY.md`](SECURITY.md). Modules run with the same

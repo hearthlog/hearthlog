@@ -30,6 +30,7 @@ jobs:
       - run: pnpm check:examples
       - run: pnpm check:packages
       - run: pnpm test:scripts
+      - run: pnpm test:release
       - run: pnpm -C dev test:unit --run
       # The Env declaration check needs every module's bindings: it runs in the integration job.
       - run: pnpm -C dev frontend:worker:typecheck
