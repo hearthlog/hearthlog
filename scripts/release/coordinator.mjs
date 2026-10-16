@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync, rmSync,
 import { hostname } from 'node:os';
 import { dirname, join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
-import { digest, makePlan, platformPackages, printPlan, readJson } from './model.mjs';
+import { digest, makePlan, platformPackages, printPlan, readJson, satisfies } from './model.mjs';
 
 export function writeJson(path, value) {
     mkdirSync(dirname(path), { recursive: true });
@@ -178,6 +178,7 @@ export class Coordinator {
     }
 
     async validateSite(path, plan) {
+        this.validateInstalled(path, plan);
         const hearthlog = async (...args) => this.shell('pnpm', ['exec', 'hearthlog', ...args], path);
         await hearthlog('build');
         await hearthlog('lock');
@@ -188,6 +189,24 @@ export class Coordinator {
         await hearthlog('plan', '--site', plan.site);
         await hearthlog('artifact', 'manifest', '--site', plan.site);
         await hearthlog('artifact', 'verify', '--site', plan.site);
+    }
+
+    validateInstalled(path, plan) {
+        for (const name of plan.platformNames) {
+            const file = join(path, 'node_modules', name, 'package.json');
+            if (existsSync(file) && readJson(file).version !== plan.core) throw new Error(`${name} must resolve to core ${plan.core}`);
+        }
+        for (const item of plan.modules) {
+            const manifest = readJson(join(path, 'node_modules', item.name, 'package.json'));
+            if (manifest.version !== item.version) throw new Error(`${item.name} must resolve to ${item.version}`);
+            for (const section of ['dependencies', 'peerDependencies']) {
+                for (const [name, range] of Object.entries(manifest[section] ?? {})) {
+                    if (plan.platformNames.includes(name) && !satisfies(plan.core, range)) {
+                        throw new Error(`${item.name}: ${name} ${range} does not support core ${plan.core}`);
+                    }
+                }
+            }
+        }
     }
 
     async validateCandidates(plan, paths) {
@@ -213,7 +232,7 @@ export class Coordinator {
             const validation = join(this.directory, 'validation', `module-${item.alias}`);
             this.copy(item.directory, validation);
             this.overrides(validation, coreOverrides);
-            await this.shell('pnpm', ['install', '--no-frozen-lockfile', '--strict-peer-dependencies'], validation);
+            await this.shell('pnpm', ['install', '--no-frozen-lockfile', '--strict-peer-dependencies=false'], validation);
             const overridesFile = join(this.directory, `overrides-${item.alias}.json`);
             writeJson(overridesFile, coreOverrides);
             await this.shell('pnpm', ['exec', 'hearthlog', 'check-module', '.', '--overrides', overridesFile], validation);
@@ -222,7 +241,7 @@ export class Coordinator {
         this.copy(paths.tenant, site);
         this.setTenantVersions(site, plan, moduleOverrides);
         this.overrides(site, { ...coreOverrides, ...moduleOverrides });
-        await this.shell('pnpm', ['install', '--no-frozen-lockfile', '--strict-peer-dependencies'], site);
+        await this.shell('pnpm', ['install', '--no-frozen-lockfile', '--strict-peer-dependencies=false'], site);
         await this.validateSite(site, plan);
     }
 
@@ -412,7 +431,7 @@ export class Coordinator {
 
     async prepareTenant(plan, path) {
         this.setTenantVersions(path, plan);
-        await this.shell('pnpm', ['install', '--no-frozen-lockfile', '--strict-peer-dependencies'], path);
+        await this.shell('pnpm', ['install', '--no-frozen-lockfile', '--strict-peer-dependencies=false'], path);
         await this.validateSite(path, plan);
         return this.commit(path, `chore(release): update ${plan.tenant} dependencies`, ['package.json', 'pnpm-lock.yaml', `tenants/${plan.site}/modules.lock.json`]);
     }

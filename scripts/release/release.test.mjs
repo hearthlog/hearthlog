@@ -115,6 +115,19 @@ test('tenant pins only selected platform/module packages and preserves generated
     assert.equal(dependencies['@hearthlog/generated'], 'link:.generated');
 });
 
+test('installed Hearthlog versions and module peers are checked independently of third-party peer warnings', (t) => {
+    const { instance, paths, config } = coordinator(t);
+    const plan = makePlan(config, parseArgs(['tenant', 'home', '--core', '0.2.0', '--module', 'photos@1.2.0']), paths);
+    writeJson(join(paths.tenant, 'node_modules', '@hearthlog/sdk', 'package.json'), { version: '0.2.0' });
+    const file = join(paths.tenant, 'node_modules', '@private/module-photos', 'package.json');
+    writeJson(file, { version: '1.2.0', peerDependencies: { '@hearthlog/sdk': '>=0.1.0 <0.2.0 || 0.2.0', '@sveltejs/kit': '^2.21.0' } });
+    instance.validateInstalled(paths.tenant, plan);
+    writeJson(file, { version: '1.2.0', peerDependencies: { '@hearthlog/sdk': '<0.2.0' } });
+    assert.throws(() => instance.validateInstalled(paths.tenant, plan), /does not support core/);
+    writeJson(join(paths.tenant, 'node_modules', '@hearthlog/sdk', 'package.json'), { version: '0.1.8' });
+    assert.throws(() => instance.validateInstalled(paths.tenant, plan), /must resolve to core/);
+});
+
 test('successful checkpoints survive a restart while failed actions run again', async (t) => {
     const { instance, config, options, directory, dependencies } = coordinator(t);
     let count = 0;
@@ -296,7 +309,12 @@ test('core → module → tenant run resumes across both PRs without repeating d
         assert.fail(`Unexpected tool call: ${program} ${args.join(' ')}`);
     };
     const dependencies = { run, log: () => {}, sleep: async () => assert.fail('No waiting expected') };
-    const coordinator = () => new Coordinator(data.config, options, directory, dependencies);
+    const coordinator = () => {
+        const instance = new Coordinator(data.config, options, directory, dependencies);
+        // This test fakes pnpm installation; installed-package validation has a separate filesystem regression test.
+        instance.validateInstalled = () => {};
+        return instance;
+    };
     await assert.rejects(coordinator().execute(), /Merge https:\/\/github.com\/private\/photos/);
     const validated = calls.filter((call) => call.program === 'pnpm' && call.args.includes('check-module')).length;
     assert.equal(validated, 1);

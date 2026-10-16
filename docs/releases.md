@@ -86,6 +86,10 @@ not only SDK. The implementation supports stable exact versions, numeric
 comparators, caret, tilde, `*`, and `||`; unsupported range syntax fails explicitly.
 It does not infer source fixes or change manifest module API/projection versions.
 
+Installed core versions and each module's core dependency/peer ranges are checked
+explicitly before site validation. Third-party peer warnings remain warnings, as
+in the existing workflows; builds, type checks, and unit tests still have to pass.
+
 The core source tests use candidate source; unchanged module source tests use the
 configured remote module branch. The complete candidate tenant additionally tests
 the unchanged modules' **actual locked published packages**, so unpublished module
