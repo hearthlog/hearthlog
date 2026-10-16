@@ -16,6 +16,8 @@ import { fileURLToPath } from "node:url";
 import { FEATURES } from "@hearthlog/contracts/features/registry";
 import { AI_CAPABILITIES } from "@hearthlog/contracts/ai/capabilities";
 import { INTEGRATION_ID_PATTERN, INTEGRATION_KINDS } from "@hearthlog/contracts/integrations/kinds";
+import type { ModuleSettingFormat } from "@hearthlog/contracts";
+import { loadModules } from "../compose/compose-modules.js";
 import { DEVELOPER_PATH, REPOSITORY_ROOT } from "./tenant-config.js";
 
 export const TENANT_SCHEMA_FILE = join(REPOSITORY_ROOT, "tenants.schema.json");
@@ -26,6 +28,7 @@ const hours = { type: "string", pattern: "^[1-9][0-9]*h$", description: "Whole h
 
 export function buildTenantSchema(): Record<string, unknown> {
     const featureIds = FEATURES.map((feature) => feature.id);
+    const moduleSettings = moduleSettingsSchema();
     const homePaths = [...new Set(["/", DEVELOPER_PATH, ...FEATURES.flatMap((feature) => feature.page ? [feature.page.path] : [])])];
     const shared = {
         features: {
@@ -78,10 +81,7 @@ export function buildTenantSchema(): Record<string, unknown> {
                     workersDevDomain: { type: "string", pattern: "^[a-z0-9][a-z0-9-]*\\.workers\\.dev$", description: "The account's workers.dev subdomain." },
                     invoiceRendererOrigin: httpsOrigin,
                     kalApiOrigin: httpsOrigin,
-                    stashMediaEndpoint: httpsOrigin,
-                    stashMediaBucket: nonEmptyString,
-                    stashMediaRegion: nonEmptyString,
-                    stashMediaProxy: { enum: ["0", "1"] },
+                    moduleSettings,
                     ledgerAdminEmail: { type: "string", format: "email" },
                     accessTeamDomain: httpsOrigin,
                     accessSessionDuration: hours,
@@ -144,15 +144,42 @@ export function buildTenantSchema(): Record<string, unknown> {
                             },
                         },
                         hostname: { type: "string", format: "uri" },
-                        stashMediaEndpoint: httpsOrigin,
-                        stashMediaBucket: nonEmptyString,
-                        stashMediaRegion: nonEmptyString,
-                        stashMediaProxy: { enum: ["0", "1"] },
+                        moduleSettings,
                     },
                 },
             },
         },
     };
+}
+
+/** `moduleSettings`, with a block for each installed module that declares settings. */
+function moduleSettingsSchema(): Record<string, unknown> {
+    const properties: Record<string, unknown> = {};
+    for (const { manifest } of loadModules()) {
+        const settings = (manifest.server?.vars ?? []).filter((variable) => "setting" in variable);
+        if (!settings.length) continue;
+        properties[manifest.id] = {
+            type: "object",
+            additionalProperties: false,
+            properties: Object.fromEntries(settings.map((variable) => [variable.setting, settingSchema(variable)])),
+        };
+    }
+    return {
+        type: "object",
+        description: "Settings of installed modules, by module id. A site's override its deployment's, which override the shared ones.",
+        additionalProperties: false,
+        properties,
+    };
+}
+
+function settingSchema(variable: { format?: ModuleSettingFormat; values?: string[] }): Record<string, unknown> {
+    if (variable.values) return { enum: variable.values };
+    switch (variable.format ?? "text") {
+        case "https-origin": return httpsOrigin;
+        case "s3-bucket": return { type: "string", pattern: "^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$" };
+        case "s3-region": return { type: "string", pattern: "^[a-z0-9-]+$" };
+        default: return nonEmptyString;
+    }
 }
 
 export function renderTenantSchema(): string {

@@ -11,7 +11,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join, relative } from "node:path";
 
-import type { ModuleManifest } from "@hearthlog/contracts";
+import { moduleSettingProblem, type ModuleManifest } from "@hearthlog/contracts";
 
 import { WRANGLER_BASE } from "./wrangler-base.js";
 import { activeIntegrations } from "@hearthlog/contracts/integrations/kinds";
@@ -21,6 +21,7 @@ import {
     infrastructureFor,
     loadTenantConfig,
     REPOSITORY_ROOT,
+    TenantConfigError,
     type InfrastructureDefinition,
     type ResolvedSite,
     type SiteStack,
@@ -107,7 +108,8 @@ export function siteWorkerFirst(features: readonly string[]): string[] {
 
 /**
  * The bindings and variables a site's modules need, from their manifests.
- * `resource` names a key of the tenant's infrastructure.
+ * A `resource` names a key of the tenant's infrastructure; a `setting` names a key of the module's block in
+ * `infrastructure.moduleSettings`, checked against the format the manifest declares.
  */
 export function moduleBindings(
     features: readonly string[],
@@ -119,17 +121,35 @@ export function moduleBindings(
         if (!value) throw new Error(`The infrastructure has no "${resource}"`);
         return value;
     };
-    const optional = (resource: string): string | undefined => keyed[resource];
     const result = { r2: [] as Array<{ binding: string; bucket_name: string }>, images: false, vars: {} as Record<string, string> };
-    for (const server of serverDeclarations(features)) {
+    for (const { manifest } of modulesForFeatures(loadModules(), features)) {
+        const server = manifest.server;
+        if (!server) continue;
         for (const binding of server.bindings ?? []) {
             if (binding.type === "r2") result.r2.push({ binding: binding.binding, bucket_name: lookup(binding.resource) });
             else result.images = true;
         }
+        const settings = infrastructure.moduleSettings?.[manifest.id] ?? {};
+        const declared = new Set<string>();
         for (const variable of server.vars ?? []) {
-            const value = variable.optional ? optional(variable.resource) : lookup(variable.resource);
-            if (value) result.vars[variable.name] = value;
+            if ("resource" in variable) {
+                const value = variable.optional ? keyed[variable.resource] : lookup(variable.resource);
+                if (value) result.vars[variable.name] = value;
+                continue;
+            }
+            declared.add(variable.setting);
+            const value = settings[variable.setting];
+            const label = `moduleSettings.${manifest.id}.${variable.setting}`;
+            if (value === undefined) {
+                if (variable.optional) continue;
+                throw new TenantConfigError(`${label} is required by ${manifest.id}`);
+            }
+            const problem = moduleSettingProblem(variable, value);
+            if (problem) throw new TenantConfigError(`${label} ${problem}`);
+            result.vars[variable.name] = value;
         }
+        const unknown = Object.keys(settings).filter((key) => !declared.has(key));
+        if (unknown.length) throw new TenantConfigError(`moduleSettings.${manifest.id}: unknown key "${unknown[0]}" (known keys: ${[...declared].join(", ") || "none"})`);
     }
     return result;
 }

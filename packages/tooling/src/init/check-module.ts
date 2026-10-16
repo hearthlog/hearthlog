@@ -18,6 +18,8 @@ import { createRequire } from "node:module";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { moduleSettingPlaceholder } from "@hearthlog/contracts";
+
 import { loadModuleAt } from "../compose/compose-modules.js";
 import { renderSite } from "./init.js";
 
@@ -47,8 +49,13 @@ export function assembleCheckSite(options: Required<Pick<CheckModuleOptions, "di
     const configPath = join(options.work, "tenants.json");
     const config = JSON.parse(readFileSync(configPath, "utf8"));
     for (const variable of loaded.manifest.server?.vars ?? []) {
-        if (variable.optional || config.infrastructure[variable.resource]) continue;
-        config.infrastructure[variable.resource] = /Endpoint$|Origin$/.test(variable.resource) ? 'https://storage.example.invalid' : /Region$/.test(variable.resource) ? 'us-east-1' : 'module-check-storage';
+        if (variable.optional) continue;
+        if ("resource" in variable) {
+            config.infrastructure[variable.resource] ??= /Origin$/.test(variable.resource) ? 'https://module-check.example.invalid' : 'module-check';
+            continue;
+        }
+        const settings = ((config.infrastructure.moduleSettings ??= {})[loaded.manifest.id] ??= {});
+        settings[variable.setting] ??= moduleSettingPlaceholder(variable);
     }
     writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`);
     const manifestPath = join(options.work, "package.json");

@@ -53,12 +53,13 @@ export interface SiteTheme {
     accent?: string;
 }
 
-export interface SiteDefinition {
-    stashMediaEndpoint?: string;
-    stashMediaBucket?: string;
-    stashMediaRegion?: string;
-    stashMediaProxy?: string;
+/**
+ * Settings a module declares in its manifest (`server.vars[].setting`), by module id and then setting key.
+ * The core checks only the shape here; the module's manifest decides which keys exist and what they look like.
+ */
+export type ModuleSettings = Record<string, Record<string, string>>;
 
+export interface SiteDefinition {
     id: string;
     ledgerAppName?: string;
     admin?: boolean;
@@ -82,6 +83,8 @@ export interface SiteDefinition {
     dynamicEntities?: boolean;
     theme?: SiteTheme;
     hostname?: string;
+    /** Module settings for this site only; they override the deployment's and the shared ones key by key. */
+    moduleSettings?: ModuleSettings;
 }
 
 export interface InfrastructureDefinition {
@@ -100,12 +103,8 @@ export interface InfrastructureDefinition {
     galleryPublicBucket: string;
     galleryPublicWorker: string;
     galleryPublicOrigin: string;
-    /** Private S3-compatible video storage, provisioned separately by the site operator. */
-    stashMediaEndpoint?: string;
-    stashMediaBucket?: string;
-    stashMediaRegion?: string;
-    /** "1" streams playback through the gateway instead of redirecting to storage. */
-    stashMediaProxy?: string;
+    /** Module settings every site shares unless its deployment or its own definition overrides them. */
+    moduleSettings?: ModuleSettings;
     /** The account's workers.dev subdomain, for example `example.workers.dev`; Worker URLs derive from it. */
     workersDevDomain: string;
     /** The invoice renderer's HTTPS origin; Invoices answers 503 without one. */
@@ -130,13 +129,6 @@ export interface InfrastructureDefinition {
 
 /** `tenants/<site>/deployment.json`: a site that runs on its own stack. */
 export interface SiteDeployment {
-    /** Private S3-compatible video storage, provisioned separately by the site operator. */
-    stashMediaEndpoint?: string;
-    stashMediaBucket?: string;
-    stashMediaRegion?: string;
-    /** "1" streams playback through the gateway instead of redirecting to storage. */
-    stashMediaProxy?: string;
-
     schemaVersion: 1;
     /**
      * Prefix of every resource the site owns, starting with the site id, for
@@ -157,6 +149,8 @@ export interface SiteDeployment {
     kalApiOrigin?: string;
     accessSessionDuration?: string;
     accessGlobalSessionDuration?: string;
+    /** Module settings of this stack; the site's own override them key by key. */
+    moduleSettings?: ModuleSettings;
 }
 
 export interface TenantFile {
@@ -178,11 +172,6 @@ export interface TenantFile {
 }
 
 export interface ResolvedSite {
-    stashMediaEndpoint?: string;
-    stashMediaBucket?: string;
-    stashMediaRegion?: string;
-    stashMediaProxy?: string;
-
     id: string;
     ledgerAppName: string;
     features: FeatureId[];
@@ -202,6 +191,8 @@ export interface ResolvedSite {
     deployment: SiteDeployment | null;
     /** The site came from `tenants/<id>/tenant.json` rather than `tenants.json`. */
     fromTenantFile: boolean;
+    /** The site's own module settings; `infrastructureFor` layers them over the stack's. */
+    moduleSettings?: ModuleSettings;
 }
 
 export class TenantConfigError extends Error {
@@ -231,12 +222,12 @@ const SITE_KEYS = [
     "dynamicEntities",
     "theme",
     "hostname",
-    "stashMediaEndpoint", "stashMediaBucket", "stashMediaRegion", "stashMediaProxy",
+    "moduleSettings",
 ] as const satisfies readonly (keyof SiteDefinition)[];
 const DEPLOYMENT_KEYS = [
     "$schema", "schemaVersion", "resourcePrefix", "ledger", "accountId", "workersDevDomain", "authentication",
     "ledgerAdminEmail", "invoiceRendererOrigin", "kalApiOrigin", "accessSessionDuration", "accessGlobalSessionDuration",
-    "stashMediaEndpoint", "stashMediaBucket", "stashMediaRegion", "stashMediaProxy",
+    "moduleSettings",
 ] as const;
 const TENANT_FILE_KEYS = ["$schema", "schemaVersion", ...SITE_KEYS] as const;
 const WORKERS_DEV_PATTERN = /^[a-z0-9][a-z0-9-]*\.workers\.dev$/;
@@ -265,7 +256,7 @@ const INFRASTRUCTURE_KEYS = [
     "accessSessionDuration",
     "accessGlobalSessionDuration",
     "gallerySweeper",
-    "stashMediaEndpoint", "stashMediaBucket", "stashMediaRegion", "stashMediaProxy",
+    "moduleSettings",
     "accountId",
 ] as const satisfies readonly (keyof InfrastructureDefinition)[];
 
@@ -517,7 +508,7 @@ export function parseSiteDeployment(
         requireSessionDuration(`${label} ${key}`, duration);
         result[key] = duration;
     }
-    Object.assign(result, parseStashMediaConfiguration(deployment, label));
+    if (deployment.moduleSettings !== undefined) result.moduleSettings = parseModuleSettings(deployment.moduleSettings, `${label} moduleSettings`);
     if (options.standalone) {
         for (const key of ["workersDevDomain", "ledgerAdminEmail", "authentication"] as const) {
             if (result[key] === undefined) throw new TenantConfigError(`${label}: ${key} is required when there is no tenants.json`);
@@ -526,19 +517,35 @@ export function parseSiteDeployment(
     return result;
 }
 
-/** Validate optional media settings without requiring storage for sites that do not enable it. */
-export function parseStashMediaConfiguration(value: Partial<InfrastructureDefinition>, label: string): Partial<InfrastructureDefinition> {
-    const result: Partial<InfrastructureDefinition> = {};
-    for (const key of ['stashMediaEndpoint', 'stashMediaBucket', 'stashMediaRegion', 'stashMediaProxy'] as const) {
-        const text = value[key];
-        if (text === undefined) continue;
-        if (typeof text !== 'string' || !text.trim()) throw new TenantConfigError(`${label}.${key} must be a non-empty string`);
-        if (key === 'stashMediaEndpoint') requireHttpsOrigin(`${label}.${key}`, text);
-        if (key === 'stashMediaBucket' && !/^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/.test(text)) throw new TenantConfigError(`${label}.${key} must be an S3 bucket name`);
-        if (key === 'stashMediaRegion' && !/^[a-z0-9-]+$/.test(text)) throw new TenantConfigError(`${label}.${key} must be an S3 region`);
-        if (key === 'stashMediaProxy' && !['0', '1'].includes(text)) throw new TenantConfigError(`${label}.${key} must be 0 or 1`);
-        result[key] = text;
+const MODULE_ID_PATTERN = /^[a-z][a-z0-9]*(\.[a-z][a-z0-9-]*)+$/;
+const SETTING_KEY_PATTERN = /^[a-z][a-zA-Z0-9]*$/;
+
+/**
+ * Check the shape of a `moduleSettings` block: module ids to setting keys to non-empty strings. Which keys a
+ * module accepts, and their formats, are checked against its manifest when its Worker is configured.
+ */
+export function parseModuleSettings(value: unknown, label: string): ModuleSettings {
+    if (typeof value !== "object" || value === null || Array.isArray(value)) throw new TenantConfigError(`${label} must be an object`);
+    const result: ModuleSettings = {};
+    for (const [moduleId, settings] of Object.entries(value)) {
+        if (!MODULE_ID_PATTERN.test(moduleId)) throw new TenantConfigError(`${label}: "${moduleId}" is not a module id`);
+        if (typeof settings !== "object" || settings === null || Array.isArray(settings)) throw new TenantConfigError(`${label}.${moduleId} must be an object`);
+        result[moduleId] = {};
+        for (const [key, setting] of Object.entries(settings)) {
+            if (!SETTING_KEY_PATTERN.test(key)) throw new TenantConfigError(`${label}.${moduleId}: "${key}" is not a setting key`);
+            if (typeof setting !== "string" || !setting.trim()) throw new TenantConfigError(`${label}.${moduleId}.${key} must be a non-empty string`);
+            result[moduleId][key] = setting;
+        }
     }
+    return result;
+}
+
+/** Layer module settings key by key; later layers win. */
+export function mergeModuleSettings(...layers: ReadonlyArray<ModuleSettings | undefined>): ModuleSettings | undefined {
+    const present = layers.filter((layer): layer is ModuleSettings => layer !== undefined);
+    if (!present.length) return undefined;
+    const result: ModuleSettings = {};
+    for (const layer of present) for (const [moduleId, settings] of Object.entries(layer)) result[moduleId] = { ...result[moduleId], ...settings };
     return result;
 }
 
@@ -570,10 +577,12 @@ export function workersDevDomainFor(site: Pick<ResolvedSite, "deployment">, shar
  * every name from its resource prefix. Account-wide settings stay shared.
  */
 export function infrastructureFor(
-    site: Pick<ResolvedSite, "deployment"> & Partial<Pick<ResolvedSite, "stashMediaEndpoint" | "stashMediaBucket" | "stashMediaRegion" | "stashMediaProxy">>,
+    site: Pick<ResolvedSite, "deployment"> & Partial<Pick<ResolvedSite, "moduleSettings">>,
     shared: InfrastructureDefinition,
 ): InfrastructureDefinition {
-    if (!site.deployment) return { ...shared, ...parseStashMediaConfiguration(site, "site") };
+    const moduleSettings = mergeModuleSettings(shared.moduleSettings, site.deployment?.moduleSettings, site.moduleSettings);
+    const withSettings = moduleSettings ? { moduleSettings } : {};
+    if (!site.deployment) return { ...shared, ...withSettings };
     const prefix = site.deployment.resourcePrefix;
     const origin = (worker: string) => `https://${worker}.${workersDevDomainFor(site, shared)}`;
     const names = {
@@ -590,8 +599,7 @@ export function infrastructureFor(
     return {
         ...shared,
         ...names,
-        ...parseStashMediaConfiguration(site.deployment, "site deployment"),
-        ...parseStashMediaConfiguration(site, "site"),
+        ...withSettings,
         workersDevDomain: workersDevDomainFor(site, shared),
         ...(site.deployment.authentication ? { accessTeamDomain: site.deployment.authentication.teamDomain } : {}),
         ...(site.deployment.ledgerAdminEmail ? { ledgerAdminEmail: site.deployment.ledgerAdminEmail } : {}),
@@ -715,7 +723,7 @@ export function resolveSite(
     return {
         id: site.id,
         ledgerAppName: site.ledgerAppName ?? site.id,
-        ...parseStashMediaConfiguration(site, label),
+        ...(site.moduleSettings !== undefined ? { moduleSettings: parseModuleSettings(site.moduleSettings, `${label} moduleSettings`) } : {}),
         features: [...features],
         ai: [...ai],
         integrations,
@@ -870,7 +878,7 @@ export function resolveInfrastructure(
         const duration = infrastructure[key];
         if (duration !== undefined) requireSessionDuration(`tenants.json infrastructure.${key}`, duration);
     }
-    parseStashMediaConfiguration(infrastructure, "tenants.json infrastructure");
+    if (infrastructure.moduleSettings !== undefined) parseModuleSettings(infrastructure.moduleSettings, "tenants.json infrastructure.moduleSettings");
     return infrastructure;
 }
 

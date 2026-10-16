@@ -78,23 +78,11 @@
           "type": "string",
           "pattern": "^https://[^/?#@]+/?$"
         },
-        "stashMediaEndpoint": {
-          "type": "string",
-          "pattern": "^https://[^/?#@]+/?$"
-        },
-        "stashMediaBucket": {
-          "type": "string",
-          "minLength": 1
-        },
-        "stashMediaRegion": {
-          "type": "string",
-          "minLength": 1
-        },
-        "stashMediaProxy": {
-          "enum": [
-            "0",
-            "1"
-          ]
+        "moduleSettings": {
+          "type": "object",
+          "description": "Settings of installed modules, by module id. A site's override its deployment's, which override the shared ones.",
+          "additionalProperties": false,
+          "properties": {}
         },
         "ledgerAdminEmail": {
           "type": "string",
@@ -271,23 +259,11 @@
             "type": "string",
             "format": "uri"
           },
-          "stashMediaEndpoint": {
-            "type": "string",
-            "pattern": "^https://[^/?#@]+/?$"
-          },
-          "stashMediaBucket": {
-            "type": "string",
-            "minLength": 1
-          },
-          "stashMediaRegion": {
-            "type": "string",
-            "minLength": 1
-          },
-          "stashMediaProxy": {
-            "enum": [
-              "0",
-              "1"
-            ]
+          "moduleSettings": {
+            "type": "object",
+            "description": "Settings of installed modules, by module id. A site's override its deployment's, which override the shared ones.",
+            "additionalProperties": false,
+            "properties": {}
           }
         }
       }
