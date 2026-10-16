@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { compare, lockedVersion, makePlan, parseArgs, readJson, satisfies, updateModule } from './model.mjs';
+import { compare, lockedVersion, makePlan, moveSetting, parseArgs, readJson, satisfies, updateModule } from './model.mjs';
 import { acquireLock, Coordinator, Pending, writeJson } from './coordinator.mjs';
 
 function fixture(t) {
@@ -65,6 +65,33 @@ test('core patch retains locked module versions even when module main is ahead',
     assert.equal(plan.modules[0].changed, false);
     assert.equal(plan.modules[0].version, '1.0.0');
     assert.equal(lockedVersion(paths.tenant, '@hearthlog/sdk'), '0.1.8');
+});
+
+test('setting moves preserve values, are idempotent, and refuse conflicts or unsafe paths', () => {
+    const from = ['legacyEndpoint'], to = ['moduleSettings', 'org.example.photos', 'endpoint'];
+    const original = { legacyEndpoint: 'https://storage.example.invalid', other: 'keep' };
+    const migrated = moveSetting(original, from, to);
+    assert.equal(migrated.moduleSettings['org.example.photos'].endpoint, original.legacyEndpoint);
+    assert.equal(migrated.other, 'keep');
+    assert.equal('legacyEndpoint' in migrated, false);
+    assert.deepEqual(moveSetting(migrated, from, to), migrated);
+    assert.equal(original.legacyEndpoint, 'https://storage.example.invalid');
+    assert.throws(() => moveSetting({ ...migrated, legacyEndpoint: 'different' }, from, to), /conflict/);
+    assert.throws(() => moveSetting(original, from, ['__proto__', 'value']), /JSON key paths/);
+    assert.throws(() => moveSetting(original, from, ['legacyEndpoint', 'child']), /JSON key paths/);
+});
+
+test('tenant migrations are selected by core version and restricted to tenant configuration', (t) => {
+    const { instance, config, paths } = coordinator(t);
+    config.tenants.home.migrations = [{ whenCore: '>=0.2.0', file: 'tenants/home/deployment.json', from: ['legacy'], to: ['moduleSettings', 'photos', 'endpoint'] }];
+    const older = makePlan(config, parseArgs(['core', '0.1.9', '--tenant', 'home']), paths);
+    assert.equal(older.migrations.length, 0);
+    const plan = makePlan(config, parseArgs(['core', '0.2.0', '--tenant', 'home']), paths);
+    writeJson(join(paths.tenant, 'tenants/home/deployment.json'), { legacy: 'https://storage.example.invalid' });
+    instance.migrateTenant(paths.tenant, plan);
+    instance.migrateTenant(paths.tenant, plan);
+    assert.equal(readJson(join(paths.tenant, 'tenants/home/deployment.json')).moduleSettings.photos.endpoint, 'https://storage.example.invalid');
+    assert.throws(() => instance.migrateTenant(paths.tenant, { migrations: [{ ...plan.migrations[0], file: '../outside.json' }] }), /only tenant JSON/);
 });
 
 test('incompatible platform peers and dev tooling are updated together and both module versions align', (t) => {

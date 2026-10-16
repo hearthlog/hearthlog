@@ -55,6 +55,23 @@ Worker is built when that module is enabled. Existing top-level pnpm `overrides`
 in validation checkouts require explicit reconciliation; they are never silently
 replaced. No new module or feature is enabled by the coordinator.
 
+For a known configuration change, a tenant entry can declare `migrations`:
+
+```json
+{
+  "whenCore": ">=0.2.0",
+  "file": "tenants/personal/deployment.json",
+  "from": ["legacyStorageEndpoint"],
+  "to": ["moduleSettings", "org.example.photos", "endpoint"]
+}
+```
+
+These explicit JSON key moves preserve the existing value, run in candidate and
+published-package validation, and are included in the tenant PR. They are
+idempotent and refuse conflicting destination values. Only tenant/deployment JSON
+and `tenants.json` inside the checkout can be edited. Nothing infers configuration
+renames or reads secrets. `whenCore` limits a migration to the intended core range.
+
 ## Sequence and validation
 
 1. Snapshot remote branches in isolated clones. Save the request and immutable

@@ -2,9 +2,9 @@ import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync, rmSync, readdirSync, cpSync, openSync, closeSync } from 'node:fs';
 import { hostname } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve, sep } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
-import { digest, makePlan, platformPackages, printPlan, readJson, satisfies } from './model.mjs';
+import { digest, makePlan, moveSetting, platformPackages, printPlan, readJson, satisfies } from './model.mjs';
 
 export function writeJson(path, value) {
     mkdirSync(dirname(path), { recursive: true });
@@ -191,6 +191,20 @@ export class Coordinator {
         await hearthlog('artifact', 'verify', '--site', plan.site);
     }
 
+    migrateTenant(path, plan) {
+        const files = new Map();
+        for (const migration of plan.migrations ?? []) {
+            const file = resolve(path, migration.file);
+            if (!file.startsWith(`${resolve(path)}${sep}`) || !/^tenants(?:\/[^/]+\/(?:tenant|deployment))?\.json$/.test(migration.file)) {
+                throw new Error(`Migrations may edit only tenant JSON configuration inside the checkout: ${migration.file}`);
+            }
+            const current = files.get(file) ?? readJson(file);
+            files.set(file, moveSetting(current, migration.from, migration.to));
+        }
+        // Resolve all moves before writing, so a conflict leaves every source file unchanged.
+        for (const [file, value] of files) writeJson(file, value);
+    }
+
     validateInstalled(path, plan) {
         for (const name of plan.platformNames) {
             const file = join(path, 'node_modules', name, 'package.json');
@@ -239,6 +253,7 @@ export class Coordinator {
         }
         const site = join(this.directory, 'validation', 'tenant');
         this.copy(paths.tenant, site);
+        this.migrateTenant(site, plan);
         this.setTenantVersions(site, plan, moduleOverrides);
         this.overrides(site, { ...coreOverrides, ...moduleOverrides });
         await this.shell('pnpm', ['install', '--no-frozen-lockfile', '--strict-peer-dependencies=false'], site);
@@ -430,9 +445,10 @@ export class Coordinator {
     }
 
     async prepareTenant(plan, path) {
+        this.migrateTenant(path, plan);
         this.setTenantVersions(path, plan);
         await this.shell('pnpm', ['install', '--no-frozen-lockfile', '--strict-peer-dependencies=false'], path);
         await this.validateSite(path, plan);
-        return this.commit(path, `chore(release): update ${plan.tenant} dependencies`, ['package.json', 'pnpm-lock.yaml', `tenants/${plan.site}/modules.lock.json`]);
+        return this.commit(path, `chore(release): update ${plan.tenant} dependencies`, [...new Set(['package.json', 'pnpm-lock.yaml', `tenants/${plan.site}/modules.lock.json`, ...(plan.migrations ?? []).map((migration) => migration.file)])]);
     }
 }

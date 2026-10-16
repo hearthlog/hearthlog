@@ -5,6 +5,30 @@ import { join } from 'node:path';
 export const readJson = (path) => JSON.parse(readFileSync(path, 'utf8'));
 export const digest = (value) => createHash('sha256').update(JSON.stringify(value)).digest('hex').slice(0, 16);
 
+export function moveSetting(document, from, to) {
+    const valid = (path) => Array.isArray(path) && path.length && path.every((key) => typeof key === 'string' && key && !['__proto__', 'prototype', 'constructor'].includes(key));
+    if (!valid(from) || !valid(to) || from.every((key, index) => key === to[index]) || to.every((key, index) => key === from[index])) throw new Error('Setting moves need non-overlapping JSON key paths');
+    const result = structuredClone(document);
+    const parentAt = (path, create) => path.slice(0, -1).reduce((parent, key) => {
+        if (parent === undefined) return undefined;
+        if (!Object.hasOwn(parent, key)) {
+            if (!create) return undefined;
+            parent[key] = {};
+        }
+        if (parent[key] === null || typeof parent[key] !== 'object' || Array.isArray(parent[key])) throw new Error(`Setting parent ${key} must be an object`);
+        return parent[key];
+    }, result);
+    const source = parentAt(from, false);
+    const sourceKey = from.at(-1);
+    if (!source || !Object.hasOwn(source, sourceKey)) return result;
+    const target = parentAt(to, true);
+    const targetKey = to.at(-1);
+    if (Object.hasOwn(target, targetKey) && JSON.stringify(target[targetKey]) !== JSON.stringify(source[sourceKey])) throw new Error(`Setting migration conflict at ${to.join('/')}; reconcile the values explicitly`);
+    target[targetKey] = source[sourceKey];
+    delete source[sourceKey];
+    return result;
+}
+
 export function version(value) {
     if (!/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(value ?? '')) {
         throw new Error(`Expected a stable version x.y.z, received ${JSON.stringify(value)}`);
@@ -154,7 +178,8 @@ export function makePlan(config, options, paths) {
         if (/@[^/]+\/module-/.test(name) && !selected.some((item) => item.name === name)) throw new Error(`Configure the installed module ${name} before releasing`);
     }
     return { kind: options.kind, core: target, publishCore: options.kind === 'core', platformNames, modules: selected,
-        tenant: options.tenant, site: config.tenants[options.tenant].site ?? options.tenant };
+        tenant: options.tenant, site: config.tenants[options.tenant].site ?? options.tenant,
+        migrations: (config.tenants[options.tenant].migrations ?? []).filter((migration) => !migration.whenCore || satisfies(target, migration.whenCore)) };
 }
 
 export function printPlan(plan, log = console.log) {
@@ -164,4 +189,5 @@ export function printPlan(plan, log = console.log) {
         for (const change of item.changes) log(`    ${change}`);
     }
     log(`Tenant ${plan.tenant}: validate composition → dependency/lock PR → deploy and verify receipt`);
+    for (const migration of plan.migrations ?? []) log(`  ${migration.file}: ${migration.from.join('/')} → ${migration.to.join('/')} (preserve existing value)`);
 }
