@@ -34,7 +34,7 @@
     "kysely": "^0.29.6",
     "date-fns": "^4.4.0",
     "sqlocal": "^0.18.0",
-    "idb": "^8.0.3",
+    "idb": "^8.0.4",
     "@hearthlog/contracts": "workspace:*",
     "@hearthlog/ui": "workspace:*"
   },
