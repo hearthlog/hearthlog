@@ -11,6 +11,7 @@
         type SyncPhase,
     } from "@hearthlog/runtime/store/sync-state.js";
     import { navIndicator } from "./nav-indicator.js";
+    import { placeHref, placeTitle, recentPlaces } from "./recent-places.svelte.js";
     import SidebarResizer from "./SidebarResizer.svelte";
     import NavItem from "./NavItem.svelte";
     import NavFlyout from "./NavFlyout.svelte";
@@ -224,10 +225,62 @@
         syncPhase === "syncing",
     );
 
-    function isActive(path: string): boolean {
-        if (path === "/") return page.url.pathname === "/";
-        return page.url.pathname === path || page.url.pathname.startsWith(`${path}/`);
+    function pathMatches(pathname: string, path: string): boolean {
+        if (path === "/") return pathname === "/";
+        return pathname === path || pathname.startsWith(`${path}/`);
     }
+
+    function isActive(path: string): boolean {
+        return pathMatches(page.url.pathname, path);
+    }
+
+    // ---------------------------------------------------------------- recently
+    /** The place in view, once its title settles: pages name it in `<title>` after their data loads. */
+    function rememberPlace(): void {
+        // An error page is no place to return to.
+        if (page.error) return;
+        const url = new URL(window.location.href);
+        const link = navLinks.find((candidate) => (candidate.matchPaths ?? [candidate.path]).some((path) => pathMatches(url.pathname, path)));
+        if (!link) return;
+        const title = placeTitle(document.title, link.label, tenant.title);
+        if (title) recentPlaces.record({ href: placeHref(url), title, section: link.id });
+    }
+
+    let rememberTimer: ReturnType<typeof setTimeout> | undefined;
+    function settlePlace(): void {
+        clearTimeout(rememberTimer);
+        rememberTimer = setTimeout(rememberPlace, 700);
+    }
+
+    // The log's list opens with its data; a title change or a move to another address records the place.
+    $effect(() => {
+        if (!dataReady || !currentLogId) return;
+        recentPlaces.open(tenant.id, currentLogId);
+        const titles = new MutationObserver(settlePlace);
+        titles.observe(document.head, { subtree: true, childList: true, characterData: true });
+        settlePlace();
+        return () => {
+            clearTimeout(rememberTimer);
+            titles.disconnect();
+        };
+    });
+
+    $effect(() => {
+        void page.url.href;
+        if (dataReady && currentLogId) settlePlace();
+    });
+
+    /** Up to four places outside the section in view, each with its section's icon. */
+    const recentShown = $derived.by(() => {
+        const here = navLinks.find(isLinkActive)?.id ?? null;
+        return recentPlaces.places
+            .filter((place) => place.section !== here)
+            .flatMap((place) => {
+                const link = navLinks.find((candidate) => candidate.id === place.section);
+                return link ? [{ ...place, icon: link.icon, sectionLabel: link.label }] : [];
+            })
+            .slice(0, 4);
+    });
 
     function isLinkActive(link: NavLink): boolean {
         return (link.matchPaths ?? [link.path]).some(isActive);
@@ -428,6 +481,25 @@
             </section>
         {/each}
     </nav>
+
+    {#if !collapsed && recentShown.length > 0}
+        <!-- Where this device was lately in this log, outside the section in view. -->
+        <section class="shrink-0 px-3 pb-2" aria-label="Recently">
+            <p class="px-3 pb-1.5 pt-1 text-[10.5px] font-semibold uppercase tracking-[0.1em] text-[var(--stor-muted-text)]">Recently</p>
+            <ul class="flex flex-col gap-px">
+                {#each recentShown as place (place.href)}
+                    {@const Icon = place.icon}
+                    <li><a href={place.href} class="stor-recent-place" aria-label={`${place.title}, ${place.sectionLabel}`}>
+                        <Icon class="h-4 w-4 shrink-0 text-[var(--stor-muted-text)]" />
+                        <span class="flex min-w-0 flex-col leading-tight" aria-hidden="true">
+                            <span class="truncate text-[13px] font-medium text-[var(--stor-ink)]">{place.title}</span>
+                            <span class="truncate text-[11.5px] text-[var(--stor-muted-text)]">{place.sectionLabel}</span>
+                        </span>
+                    </a></li>
+                {/each}
+            </ul>
+        </section>
+    {/if}
 
     <!-- Places sit above the line; the log, its sync state and the account sit below it. -->
     <div class="shrink-0 border-t border-[var(--stor-border)] {collapsed ? 'flex flex-col items-center gap-0.5 px-2 py-2.5' : 'space-y-0.5 px-2.5 py-2'}">

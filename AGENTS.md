@@ -552,6 +552,10 @@ imported through `.generated/module-sources.generated.css` only for tenants that
   name (`AttentionContribution.figures` in the module's `attention` file, read with SQL like badges;
   the calendar's own is the next pinned date). Keep it short and muted, leave it out rather than show
   a zero; a late-work badge takes its place, and the rail shows it only in the tooltip.
+- Recently: the expanded sidebar lists up to four places this device opened in the current log,
+  outside the section in view (`recent-places.svelte.ts`, browser storage, never synced). A place
+  is named by the first part of the page's `<title>`, so give a month, sub-page, or record its own
+  title; a page titled only with its section name is not listed.
 - Mobile: bottom navigation shows the primary destinations, `MobilePageAction`
   renders the page's main action as a label-sized pill at the bottom right above
   it (hidden while a drawer is open), and `[data-stor-main]` owns bottom
