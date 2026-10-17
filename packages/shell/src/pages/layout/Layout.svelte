@@ -16,6 +16,7 @@
     import { localStoreStatus } from "@hearthlog/runtime/store/local-store.svelte.js";
     import { logs } from "@hearthlog/runtime/store/logs.svelte.js";
     import NavBar from "@hearthlog/shell/components/layout/NavBar.svelte";
+    import LastChangeBar from "@hearthlog/shell/components/layout/LastChangeBar.svelte";
     import { SIDEBAR_WIDTH_KEY, readSidebarWidth } from "@hearthlog/shell/components/layout/sidebar-size.js";
     import LogCreateDrawer from "@hearthlog/shell/components/layout/LogCreateDrawer.svelte";
     import NotificationCenter from "@hearthlog/ui/components/NotificationCenter.svelte";
@@ -579,6 +580,7 @@
             <button class="mt-2 block font-semibold underline" onclick={() => window.location.reload()}>Retry loading</button>
         </aside>
     {/if}
+    <LastChangeBar collapsed={sidebarCollapsed} logId={eventLogFilename.value} />
     <NotificationCenter />
     <LogCreateDrawer
         show={createLogDrawerOpen}

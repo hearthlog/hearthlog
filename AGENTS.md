@@ -556,6 +556,10 @@ imported through `.generated/module-sources.generated.css` only for tenants that
   outside the section in view (`recent-places.svelte.ts`, browser storage, never synced). A place
   is named by the first part of the page's `<title>`, so give a month, sub-page, or record its own
   title; a page titled only with its section name is not listed.
+- Last change: from 768px the shell shows a quiet bar for the latest change this tab committed,
+  named as Log history names it, with History and, when the action only added standard records, Undo
+  (`LastChangeBar`). Undo appends those records' `…_REMOVED` events (`runtime/commands/undo.ts`);
+  it never tombstones or edits events. Edits, removals and module-specific events offer no undo.
 - Mobile: bottom navigation shows the primary destinations, `MobilePageAction`
   renders the page's main action as a label-sized pill at the bottom right above
   it (hidden while a drawer is open), and `[data-stor-main]` owns bottom

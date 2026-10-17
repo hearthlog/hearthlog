@@ -29,6 +29,15 @@
     .stor-recent-place { display: flex; align-items: center; gap: 11px; min-height: 40px; padding: 3px 10px 3px 13px; border-radius: 10px; transition: background-color 120ms; }
     .stor-recent-place:hover { background: var(--stor-nav-hover); }
     .stor-recent-place:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--stor-focus); }
+    /* Last change: one quiet bar over the bottom of the page panel, offering Undo for what this tab just saved. */
+    .stor-last-change { display: flex; align-items: center; gap: 8px; width: min(560px, 100%); min-height: 48px; box-sizing: border-box; padding: 6px 6px 6px 14px; border-radius: 14px; background: var(--stor-surface-overlay); box-shadow: var(--stor-elevation-3); font-size: 13.5px; color: var(--stor-ink); }
+    .stor-last-change-action { flex: none; min-height: 34px; padding: 0 12px; border-radius: 10px; font-size: 13.5px; font-weight: 600; color: var(--stor-accent-text); transition: background-color 120ms; }
+    .stor-last-change-action:hover:not(:disabled) { background: var(--stor-nav-hover); }
+    .stor-last-change-action:disabled { opacity: 0.55; }
+    .stor-last-change-quiet { font-weight: 500; color: var(--stor-muted-text); }
+    .stor-last-change-close { display: grid; flex: none; place-items: center; width: 34px; height: 34px; border-radius: 10px; color: var(--stor-muted-text); }
+    .stor-last-change-close:hover { background: var(--stor-nav-hover); color: var(--stor-ink); }
+    .stor-last-change :is(button):focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--stor-focus); }
     /* Rail flyout: a section's pages beside the rail, opened by hover or keyboard focus (NavFlyout). */
     .stor-nav-fly { position: fixed; z-index: 60; width: 13rem; padding: 8px; border-radius: 16px; background: var(--stor-surface-overlay); box-shadow: var(--stor-elevation-3); opacity: 0; visibility: hidden; transform: translateX(-4px); transition: opacity 140ms ease, transform 140ms ease, visibility 0s linear 140ms; }
     .stor-nav-fly[data-open] { opacity: 1; visibility: visible; transform: none; transition-delay: 0s; }
