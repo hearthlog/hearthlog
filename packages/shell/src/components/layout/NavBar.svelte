@@ -319,7 +319,7 @@
 </script>
 
 <aside
-    class="fixed left-3 top-3 bottom-3 z-50 hidden flex-col rounded-[20px] bg-[var(--stor-sidebar)] shadow-[var(--stor-sidebar-shadow)] transition-[width] duration-150 ease-out motion-reduce:transition-none md:flex {collapsed
+    class="fixed left-0 top-0 bottom-0 z-50 hidden flex-col bg-[var(--stor-sidebar)] transition-[width] duration-150 ease-out motion-reduce:transition-none md:flex {collapsed
         ? 'w-20'
         : 'w-[var(--stor-sidebar-width)]'}"
     data-testid="desktop-sidebar"
@@ -355,7 +355,8 @@
                         {@const active = isLinkActive(link)}
                         {@const badge = attention.badge(link.id)}
                         {#if !collapsed}
-                            <div>
+                            <!-- The current section is one raised card: its row and its open sub-pages. -->
+                            <div data-nav-section data-active={active ? '' : undefined}>
                                 <!-- The count sits on the sub-page that holds the work while the section is open. -->
                                 <NavItem
                                     href={linkHref(link.path)}

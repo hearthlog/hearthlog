@@ -428,11 +428,12 @@ arbitrary values, for example `text-[var(--stor-muted-text)]`.
 
 **Depth.** Every surface sits on one level of a z scale, lit from above. A component picks a level, never its
 own shadow: well (`.stor-well`: fields, tab and segmented tracks, checkboxes),
-canvas (`--stor-bg`), panel (`.stor-panel`, sidebar, dock; `--stor-elevation-1`),
-raised (`.stor-raised`, buttons, the selected pill; level 2), menu (`.stor-menu`:
+canvas (`--stor-bg`, which the sidebar sits on), panel (`.stor-panel`, the page panel, dock; `--stor-elevation-1`),
+raised (`.stor-raised`, buttons, the selected pill and section card; level 2), menu (`.stor-menu`:
 Select, dropdowns, popovers, date picker; level 3), sheet (`.stor-sheet`: Drawer,
 Modal, ConfirmDialog; level 4). Dark mode shows height as lighter surfaces plus
-a top rim. Strength is the single `ELEVATION_STRENGTH` constant in
+a top rim. From 768px `[data-stor-main]` is the page panel: inside it `--stor-bg` is the
+panel's surface and `.stor-panel` sections are outlined rather than shadowed (`shell.css`). Strength is the single `ELEVATION_STRENGTH` constant in
 `packages/contracts/src/tenant/theme.ts`. Stack with the `--stor-layer-*` tokens
 (`z-[var(--stor-layer-menu)]`), not literal z-index numbers, and do not use raw
 Tailwind `shadow-sm/md/lg/xl`.

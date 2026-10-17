@@ -531,8 +531,8 @@
 <div
     data-stor-root
     class="flex h-dvh w-full flex-col bg-[var(--stor-bg)] transition-[padding] duration-150 ease-out motion-reduce:transition-none {sidebarCollapsed
-        ? 'md:pl-[104px]'
-        : 'lg:pl-[calc(var(--stor-sidebar-width)+24px)]'}"
+        ? 'md:pl-20'
+        : 'lg:pl-[var(--stor-sidebar-width)]'}"
 >
     <NavBar
         userEmail={userEmail}
