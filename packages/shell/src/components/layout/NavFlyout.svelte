@@ -1,5 +1,6 @@
 <script lang="ts">
     import type { Snippet } from 'svelte';
+    import type { NavFigure } from '@hearthlog/contracts';
     import type { NavChild } from '@hearthlog/contracts/features/navigation';
     import type { AttentionTone } from '@hearthlog/runtime/store/attention.svelte.js';
 
@@ -9,17 +10,21 @@
         href: string;
         active: boolean;
         badge: Badge | null;
+        figure: NavFigure | null;
     }
 
     let {
         label,
         badge,
+        figure = null,
         items,
         trigger,
     }: {
         label: string;
         /** The section's own badge, named in the flyout header. */
         badge: Badge | null;
+        /** The section's live figure, shown in the header while nothing is overdue. */
+        figure?: NavFigure | null;
         items: Item[];
         /** The section link. It stays the real navigation target; the flyout only adds shortcuts. */
         trigger: Snippet;
@@ -111,6 +116,8 @@
             <span class="min-w-0 truncate">{label}</span>
             {#if badge}
                 <span class="stor-nav-badge {badge.tone === 'negative' ? 'stor-nav-badge-negative' : 'stor-nav-badge-warning'} shrink-0">{badge.count} overdue</span>
+            {:else if figure}
+                <span class="stor-nav-figure" title={figure.label}>{figure.text}</span>
             {/if}
         </div>
         <ul>
@@ -119,11 +126,13 @@
                     href={item.href}
                     class="stor-nav-child {item.active ? 'stor-nav-child-active' : ''}"
                     aria-current={item.active ? 'page' : undefined}
-                    aria-label={item.badge ? `${item.child.label}, ${item.badge.label}` : undefined}
+                    aria-label={item.badge || item.figure ? [item.child.label, item.badge?.label ?? item.figure?.label].join(', ') : undefined}
                 >
-                    <span class="min-w-0 flex-1 truncate">{item.child.label}</span>
+                    <span class="min-w-0 truncate {!item.badge && item.figure ? 'flex-none' : 'flex-1'}">{item.child.label}</span>
                     {#if item.badge}
                         <span class="stor-nav-badge {item.badge.tone === 'negative' ? 'stor-nav-badge-negative' : 'stor-nav-badge-warning'}" aria-hidden="true">{item.badge.count}</span>
+                    {:else if item.figure}
+                        <span class="stor-nav-figure" aria-hidden="true">{item.figure.text}</span>
                     {/if}
                 </a></li>
             {/each}

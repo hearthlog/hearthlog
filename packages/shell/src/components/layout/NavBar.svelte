@@ -354,6 +354,7 @@
                     {#each group.links as link}
                         {@const active = isLinkActive(link)}
                         {@const badge = attention.badge(link.id)}
+                        {@const figure = attention.figure(link.id)}
                         {#if !collapsed}
                             <!-- The current section is one raised card: its row and its open sub-pages. -->
                             <div data-nav-section data-active={active ? '' : undefined}>
@@ -365,6 +366,7 @@
                                     {active}
                                     {collapsed}
                                     {badge}
+                                    {figure}
                                     showCount={!(active && link.children)}
                                 />
                                 {#if link.children}
@@ -375,15 +377,18 @@
                                                 {#each link.children as child}
                                                     {@const childActive = active && isChildActive(link, child)}
                                                     {@const childBadge = child.badgeId ? attention.badge(child.badgeId) : null}
+                                                    {@const childFigure = childBadge ? null : attention.figure(child.id)}
                                                     <li><a
                                                         href={childHref(link, child)}
                                                         class="stor-nav-child {childActive ? 'stor-nav-child-active' : ''}"
                                                         aria-current={childActive ? "page" : undefined}
-                                                        aria-label={childBadge ? `${child.label}, ${childBadge.label}` : undefined}
+                                                        aria-label={childBadge || childFigure ? [child.label, childBadge?.label ?? childFigure?.label].join(', ') : undefined}
                                                     >
-                                                        <span class="min-w-0 flex-1 truncate">{child.label}</span>
+                                                        <span class="min-w-0 truncate {childFigure ? 'flex-none' : 'flex-1'}">{child.label}</span>
                                                         {#if childBadge}
                                                             <span class="stor-nav-badge {childBadge.tone === 'negative' ? 'stor-nav-badge-negative' : 'stor-nav-badge-warning'}" aria-hidden="true">{childBadge.count}</span>
+                                                        {:else if childFigure}
+                                                            <span class="stor-nav-figure" aria-hidden="true">{childFigure.text}</span>
                                                         {/if}
                                                     </a></li>
                                                 {/each}
@@ -397,22 +402,24 @@
                             <NavFlyout
                                 label={link.label}
                                 {badge}
+                                {figure}
                                 items={link.children.map((child) => ({
                                     child,
                                     href: childHref(link, child),
                                     active: active && isChildActive(link, child),
                                     badge: child.badgeId ? attention.badge(child.badgeId) : null,
+                                    figure: attention.figure(child.id),
                                 }))}
                             >
                                 {#snippet trigger()}
-                                    <NavItem href={linkHref(link.path)} icon={link.icon} label={link.label} {active} {collapsed} {badge} />
+                                    <NavItem href={linkHref(link.path)} icon={link.icon} label={link.label} {active} {collapsed} {badge} {figure} />
                                 {/snippet}
                             </NavFlyout>
                         {:else}
                             <!-- Rail: a section without pages names itself in a tooltip. -->
-                            <Tooltip content={badge ? `${link.label} · ${badge.label}` : link.label} side="right" delayDuration={150}>
+                            <Tooltip content={[link.label, badge?.label, figure?.label].filter(Boolean).join(' · ')} side="right" delayDuration={150}>
                                 {#snippet trigger({ props })}
-                                    <NavItem {...props} href={linkHref(link.path)} icon={link.icon} label={link.label} {active} {collapsed} {badge} />
+                                    <NavItem {...props} href={linkHref(link.path)} icon={link.icon} label={link.label} {active} {collapsed} {badge} {figure} />
                                 {/snippet}
                             </Tooltip>
                         {/if}

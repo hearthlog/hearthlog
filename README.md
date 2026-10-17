@@ -135,7 +135,7 @@ dependencies, and its own files. It never imports another module or the app's in
 `pnpm check:modules` enforces this. The `ModuleManifest` type in
 [`packages/contracts/src/index.ts`](packages/contracts/src/index.ts) documents what a manifest may
 declare: features and routes, layouts, entities and repositories, a projection version, startup
-code, attention badges, styles, gateway routes and bindings, and a public Worker. An exported
+code, attention badges and navigation figures, styles, gateway routes and bindings, and a public Worker. An exported
 module tests itself with `hearthlog check-module`, which builds a throwaway site that enables it.
 
 A server module may declare write-only `server.secrets: [{ "name": "MEDIA_KEY" }]` alongside its bindings and variables. The manifest lists names only. During the existing secrets phase, the operator supplies `MEDIA_KEY_<SITE>` (uppercase site id, hyphens replaced by underscores), or `MEDIA_KEY` for a selected site. Missing declared values fail the secrets refresh; values are sent through Wrangler stdin and never written to generated configuration. Reserved gateway bindings and collisions with other module bindings/variables are rejected.

@@ -548,6 +548,10 @@ imported through `.generated/module-sources.generated.css` only for tenants that
   every other figure in that figure's sheet, filters behind one options
   button, no row checkboxes until press and hold, required fields first.
   Desktop and tablet layouts stay as they are.
+- Sidebar figures: from 1024px each section and sub-page may carry one live figure beside its
+  name (`AttentionContribution.figures` in the module's `attention` file, read with SQL like badges;
+  the calendar's own is the next pinned date). Keep it short and muted, leave it out rather than show
+  a zero; a late-work badge takes its place, and the rail shows it only in the tooltip.
 - Mobile: bottom navigation shows the primary destinations, `MobilePageAction`
   renders the page's main action as a label-sized pill at the bottom right above
   it (hidden while a drawer is open), and `[data-stor-main]` owns bottom

@@ -12,6 +12,8 @@
     [data-nav-section] { position: relative; border-radius: 12px; }
     [data-nav-section][data-active] { background: var(--stor-surface-raised); box-shadow: var(--stor-elevation-2); }
     [data-nav-section] .stor-nav-selected, .stor-nav-sliding [data-nav-section][data-active] { background: transparent; box-shadow: none; }
+    /* A section's live figure: muted, right-aligned, and the first thing to truncate when the sidebar is narrow. */
+    .stor-nav-figure { min-width: 0; flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: right; font-size: 12px; font-weight: 500; color: var(--stor-muted-text); font-variant-numeric: tabular-nums; }
     .stor-nav-badge { min-width: 20px; height: 18px; padding: 0 6px; border-radius: 999px; font-size: 10.5px; font-weight: 650; line-height: 18px; text-align: center; font-variant-numeric: tabular-nums; }
     .stor-nav-badge-negative { background: var(--stor-negative-soft); color: var(--stor-negative); }
     .stor-nav-badge-warning { background: var(--stor-warning-soft); color: var(--stor-warning); }

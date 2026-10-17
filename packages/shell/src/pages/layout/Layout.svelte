@@ -29,7 +29,8 @@
     import { offlineReadiness } from "@hearthlog/runtime/store/offline-readiness.svelte.js";
     import { featureForPath, ENTITIES_PATH } from "@hearthlog/contracts/features/registry";
     import { attention } from "@hearthlog/runtime/store/attention.svelte.js";
-    import { tenant } from "@hearthlog/contracts/tenant/config";
+    import { isFeatureEnabled, tenant } from "@hearthlog/contracts/tenant/config";
+    import { calendarAttention } from "@hearthlog/shell/components/calendar/calendar-attention.js";
     import { createAndActivateLog, prepareForkFiles } from "@hearthlog/runtime/log-management.js";
     import { SYNC_INVALIDATION_TARGETS } from "@hearthlog/runtime/store/sync-invalidation.js";
     import { beginReadTargetTransition, failReadTargetTransition } from "@hearthlog/runtime/runtime/read-coordinator.js";
@@ -104,10 +105,10 @@
         return kept ? kept.path : page.url.pathname;
     });
 
-    // Navigation badges and native reminders come from the composed modules.
+    // Navigation badges, figures and native reminders come from the composed modules, plus the calendar's own figure.
     // `startup` is the host's composed module list and never changes for a running page.
     // svelte-ignore state_referenced_locally
-    attention.configure(startup.attentionContributions);
+    attention.configure([...(isFeatureEnabled("calendar") ? [calendarAttention] : []), ...startup.attentionContributions]);
 
     onMount(() => initializeAppearance(tenant.id));
 
