@@ -25,7 +25,8 @@ export interface LocalCommandResult {
     projectionPending: boolean;
 }
 
-type CommitListener = (result: LocalCommandResult) => void | Promise<void>;
+/** Runs after a new batch commits on this device, with the events it appended (never for a duplicate submission). */
+type CommitListener = (result: LocalCommandResult, events: readonly ExtendedAppEvent[]) => void | Promise<void>;
 
 const commitListeners = new Set<CommitListener>();
 const inFlightCommands = new Map<string, { content: string; execution: Promise<LocalCommandResult> }>();
@@ -113,7 +114,7 @@ async function execute(
         projectionPending,
     };
 
-    if (!committed.duplicate) await notifyCommitted(result);
+    if (!committed.duplicate) await notifyCommitted(result, events);
     return result;
 }
 
@@ -173,10 +174,10 @@ export async function retryPendingCommandProjections(): Promise<number> {
     return completed;
 }
 
-async function notifyCommitted(result: LocalCommandResult): Promise<void> {
+async function notifyCommitted(result: LocalCommandResult, events: readonly ExtendedAppEvent[]): Promise<void> {
     for (const listener of commitListeners) {
         try {
-            await listener(result);
+            await listener(result, events);
         } catch (error) {
             console.error('[Command] Post-commit listener failed', error);
         }

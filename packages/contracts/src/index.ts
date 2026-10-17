@@ -137,7 +137,7 @@ export interface ModuleManifest {
     integrationKinds?: Array<{ kind: string; feature: string }>;
     /** Browser code the app runs at startup for tenants that enable the module (`export function start()`). */
     startup?: string;
-    /** A browser file exporting `attention` (an `AttentionContribution`): navigation badges and native reminders. */
+    /** A browser file exporting `attention` (an `AttentionContribution`): navigation badges and figures, and native reminders. */
     attention?: string;
     /** A stylesheet (`./src/styles.css`) with the module's recipes; the host imports it after the shell's, only for tenants that enable the module. */
     styles?: string;
@@ -157,6 +157,19 @@ export interface AttentionBadge {
     label: string;
 }
 
+/**
+ * One live figure beside a navigation destination or sub-page: spent today, steps, the next due date. It reads
+ * at a glance in the muted ink, so the sidebar answers the quick check; a badge takes its place while work is late.
+ */
+export interface NavFigure {
+    /** The navigation id it sits on: a destination's id or a sub-page's `NavChild.id`. */
+    id: string;
+    /** Already formatted and short, about 14 characters at most ("−1 284 Kč", "8 912 steps", "Tue 20"). */
+    text: string;
+    /** Read after the destination's name by screen readers and shown in the rail's tooltip ("1 284 Kč spent today"). */
+    label: string;
+}
+
 /** A local notification the native shell schedules. */
 export interface AttentionReminder {
     id: string;
@@ -168,9 +181,11 @@ export interface AttentionReminder {
     path: string;
 }
 
-/** What a module tells the app about late or upcoming work; both read SQL through `queryDatabase`. */
+/** What a module tells the app about late or upcoming work and its live figures; all read SQL through `queryDatabase`. */
 export interface AttentionContribution {
     badges?(context: { today: string }): Promise<AttentionBadge[]>;
+    /** At most one figure per navigation id; leave a figure out rather than show a zero. */
+    figures?(context: { today: string }): Promise<NavFigure[]>;
     reminders?(context: { today: Date }): Promise<AttentionReminder[]>;
 }
 

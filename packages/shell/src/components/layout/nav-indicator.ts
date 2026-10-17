@@ -31,10 +31,11 @@ function boxIn(el: HTMLElement, nav: HTMLElement): Box {
  * `tabIndicator`.
  *
  * Measures the selected top-level link (`a[data-nav-link]` with
- * `aria-current`) and glides a raised pill to it. The pill keeps following the
- * row while a sub-list above it opens or closes, so it lands on the row's
- * resting position rather than where the row was when the page changed. The
- * selected link keeps its own background until the pill is placed, and reduced
+ * `aria-current`), or the `[data-nav-section]` card around it in the expanded
+ * sidebar, and glides a raised pill to it. The pill keeps following the row
+ * while a sub-list opens or closes, so it lands on the row's resting position
+ * and size rather than where the row was when the page changed. The selected
+ * section keeps its own background until the pill is placed, and reduced
  * motion snaps.
  *
  * Usage: `{@attach navIndicator}` on the positioned `<nav>` that holds the links.
@@ -68,7 +69,8 @@ export function navIndicator(nav: HTMLElement): () => void {
             nav.classList.remove('stor-nav-sliding');
             return;
         }
-        const target = boxIn(selected, nav);
+        // The expanded sidebar raises the whole section, so the pill wraps its open sub-pages too.
+        const target = boxIn(selected.closest<HTMLElement>('[data-nav-section]') ?? selected, nav);
         if (!shown || reducedMotion.matches) {
             shown = target;
         } else {

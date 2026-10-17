@@ -11,6 +11,7 @@
         type SyncPhase,
     } from "@hearthlog/runtime/store/sync-state.js";
     import { navIndicator } from "./nav-indicator.js";
+    import { placeHref, placeTitle, recentPlaces } from "./recent-places.svelte.js";
     import SidebarResizer from "./SidebarResizer.svelte";
     import NavItem from "./NavItem.svelte";
     import NavFlyout from "./NavFlyout.svelte";
@@ -224,10 +225,62 @@
         syncPhase === "syncing",
     );
 
-    function isActive(path: string): boolean {
-        if (path === "/") return page.url.pathname === "/";
-        return page.url.pathname === path || page.url.pathname.startsWith(`${path}/`);
+    function pathMatches(pathname: string, path: string): boolean {
+        if (path === "/") return pathname === "/";
+        return pathname === path || pathname.startsWith(`${path}/`);
     }
+
+    function isActive(path: string): boolean {
+        return pathMatches(page.url.pathname, path);
+    }
+
+    // ---------------------------------------------------------------- recently
+    /** The place in view, once its title settles: pages name it in `<title>` after their data loads. */
+    function rememberPlace(): void {
+        // An error page is no place to return to.
+        if (page.error) return;
+        const url = new URL(window.location.href);
+        const link = navLinks.find((candidate) => (candidate.matchPaths ?? [candidate.path]).some((path) => pathMatches(url.pathname, path)));
+        if (!link) return;
+        const title = placeTitle(document.title, link.label, tenant.title);
+        if (title) recentPlaces.record({ href: placeHref(url), title, section: link.id });
+    }
+
+    let rememberTimer: ReturnType<typeof setTimeout> | undefined;
+    function settlePlace(): void {
+        clearTimeout(rememberTimer);
+        rememberTimer = setTimeout(rememberPlace, 700);
+    }
+
+    // The log's list opens with its data; a title change or a move to another address records the place.
+    $effect(() => {
+        if (!dataReady || !currentLogId) return;
+        recentPlaces.open(tenant.id, currentLogId);
+        const titles = new MutationObserver(settlePlace);
+        titles.observe(document.head, { subtree: true, childList: true, characterData: true });
+        settlePlace();
+        return () => {
+            clearTimeout(rememberTimer);
+            titles.disconnect();
+        };
+    });
+
+    $effect(() => {
+        void page.url.href;
+        if (dataReady && currentLogId) settlePlace();
+    });
+
+    /** Up to four places outside the section in view, each with its section's icon. */
+    const recentShown = $derived.by(() => {
+        const here = navLinks.find(isLinkActive)?.id ?? null;
+        return recentPlaces.places
+            .filter((place) => place.section !== here)
+            .flatMap((place) => {
+                const link = navLinks.find((candidate) => candidate.id === place.section);
+                return link ? [{ ...place, icon: link.icon, sectionLabel: link.label }] : [];
+            })
+            .slice(0, 4);
+    });
 
     function isLinkActive(link: NavLink): boolean {
         return (link.matchPaths ?? [link.path]).some(isActive);
@@ -319,7 +372,7 @@
 </script>
 
 <aside
-    class="fixed left-3 top-3 bottom-3 z-50 hidden flex-col rounded-[20px] bg-[var(--stor-sidebar)] shadow-[var(--stor-sidebar-shadow)] transition-[width] duration-150 ease-out motion-reduce:transition-none md:flex {collapsed
+    class="fixed left-0 top-0 bottom-0 z-50 hidden flex-col bg-[var(--stor-sidebar)] transition-[width] duration-150 ease-out motion-reduce:transition-none md:flex {collapsed
         ? 'w-20'
         : 'w-[var(--stor-sidebar-width)]'}"
     data-testid="desktop-sidebar"
@@ -354,8 +407,10 @@
                     {#each group.links as link}
                         {@const active = isLinkActive(link)}
                         {@const badge = attention.badge(link.id)}
+                        {@const figure = attention.figure(link.id)}
                         {#if !collapsed}
-                            <div>
+                            <!-- The current section is one raised card: its row and its open sub-pages. -->
+                            <div data-nav-section data-active={active ? '' : undefined}>
                                 <!-- The count sits on the sub-page that holds the work while the section is open. -->
                                 <NavItem
                                     href={linkHref(link.path)}
@@ -364,6 +419,7 @@
                                     {active}
                                     {collapsed}
                                     {badge}
+                                    {figure}
                                     showCount={!(active && link.children)}
                                 />
                                 {#if link.children}
@@ -374,15 +430,18 @@
                                                 {#each link.children as child}
                                                     {@const childActive = active && isChildActive(link, child)}
                                                     {@const childBadge = child.badgeId ? attention.badge(child.badgeId) : null}
+                                                    {@const childFigure = childBadge ? null : attention.figure(child.id)}
                                                     <li><a
                                                         href={childHref(link, child)}
                                                         class="stor-nav-child {childActive ? 'stor-nav-child-active' : ''}"
                                                         aria-current={childActive ? "page" : undefined}
-                                                        aria-label={childBadge ? `${child.label}, ${childBadge.label}` : undefined}
+                                                        aria-label={childBadge || childFigure ? [child.label, childBadge?.label ?? childFigure?.label].join(', ') : undefined}
                                                     >
-                                                        <span class="min-w-0 flex-1 truncate">{child.label}</span>
+                                                        <span class="min-w-0 truncate {childFigure ? 'flex-none' : 'flex-1'}">{child.label}</span>
                                                         {#if childBadge}
                                                             <span class="stor-nav-badge {childBadge.tone === 'negative' ? 'stor-nav-badge-negative' : 'stor-nav-badge-warning'}" aria-hidden="true">{childBadge.count}</span>
+                                                        {:else if childFigure}
+                                                            <span class="stor-nav-figure" aria-hidden="true">{childFigure.text}</span>
                                                         {/if}
                                                     </a></li>
                                                 {/each}
@@ -396,22 +455,24 @@
                             <NavFlyout
                                 label={link.label}
                                 {badge}
+                                {figure}
                                 items={link.children.map((child) => ({
                                     child,
                                     href: childHref(link, child),
                                     active: active && isChildActive(link, child),
                                     badge: child.badgeId ? attention.badge(child.badgeId) : null,
+                                    figure: attention.figure(child.id),
                                 }))}
                             >
                                 {#snippet trigger()}
-                                    <NavItem href={linkHref(link.path)} icon={link.icon} label={link.label} {active} {collapsed} {badge} />
+                                    <NavItem href={linkHref(link.path)} icon={link.icon} label={link.label} {active} {collapsed} {badge} {figure} />
                                 {/snippet}
                             </NavFlyout>
                         {:else}
                             <!-- Rail: a section without pages names itself in a tooltip. -->
-                            <Tooltip content={badge ? `${link.label} · ${badge.label}` : link.label} side="right" delayDuration={150}>
+                            <Tooltip content={[link.label, badge?.label, figure?.label].filter(Boolean).join(' · ')} side="right" delayDuration={150}>
                                 {#snippet trigger({ props })}
-                                    <NavItem {...props} href={linkHref(link.path)} icon={link.icon} label={link.label} {active} {collapsed} {badge} />
+                                    <NavItem {...props} href={linkHref(link.path)} icon={link.icon} label={link.label} {active} {collapsed} {badge} {figure} />
                                 {/snippet}
                             </Tooltip>
                         {/if}
@@ -420,6 +481,25 @@
             </section>
         {/each}
     </nav>
+
+    {#if !collapsed && recentShown.length > 0}
+        <!-- Where this device was lately in this log, outside the section in view. -->
+        <section class="shrink-0 px-3 pb-2" aria-label="Recently">
+            <p class="px-3 pb-1.5 pt-1 text-[10.5px] font-semibold uppercase tracking-[0.1em] text-[var(--stor-muted-text)]">Recently</p>
+            <ul class="flex flex-col gap-px">
+                {#each recentShown as place (place.href)}
+                    {@const Icon = place.icon}
+                    <li><a href={place.href} class="stor-recent-place" aria-label={`${place.title}, ${place.sectionLabel}`}>
+                        <Icon class="h-4 w-4 shrink-0 text-[var(--stor-muted-text)]" />
+                        <span class="flex min-w-0 flex-col leading-tight" aria-hidden="true">
+                            <span class="truncate text-[13px] font-medium text-[var(--stor-ink)]">{place.title}</span>
+                            <span class="truncate text-[11.5px] text-[var(--stor-muted-text)]">{place.sectionLabel}</span>
+                        </span>
+                    </a></li>
+                {/each}
+            </ul>
+        </section>
+    {/if}
 
     <!-- Places sit above the line; the log, its sync state and the account sit below it. -->
     <div class="shrink-0 border-t border-[var(--stor-border)] {collapsed ? 'flex flex-col items-center gap-0.5 px-2 py-2.5' : 'space-y-0.5 px-2.5 py-2'}">

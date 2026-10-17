@@ -428,11 +428,12 @@ arbitrary values, for example `text-[var(--stor-muted-text)]`.
 
 **Depth.** Every surface sits on one level of a z scale, lit from above. A component picks a level, never its
 own shadow: well (`.stor-well`: fields, tab and segmented tracks, checkboxes),
-canvas (`--stor-bg`), panel (`.stor-panel`, sidebar, dock; `--stor-elevation-1`),
-raised (`.stor-raised`, buttons, the selected pill; level 2), menu (`.stor-menu`:
+canvas (`--stor-bg`, which the sidebar sits on), panel (`.stor-panel`, the page panel, dock; `--stor-elevation-1`),
+raised (`.stor-raised`, buttons, the selected pill and section card; level 2), menu (`.stor-menu`:
 Select, dropdowns, popovers, date picker; level 3), sheet (`.stor-sheet`: Drawer,
 Modal, ConfirmDialog; level 4). Dark mode shows height as lighter surfaces plus
-a top rim. Strength is the single `ELEVATION_STRENGTH` constant in
+a top rim. From 768px `[data-stor-main]` is the page panel: inside it `--stor-bg` is the
+panel's surface and `.stor-panel` sections are outlined rather than shadowed (`shell.css`). Strength is the single `ELEVATION_STRENGTH` constant in
 `packages/contracts/src/tenant/theme.ts`. Stack with the `--stor-layer-*` tokens
 (`z-[var(--stor-layer-menu)]`), not literal z-index numbers, and do not use raw
 Tailwind `shadow-sm/md/lg/xl`.
@@ -547,6 +548,18 @@ imported through `.generated/module-sources.generated.css` only for tenants that
   every other figure in that figure's sheet, filters behind one options
   button, no row checkboxes until press and hold, required fields first.
   Desktop and tablet layouts stay as they are.
+- Sidebar figures: from 1024px each section and sub-page may carry one live figure beside its
+  name (`AttentionContribution.figures` in the module's `attention` file, read with SQL like badges;
+  the calendar's own is the next pinned date). Keep it short and muted, leave it out rather than show
+  a zero; a late-work badge takes its place, and the rail shows it only in the tooltip.
+- Recently: the expanded sidebar lists up to four places this device opened in the current log,
+  outside the section in view (`recent-places.svelte.ts`, browser storage, never synced). A place
+  is named by the first part of the page's `<title>`, so give a month, sub-page, or record its own
+  title; a page titled only with its section name is not listed.
+- Last change: from 768px the shell shows a quiet bar for the latest change this tab committed,
+  named as Log history names it, with History and, when the action only added standard records, Undo
+  (`LastChangeBar`). Undo appends those records' `…_REMOVED` events (`runtime/commands/undo.ts`);
+  it never tombstones or edits events. Edits, removals and module-specific events offer no undo.
 - Mobile: bottom navigation shows the primary destinations, `MobilePageAction`
   renders the page's main action as a label-sized pill at the bottom right above
   it (hidden while a drawer is open), and `[data-stor-main]` owns bottom

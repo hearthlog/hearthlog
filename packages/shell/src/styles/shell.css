@@ -3,11 +3,17 @@
     .stor-native-field:focus { border-color: var(--stor-focus); box-shadow: 0 0 0 2px var(--stor-selected); }
     .stor-native-field:disabled { cursor: not-allowed; color: var(--stor-muted-text); }
     @media (min-width: 640px) { .stor-native-field { min-height: 36px; font-size: 14px; } }
-    /* Navigation: the current destination is a raised pill, the same selection as tabs. */
+    /* Navigation: the current destination is a raised pill, the same selection as tabs. In the expanded
+       sidebar the pill is a card around the whole section, its row and its open sub-pages. */
     :root { --stor-nav-hover: color-mix(in srgb, var(--stor-ink) 5%, transparent); }
     /* The pill glides between rows (navIndicator). The selected row keeps its own look until the pill is placed. */
-    .stor-nav-indicator { position: absolute; z-index: 0; left: 0; top: 0; border-radius: 10px; opacity: 0; pointer-events: none; will-change: transform; }
+    .stor-nav-indicator { position: absolute; z-index: 0; left: 0; top: 0; border-radius: 12px; opacity: 0; pointer-events: none; will-change: transform; }
     .stor-nav-sliding .stor-nav-indicator { opacity: 1; }
+    [data-nav-section] { position: relative; border-radius: 12px; }
+    [data-nav-section][data-active] { background: var(--stor-surface-raised); box-shadow: var(--stor-elevation-2); }
+    [data-nav-section] .stor-nav-selected, .stor-nav-sliding [data-nav-section][data-active] { background: transparent; box-shadow: none; }
+    /* A section's live figure: muted, right-aligned, and the first thing to truncate when the sidebar is narrow. */
+    .stor-nav-figure { min-width: 0; flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: right; font-size: 12px; font-weight: 500; color: var(--stor-muted-text); font-variant-numeric: tabular-nums; }
     .stor-nav-badge { min-width: 20px; height: 18px; padding: 0 6px; border-radius: 999px; font-size: 10.5px; font-weight: 650; line-height: 18px; text-align: center; font-variant-numeric: tabular-nums; }
     .stor-nav-badge-negative { background: var(--stor-negative-soft); color: var(--stor-negative); }
     .stor-nav-badge-warning { background: var(--stor-warning-soft); color: var(--stor-warning); }
@@ -19,6 +25,19 @@
     .stor-nav-sub[data-open] { grid-template-rows: 1fr; }
     .stor-nav-sub-in { min-height: 0; overflow: hidden; visibility: hidden; transition: visibility 0s linear 200ms; }
     .stor-nav-sub[data-open] > .stor-nav-sub-in { visibility: visible; transition-delay: 0s; }
+    /* Recently: two-line rows whose icons sit in the navigation's icon column. */
+    .stor-recent-place { display: flex; align-items: center; gap: 11px; min-height: 40px; padding: 3px 10px 3px 13px; border-radius: 10px; transition: background-color 120ms; }
+    .stor-recent-place:hover { background: var(--stor-nav-hover); }
+    .stor-recent-place:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--stor-focus); }
+    /* Last change: one quiet bar over the bottom of the page panel, offering Undo for what this tab just saved. */
+    .stor-last-change { display: flex; align-items: center; gap: 8px; width: min(560px, 100%); min-height: 48px; box-sizing: border-box; padding: 6px 6px 6px 14px; border-radius: 14px; background: var(--stor-surface-overlay); box-shadow: var(--stor-elevation-3); font-size: 13.5px; color: var(--stor-ink); }
+    .stor-last-change-action { flex: none; min-height: 34px; padding: 0 12px; border-radius: 10px; font-size: 13.5px; font-weight: 600; color: var(--stor-accent-text); transition: background-color 120ms; }
+    .stor-last-change-action:hover:not(:disabled) { background: var(--stor-nav-hover); }
+    .stor-last-change-action:disabled { opacity: 0.55; }
+    .stor-last-change-quiet { font-weight: 500; color: var(--stor-muted-text); }
+    .stor-last-change-close { display: grid; flex: none; place-items: center; width: 34px; height: 34px; border-radius: 10px; color: var(--stor-muted-text); }
+    .stor-last-change-close:hover { background: var(--stor-nav-hover); color: var(--stor-ink); }
+    .stor-last-change :is(button):focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--stor-focus); }
     /* Rail flyout: a section's pages beside the rail, opened by hover or keyboard focus (NavFlyout). */
     .stor-nav-fly { position: fixed; z-index: 60; width: 13rem; padding: 8px; border-radius: 16px; background: var(--stor-surface-overlay); box-shadow: var(--stor-elevation-3); opacity: 0; visibility: hidden; transform: translateX(-4px); transition: opacity 140ms ease, transform 140ms ease, visibility 0s linear 140ms; }
     .stor-nav-fly[data-open] { opacity: 1; visibility: visible; transform: none; transition-delay: 0s; }
@@ -28,16 +47,15 @@
     .stor-nav-fly-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 8px 8px; font-size: 13px; font-weight: 600; color: var(--stor-ink); }
     .stor-nav-fly .stor-nav-child { height: 32px; padding: 0 8px; }
     .stor-nav-fly .stor-nav-child-active { padding-left: 14px; }
-    .stor-nav-fly .stor-nav-child-active::before { left: 0; top: 8px; bottom: 8px; }
-    .stor-nav-children { position: relative; display: flex; flex-direction: column; gap: 1px; margin: 2px 0 0 21px; padding-left: 12px; }
-    .stor-nav-children::before { content: ""; position: absolute; left: 0; top: 4px; bottom: 4px; width: 1.5px; border-radius: 2px; background: var(--stor-border); }
-    .stor-nav-child { position: relative; display: flex; align-items: center; gap: 8px; height: 30px; padding: 0 10px; border-radius: 8px; font-size: 12.5px; font-weight: 500; color: var(--stor-muted-text); transition: color 120ms, background-color 120ms; }
+    .stor-nav-fly .stor-nav-child-active::before { content: ""; position: absolute; left: 0; top: 8px; bottom: 8px; width: 2px; border-radius: 2px; background: var(--stor-ink); }
+    /* Sub-pages line up with the section's label inside its card (row padding 12px + 18px icon + 10px gap). */
+    .stor-nav-children { display: flex; flex-direction: column; gap: 1px; margin: 0; padding: 0 0 6px; }
+    .stor-nav-child { position: relative; display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 8px 0 40px; border-radius: 8px; font-size: 13px; font-weight: 500; color: var(--stor-muted-text); transition: color 120ms, background-color 120ms; }
     .stor-nav-child:hover { color: var(--stor-ink); background: var(--stor-nav-hover); }
     .stor-nav-child:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--stor-focus); }
     .stor-nav-child .stor-nav-badge { min-width: 18px; height: 16px; padding: 0 5px; font-size: 10px; line-height: 16px; }
     /* Selection is ink, so red keeps meaning late work. */
     .stor-nav-child-active { color: var(--stor-ink); font-weight: 600; }
-    .stor-nav-child-active::before { content: ""; position: absolute; left: -13.25px; top: 7px; bottom: 7px; width: 2px; border-radius: 2px; background: var(--stor-ink); }
     .stor-dock-badge { position: absolute; top: -3px; right: 2px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 999px; font-size: 9.5px; font-weight: 700; line-height: 16px; text-align: center; color: var(--stor-negative-text); box-shadow: 0 0 0 2px var(--stor-surface-raised); }
     .stor-dock-badge-negative { background: var(--stor-negative); }
     .stor-dock-badge-warning { background: var(--stor-warning); color: var(--stor-surface); }
@@ -79,7 +97,23 @@
 
 .stor-mobile-header { background: var(--stor-bg); box-shadow: var(--stor-header-shadow); }
 
-[data-testid="desktop-sidebar"] { border-radius: 20px; box-shadow: var(--stor-sidebar-shadow); }
+/* From the rail up the sidebar sits on the canvas and the page is one raised panel beside it.
+   Inside the panel the canvas is the panel's own surface, so sticky headers and fades match it,
+   and panels step down from white cards to outlined sections. */
+
+:root { --stor-page-shadow: var(--stor-elevation-1); }
+
+@media (min-width: 768px) {
+    [data-stor-main] {
+        --stor-bg: var(--stor-surface);
+        --stor-elevation-1: 0 0 0 1px color-mix(in srgb, var(--stor-border) 70%, transparent);
+        --stor-panel-shadow: var(--stor-elevation-1);
+        margin: 12px 12px 12px 0;
+        border-radius: var(--stor-panel-radius);
+        background: var(--stor-surface);
+        box-shadow: var(--stor-page-shadow);
+    }
+}
 
 body:has([data-stor-drawer]) .stor-mobile-action,
 body:has([data-stor-drawer]) .stor-mobile-fab { visibility: hidden; }
@@ -207,7 +241,6 @@ html[data-stor-shell="mac"] [data-stor-root] {
 
 html[data-stor-shell="mac"] [data-testid="desktop-sidebar"] {
     background: color-mix(in srgb, var(--stor-sidebar) var(--stor-shell-sidebar-tint), transparent);
-    box-shadow: inset 0 0 0 0.5px color-mix(in srgb, var(--stor-ink) 9%, transparent), var(--stor-sidebar-shadow);
 }
 
 html[data-stor-shell="mac"] .stor-lights { display: block; flex: none; width: var(--stor-shell-lights); height: 14px; }
@@ -254,7 +287,7 @@ html[data-stor-shell="ios"] .stor-mobile-nav {
 
 /* iPad shows the rail from 768px: clear the status bar, which the edge-to-edge page now sits under. */
 
-html[data-stor-shell="ios"] [data-testid="desktop-sidebar"] { top: calc(12px + env(safe-area-inset-top, 0px)); }
+html[data-stor-shell="ios"] [data-testid="desktop-sidebar"] { top: env(safe-area-inset-top, 0px); }
 
 html[data-stor-shell="ios"] [data-stor-main] { padding-top: var(--stor-mobile-header-height); }
 

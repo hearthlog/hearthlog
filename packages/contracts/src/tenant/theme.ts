@@ -323,7 +323,6 @@ function elevationVariables(mode: ResolvedTheme): Record<string, string> {
 export function themeVariablesFor(accent = '#b23a34', mode: ResolvedTheme = 'light'): Record<string, string> {
     if (mode === 'dark') {
         const canvas = mix(accent, '#121c26', 0.04);
-        const sidebar = mix(accent, '#1b2a37', 0.06);
         const surface = mix(accent, '#21313f', 0.05);
         const subtle = mix(accent, '#243746', 0.05);
         const raised = mix(accent, '#293b4b', 0.05);
@@ -331,7 +330,7 @@ export function themeVariablesFor(accent = '#b23a34', mode: ResolvedTheme = 'lig
         const overlay = mix(accent, '#2d4052', 0.05);
         const sheet = mix(accent, '#324759', 0.05);
         const selected = mix(accent, '#263e50', 0.24);
-        const surfaces = [canvas, sidebar, surface, subtle, raised, well, overlay, sheet, selected];
+        const surfaces = [canvas, surface, subtle, raised, well, overlay, sheet, selected];
         const action = accessibleShade(accent, surfaces, 4.5, '#ffffff');
         const focus = accessibleShade(accent, surfaces, 3, '#ffffff');
         const charts = chartPalette(accent, 'dark', surface, raised);
@@ -344,7 +343,8 @@ export function themeVariablesFor(accent = '#b23a34', mode: ResolvedTheme = 'lig
             '--stor-chart-medical-insurance': charts.medicalInsurance,
             ...healthDomainVariables(charts),
             '--stor-bg': canvas,
-            '--stor-sidebar': sidebar,
+            // The sidebar sits on the canvas; the page panel beside it is the raised surface.
+            '--stor-sidebar': canvas,
             '--stor-surface': surface,
             '--stor-surface-muted': subtle,
             '--stor-surface-raised': raised,
@@ -355,7 +355,7 @@ export function themeVariablesFor(accent = '#b23a34', mode: ResolvedTheme = 'lig
             ...elevationVariables('dark'),
             // Aliases: the older shadow names point at the scale.
             '--stor-panel-shadow': 'var(--stor-elevation-1)',
-            '--stor-sidebar-shadow': 'var(--stor-elevation-1)',
+            '--stor-sidebar-shadow': 'none',
             '--stor-shadow-sm': 'var(--stor-elevation-2)',
             '--stor-shadow-md': 'var(--stor-elevation-3)',
             '--stor-shadow-lg': 'var(--stor-elevation-4)',
@@ -397,13 +397,12 @@ export function themeVariablesFor(accent = '#b23a34', mode: ResolvedTheme = 'lig
 
     // One step darker than the panels' white so a panel lifts off the page by tone as well as shadow.
     const canvas = mix(accent, '#edf0f4', 0.025);
-    const sidebar = mix(accent, '#ffffff', 0.025);
     // Muted and hover surfaces derive from the canvas, not the accent, so a
     // tinted surface always means selection.
     const subtle = mix(canvas, '#ffffff', 0.45);
     const well = mix(canvas, '#e0e6ed', 0.5);
     const selected = mix(accent, '#ffffff', 0.12);
-    const surfaces = ['#ffffff', canvas, sidebar, subtle, well, selected];
+    const surfaces = ['#ffffff', canvas, subtle, well, selected];
     const action = accessibleShade(accent, surfaces, 4.5, '#000000');
     const text = accessibleShade(mix(accent, '#15364b', 0.78), surfaces, 4.5, '#000000');
     const charts = chartPalette(accent, 'light', '#ffffff', '#ffffff');
@@ -416,7 +415,8 @@ export function themeVariablesFor(accent = '#b23a34', mode: ResolvedTheme = 'lig
         '--stor-chart-medical-insurance': charts.medicalInsurance,
         ...healthDomainVariables(charts),
         '--stor-bg': canvas,
-        '--stor-sidebar': sidebar,
+        // The sidebar sits on the canvas; the page panel beside it is the raised surface.
+        '--stor-sidebar': canvas,
         '--stor-surface': '#ffffff',
         '--stor-surface-muted': subtle,
         '--stor-surface-raised': '#ffffff',
@@ -427,7 +427,7 @@ export function themeVariablesFor(accent = '#b23a34', mode: ResolvedTheme = 'lig
         ...elevationVariables('light'),
         // Aliases: the older shadow names point at the scale.
         '--stor-panel-shadow': 'var(--stor-elevation-1)',
-        '--stor-sidebar-shadow': 'var(--stor-elevation-1)',
+        '--stor-sidebar-shadow': 'none',
         '--stor-shadow-sm': 'var(--stor-elevation-2)',
         '--stor-shadow-md': 'var(--stor-elevation-3)',
         '--stor-shadow-lg': 'var(--stor-elevation-4)',
