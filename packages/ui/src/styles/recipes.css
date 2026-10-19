@@ -1,22 +1,38 @@
 @layer components {
     .stor-page { display: flex; min-width: 0; flex-direction: column; gap: var(--stor-section-gap); }
-    .stor-panel, .stor-today-card { border: 0; border-radius: var(--stor-panel-radius); background: var(--stor-surface); box-shadow: var(--stor-elevation-1); }
+    .stor-panel, .stor-today-card { border: 0; border-radius: var(--stor-section-radius); background: var(--stor-surface); box-shadow: var(--stor-elevation-1); }
     .stor-panel { overflow: hidden; }
     .stor-panel-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: var(--stor-panel-padding); background: transparent; }
     .stor-panel-body { padding: var(--stor-panel-padding); }
+    /* A section's title-3 header sits over a hairline when a padded body follows it. */
+    .stor-panel-title { font-size: var(--stor-text-title-3); line-height: var(--stor-text-title-3-line); font-weight: 600; letter-spacing: -.006em; color: var(--stor-ink); }
+    .stor-panel-header-rule, .stor-panel-header:has(+ .stor-panel-body) { padding-block: 16px; border-bottom: 1px solid var(--stor-border); }
+    .stor-panel-header-flush { padding: 0 0 12px; border-bottom: 1px solid var(--stor-border); }
     .stor-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-    .stor-metric { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-    .stor-metric-label { font-size: 13px; font-weight: 500; color: var(--stor-muted-text); }
-    .stor-metric-value { font-size: 28px; line-height: 1.2; font-weight: 600; letter-spacing: -.025em; color: var(--stor-ink); overflow-wrap: anywhere; }
-    .stor-metric-support { font-size: 12px; line-height: 16px; color: var(--stor-muted-text); }
+    /* A figure: overline label, the value, an optional sparkline, and one support line (a delta may lead it). */
+    .stor-metric { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+    .stor-metric-label { font-size: var(--stor-text-overline); line-height: var(--stor-text-overline-line); font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--stor-muted-text); }
+    .stor-metric-value { font-size: 22px; line-height: 28px; font-weight: 600; letter-spacing: -.025em; font-feature-settings: "tnum", "ss01"; color: var(--stor-ink); overflow-wrap: anywhere; }
+    .stor-metric[data-size="lg"] .stor-metric-value { font-size: 32px; line-height: 36px; letter-spacing: -.03em; }
+    .stor-metric-spark { color: var(--stor-accent); }
+    .stor-metric-support { font-size: var(--stor-text-small); line-height: var(--stor-text-small-line); font-family: var(--stor-font-sans); color: var(--stor-muted-text); }
+    .stor-metric-delta { margin-right: 6px; font-weight: 500; }
     /* A currency or unit after a large figure: smaller and quieter than the number. */
-    .stor-unit { font-size: .6em; font-weight: 600; letter-spacing: 0; color: var(--stor-muted-text); }
+    .stor-unit { font-size: .55em; font-weight: 600; letter-spacing: 0; color: var(--stor-muted-text); }
     /* Elevation recipes. A component picks a level, never its own shadow. */
     .stor-well { background: var(--stor-surface-well); box-shadow: var(--stor-well-shadow); }
     .stor-menu { background: var(--stor-surface-overlay); box-shadow: var(--stor-elevation-3); border-radius: 16px; }
     .stor-sheet { background: var(--stor-surface-sheet); box-shadow: var(--stor-elevation-4); }
-    /* Buttons: primary and destructive are flat fills; a pressed secondary button loses its lift. */
-    [data-stor-button-variant="secondary"]:active { box-shadow: var(--stor-elevation-pressed); }
+    /* Fields: a muted fill inside the 3:1 outline. Focus lifts the fill to the surface with an action border
+       and a 3px soft halo, in place of the global outline (below, outside the layer). */
+    .stor-field-control { border: 1px solid var(--stor-field-border); border-radius: 12px; background: var(--stor-surface-muted); color: var(--stor-ink); font-weight: 400; letter-spacing: normal; outline: none; transition: background-color var(--stor-dur-1) ease, border-color var(--stor-dur-1) ease, box-shadow var(--stor-dur-1) ease; }
+    .stor-field-control::placeholder { color: var(--stor-faint-text); }
+    .stor-field-control:is(:focus, :focus-within, [data-state="open"]) { background: var(--stor-surface); border-color: var(--stor-focus); box-shadow: 0 0 0 3px var(--stor-accent-soft); }
+    .stor-field-control:is(:disabled, [data-disabled]) { cursor: not-allowed; opacity: .6; }
+    @media (min-width: 640px) { .stor-field-control { border-radius: 10px; } }
+    /* Key caps: shortcut hints in buttons and menus. On a filled button the cap is a tint of the label colour. */
+    .stor-kbd { display: inline-flex; flex: none; align-items: center; height: 20px; padding: 0 6px; border-radius: 5px; background: var(--stor-surface-muted); box-shadow: 0 0 0 1px var(--stor-border); color: var(--stor-muted-text); font: 600 11px/1 var(--stor-font-sans); letter-spacing: 0; }
+    [data-stor-button-variant="default"] .stor-kbd { background: color-mix(in srgb, currentColor 16%, transparent); box-shadow: none; color: inherit; }
     .stor-page-header { min-width: 0; padding-bottom: 4px; }
     .stor-page-header h1, .stor-health-header h1 { font-size: 24px; line-height: 1.2; }
     /* Section pages let the navigation name the place: the title is read by
@@ -34,11 +50,11 @@
     .stor-page-header-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; }
     /* Tabs: one capsule track with a raised active pill. Page-level links use
        .stor-primary-tabs; compact in-panel rows use .stor-section-tabs. */
-    .stor-page-tabs, .stor-primary-tabs, .stor-section-tabs { position: relative; gap: 2px; border-radius: 9999px; background: var(--stor-surface-well); padding: 3px; box-shadow: var(--stor-well-shadow); }
-    .stor-page-tab { display: inline-flex; min-height: 44px; align-items: center; justify-content: center; flex-shrink: 0; gap: 8px; border-radius: 9999px; padding: 8px 16px; color: var(--stor-muted-text); font-size: 13px; font-weight: 600; white-space: nowrap; transition: color 160ms ease, background-color 160ms ease, box-shadow 160ms ease; }
-    .stor-page-tab:hover { color: var(--stor-ink); background: var(--stor-surface-hover); }
+    .stor-page-tabs, .stor-primary-tabs, .stor-section-tabs { position: relative; gap: 2px; border-radius: 9999px; background: var(--stor-surface-well); padding: 3px; box-shadow: none; }
+    .stor-page-tab { display: inline-flex; min-height: 44px; align-items: center; justify-content: center; flex-shrink: 0; gap: 6px; border-radius: 9999px; padding: 8px 14px; color: var(--stor-muted-text); font-size: 13px; font-weight: 600; white-space: nowrap; transition: color var(--stor-dur-2) ease, background-color var(--stor-dur-2) ease, box-shadow var(--stor-dur-2) ease; }
+    .stor-page-tab:hover { color: var(--stor-ink); }
     .stor-page-tab:focus-visible { outline: 2px solid var(--stor-focus); outline-offset: 2px; }
-    .stor-page-tab:is([data-state="active"], [aria-selected="true"], [aria-current="page"], [aria-current="true"]) { color: var(--stor-accent-strong); }
+    .stor-page-tab:is([data-state="active"], [aria-selected="true"], [aria-current="page"], [aria-current="true"]) { color: var(--stor-ink); }
     /* The measured pill replaces the selected tab's own background so it can slide. */
     .stor-tabs-sliding .stor-page-tab { position: relative; z-index: 1; }
     .stor-tabs-sliding .stor-page-tab:is([data-state="active"], [aria-selected="true"], [aria-current="page"], [aria-current="true"]) { background: transparent; box-shadow: none; }
@@ -46,20 +62,23 @@
     .stor-tabs-sliding .stor-tab-indicator { opacity: 1; }
     .stor-tabs-ready .stor-tab-indicator { transition: transform var(--stor-tab-motion), width var(--stor-tab-motion), opacity var(--stor-dur-2) ease; }
     .stor-primary-tabs { width: fit-content; max-width: 100%; }
-    .stor-primary-tabs .stor-page-tab { font-size: 14px; padding-inline: 18px; }
+    .stor-primary-tabs .stor-page-tab { font-size: 14px; padding-inline: 16px; }
     /* Five sections fit a phone's row without scrolling the last one out of sight. */
     @media (max-width: 639px) { .stor-primary-tabs .stor-page-tab { padding-inline: 12px; } }
     .stor-section-tabs { width: 100%; grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .stor-section-tabs .stor-page-tab { min-width: 0; padding: 8px 12px; }
-    .stor-tab-count { display: inline-flex; min-width: 24px; align-items: center; justify-content: center; border-radius: 999px; background: color-mix(in srgb, var(--stor-border) 50%, transparent); padding: 2px 6px; color: var(--stor-muted-text); font-size: 11px; font-variant-numeric: tabular-nums; line-height: 1.25; transition: background-color 160ms ease, color 160ms ease; }
-    .stor-page-tab:is([data-state="active"], [aria-selected="true"], [aria-current="page"], [aria-current="true"]) .stor-tab-count { background: var(--stor-accent-soft); color: var(--stor-accent-strong); }
+    /* A count beside a tab's name is a quiet figure, not a chip. */
+    .stor-tab-count { color: var(--stor-faint-text); font-weight: 500; font-variant-numeric: tabular-nums; }
+    .stor-page-tab:is([data-state="active"], [aria-selected="true"], [aria-current="page"], [aria-current="true"]) .stor-tab-count { color: var(--stor-muted-text); }
     @media (min-width: 640px) {
-        .stor-page-tab { min-height: 38px; padding-block: 7px; }
+        .stor-page-tab { min-height: 30px; padding-block: 5px; }
         .stor-section-tabs { width: fit-content; grid-template-columns: repeat(2, minmax(140px, 1fr)); }
     }
-    .stor-segmented-control { gap: 2px; border-radius: 9999px; background: var(--stor-surface-well); padding: 3px; box-shadow: var(--stor-well-shadow); }
-    .stor-segmented-option { min-height: 36px; border-radius: 9999px; padding-inline: 12px; color: var(--stor-muted-text); font-size: 12px; font-weight: 600; }
-    .stor-segmented-option[aria-pressed="true"], .stor-segmented-option[data-state="active"] { color: var(--stor-accent-strong); }
+    .stor-segmented-control { gap: 2px; border-radius: 9999px; background: var(--stor-surface-well); padding: 3px; box-shadow: none; }
+    .stor-segmented-option { min-height: 36px; border-radius: 9999px; padding-inline: 12px; color: var(--stor-muted-text); font-size: 13px; font-weight: 600; transition: color var(--stor-dur-2) ease, background-color var(--stor-dur-2) ease, box-shadow var(--stor-dur-2) ease; }
+    .stor-segmented-option:hover { color: var(--stor-ink); }
+    .stor-segmented-option[aria-pressed="true"], .stor-segmented-option[data-state="active"] { color: var(--stor-ink); }
+    @media (min-width: 640px) { .stor-segmented-option { min-height: 30px; } }
     /* The selected pill: page tabs, segmented options and the sliding tab indicator. Navigation's pill, which in
        the expanded sidebar is the card around the current section, sits a step above it. */
     .stor-tab-indicator,
@@ -151,7 +170,8 @@
     html:not([data-sidebar-collapsed="true"]) .stor-sidebar-owned-tabs { display: none; }
     html:not([data-sidebar-collapsed="true"]) .stor-page-label { display: none; }
     .stor-page-header h1, .stor-health-header h1 { font-size: 28px; }
-    .stor-metric-value { font-size: 32px; }
+    .stor-metric-value { font-size: 26px; line-height: 32px; }
+    .stor-metric[data-size="lg"] .stor-metric-value { font-size: var(--stor-text-display); line-height: var(--stor-text-display-line); }
     .stor-drawer { top: 16px; right: 16px; height: calc(100dvh - 32px); max-width: 28rem; border-radius: 24px; overflow: hidden; padding-top: 0; }
     .stor-drawer[data-size="lg"] { max-width: 36rem; }
     body:has([data-stor-drawer]) .stor-notifications { right: calc(28rem + 32px); max-width: calc(100vw - 28rem - 48px); }
@@ -173,4 +193,28 @@
     [data-selecting="false"] [data-row-id] { --check: 0px; padding-left: 0.375rem; }
     [data-selecting="true"] [data-row-id] { -webkit-user-select: none; user-select: none; }
     [data-row-id] { -webkit-touch-callout: none; }
+}
+
+/* Field states outside the layer, so they beat the global focus outline and a module's utility classes:
+   a field draws its own focus halo, and an invalid one (aria-invalid, or inside a Field with an error) turns
+   negative. */
+
+.stor-field-control:focus-visible { outline: none; }
+.stor-field-control:is([aria-invalid="true"], [data-stor-invalid]), [data-stor-invalid] .stor-field-control { border-color: var(--stor-negative); }
+.stor-field-control:is([aria-invalid="true"], [data-stor-invalid], [data-stor-invalid] *):is(:focus, :focus-within) { box-shadow: 0 0 0 3px var(--stor-negative-soft); }
+
+/* Overlay key hints: ⌘↵ on a sheet's primary action (set by its footer, see overlay-keys.ts) and Esc beside
+   its close button. Keyboards only: touch screens never show them. */
+
+[data-stor-shortcut]::after {
+    content: attr(data-stor-shortcut);
+    /* Empty alternative text: the button's name stays its label; aria-keyshortcuts carries the chord. */
+    content: attr(data-stor-shortcut) / "";
+    display: inline-flex; flex: none; align-items: center; height: 20px; padding: 0 6px; border-radius: 5px;
+    background: color-mix(in srgb, currentColor 16%, transparent); color: inherit;
+    font: 600 11px/1 var(--stor-font-sans); letter-spacing: 0;
+}
+
+@media (hover: none), (pointer: coarse) {
+    .stor-kbd, [data-stor-shortcut]::after { display: none; }
 }

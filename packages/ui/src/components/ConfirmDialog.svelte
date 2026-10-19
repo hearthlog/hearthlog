@@ -1,5 +1,8 @@
 <script lang="ts">
 	import { AlertDialog } from "bits-ui";
+	import { cn } from "../utils/cn.js";
+	import { buttonVariants, filledDestructive } from "./ui/button-variants.js";
+	import { primaryShortcut } from "./overlay-keys.js";
 
 	let {
 		show = false,
@@ -61,44 +64,43 @@
 	<AlertDialog.Portal>
 		<AlertDialog.Overlay class="fixed inset-0 z-[var(--stor-layer-dialog)] bg-[var(--stor-overlay)]" />
 		<AlertDialog.Content onOpenAutoFocus={focusCancel} class="stor-sheet fixed inset-x-4 bottom-4 z-[var(--stor-layer-dialog-content)] flex max-h-[calc(100dvh-2rem-env(safe-area-inset-top))] flex-col overflow-hidden rounded-[var(--stor-panel-radius)] outline-none sm:left-1/2 sm:top-1/2 sm:bottom-auto sm:max-w-lg sm:-translate-x-1/2 sm:-translate-y-1/2">
-			<header class="px-5 pt-5 pb-2">
-				<AlertDialog.Title level={3} class="stor-serif-title text-xl text-[var(--stor-ink)]">
+			<header class="shrink-0 px-5 pb-2 pt-5 sm:px-6 sm:pt-6">
+				<AlertDialog.Title level={3} class="stor-title-2 text-[var(--stor-ink)]">
 					{title}
 				</AlertDialog.Title>
 			</header>
-			<div class="space-y-4 overflow-y-auto px-5 pb-5">
-				<AlertDialog.Description class="whitespace-pre-line text-sm leading-6 text-[var(--stor-muted-text)]">
+			<div class="min-h-0 flex-1 overflow-y-auto px-5 sm:px-6">
+				<AlertDialog.Description class="whitespace-pre-line text-body text-[var(--stor-muted-text)]">
 					{message}
 				</AlertDialog.Description>
-
-				<div class="flex flex-wrap justify-end gap-2 pt-2">
-					<AlertDialog.Cancel
-						bind:ref={cancelButton}
-						autofocus
-						class="min-h-11 rounded-xl bg-[var(--stor-surface-muted)] px-4 text-sm font-semibold text-[var(--stor-ink)] transition-colors hover:bg-[var(--stor-surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--stor-focus)] sm:min-h-9"
-						onclick={cancel}
-					>
-						Cancel
-					</AlertDialog.Cancel>
-					{#if alternateLabel}
-						<button
-							type="button"
-							class="min-h-11 rounded-xl bg-[var(--stor-surface-muted)] px-4 text-sm font-semibold text-[var(--stor-ink)] transition-colors hover:bg-[var(--stor-surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--stor-focus)] sm:min-h-9"
-							onclick={alternate}
-						>
-							{alternateLabel}
-						</button>
-					{/if}
-					<AlertDialog.Action
-						class="min-h-11 rounded-xl px-4 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--stor-focus)] sm:min-h-9 {tone === 'danger'
-							? 'bg-[var(--stor-negative)] text-[var(--stor-negative-text)] hover:brightness-90'
-							: 'bg-[var(--stor-action)] text-[var(--stor-action-text)] hover:bg-[var(--stor-action-hover)]'}"
-						onclick={confirm}
-					>
-						{confirmLabel}
-					</AlertDialog.Action>
-				</div>
 			</div>
+			<!-- Primary on the right, and the one place a destructive action keeps its red fill. ⌘↵ confirms. -->
+			<footer class="flex shrink-0 flex-wrap items-center justify-end gap-2 px-5 pb-5 pt-5 sm:px-6 sm:pb-6" {@attach primaryShortcut}>
+				<AlertDialog.Cancel
+					bind:ref={cancelButton}
+					autofocus
+					class={buttonVariants({ variant: "secondary" })}
+					onclick={cancel}
+				>
+					Cancel
+				</AlertDialog.Cancel>
+				{#if alternateLabel}
+					<button
+						type="button"
+						class={buttonVariants({ variant: "secondary" })}
+						onclick={alternate}
+					>
+						{alternateLabel}
+					</button>
+				{/if}
+				<AlertDialog.Action
+					data-stor-primary
+					class={cn(buttonVariants({ variant: "default" }), tone === "danger" && filledDestructive)}
+					onclick={confirm}
+				>
+					{confirmLabel}
+				</AlertDialog.Action>
+			</footer>
 		</AlertDialog.Content>
 	</AlertDialog.Portal>
 </AlertDialog.Root>

@@ -21,12 +21,13 @@
     } = $props();
 </script>
 
+<!-- A section: a title-3 header over a hairline, then the body. Inside the page panel it is outlined, not shadowed. -->
 <section class={cn('stor-panel', padding === 'all' && 'p-[var(--stor-panel-padding)]', className)} aria-label={label}>
     {#if title}
-        <div class={cn('stor-panel-header', padding === 'all' && '!p-0')}>
+        <div class={cn('stor-panel-header', padding === 'all' ? 'stor-panel-header-flush' : 'stor-panel-header-rule')}>
             <div class="min-w-0">
-                <h2 class="text-base font-semibold tracking-tight text-[var(--stor-ink)]">{title}</h2>
-                {#if description}<p class="mt-0.5 text-xs text-[var(--stor-muted-text)]">{description}</p>{/if}
+                <h2 class="stor-panel-title">{title}</h2>
+                {#if description}<p class="mt-0.5 text-small text-[var(--stor-muted-text)]">{description}</p>{/if}
             </div>
             {@render action?.()}
         </div>

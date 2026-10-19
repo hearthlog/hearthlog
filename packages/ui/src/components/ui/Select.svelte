@@ -54,18 +54,18 @@
             id={id || undefined}
             aria-label={ariaLabel || undefined}
             class={cn(
-                "flex w-full items-center justify-between gap-2 rounded-xl border border-[var(--stor-field-border)] stor-well focus:bg-[var(--stor-surface)] h-11 px-3 py-2.5 sm:h-9 sm:py-1.5 text-left text-sm text-[var(--stor-ink)] outline-none transition focus:border-[var(--stor-focus)] focus:ring-2 focus:ring-[var(--stor-selected)] disabled:cursor-not-allowed disabled:bg-[var(--stor-surface-muted)] disabled:text-[var(--stor-muted-text)]",
+                "stor-field-control flex w-full items-center justify-between gap-2 h-11 px-3 py-2.5 sm:h-9 sm:py-1.5 text-left text-sm",
                 triggerClass,
             )}
         >
-            <Select.Value {placeholder} class="min-w-0 truncate" />
+            <Select.Value {placeholder} class="min-w-0 truncate data-[placeholder]:text-[var(--stor-faint-text)]" />
             <IconChevronDown class="h-4 w-4 shrink-0 text-[var(--stor-muted-text)]" />
         </Select.Trigger>
         <Select.Portal>
             <Select.Content
                 sideOffset={6}
                 class={cn(
-                    "stor-menu z-[var(--stor-layer-menu)] max-h-72 min-w-[var(--bits-select-anchor-width)] overflow-hidden py-1",
+                    "stor-menu z-[var(--stor-layer-menu)] max-h-72 min-w-[var(--bits-select-anchor-width)] overflow-hidden p-1.5",
                     contentClass,
                 )}
             >
@@ -75,12 +75,12 @@
                             value={option.value}
                             label={option.label}
                             disabled={option.disabled}
-                            class="flex cursor-default items-center justify-between gap-3 px-3 py-2 text-sm text-[var(--stor-ink)] outline-none data-[highlighted]:bg-[var(--stor-surface-muted)] data-[disabled]:opacity-45"
+                            class="flex min-h-11 cursor-default items-center justify-between gap-3 rounded-[10px] px-2.5 text-sm text-[var(--stor-ink)] outline-none data-[highlighted]:bg-[var(--stor-surface-hover)] data-[selected]:font-semibold data-[disabled]:opacity-45 sm:min-h-8"
                         >
                             {#snippet children({ selected })}
                                 <span class="min-w-0 truncate">{option.label}</span>
                                 {#if selected}
-                                    <IconCheck class="h-4 w-4 shrink-0" />
+                                    <IconCheck class="h-4 w-4 shrink-0 text-[var(--stor-accent-strong)]" />
                                 {/if}
                             {/snippet}
                         </Select.Item>
