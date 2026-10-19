@@ -14,7 +14,7 @@ function takesKeys(target: EventTarget | null): boolean {
 }
 
 /**
- * The shell's keyboard shortcuts: N new item on this page, ← / → and T through time, G then F, H, C or I to go to
+ * The shell's keyboard shortcuts: N new item on this page (a visible `data-stor-new` button, else the feature's create shortcut), ← / → and T through time, G then F, H, C or I to go to
  * a section, ⌘Z to undo the last change. Esc is each sheet's own. Nothing fires while typing, while a sheet or
  * menu is open, or with a modifier other than ⌘/Ctrl on Z. Every shortcut also has a visible control.
  */
@@ -49,6 +49,13 @@ export function installShortcuts(goto: (href: string) => unknown): () => void {
         if (key === 'g' && !event.shiftKey) {
             goPending = Date.now() + GO_WINDOW_MS;
         } else if (key === 'n' && !event.shiftKey) {
+            // A page's own "new" button (marked `data-stor-new`) wins; else the feature's first create shortcut.
+            const button = [...document.querySelectorAll<HTMLButtonElement>('button[data-stor-new]')].find((candidate) => !candidate.disabled && candidate.offsetParent !== null);
+            if (button) {
+                event.preventDefault();
+                button.click();
+                return;
+            }
             const feature = featureForPath(window.location.pathname);
             const command = feature?.commands[0];
             if (feature?.page && command) {

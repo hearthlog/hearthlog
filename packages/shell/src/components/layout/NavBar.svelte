@@ -193,10 +193,10 @@
         return undefined;
     });
     const syncTone = $derived(syncPresentation.tone);
-    /** Short state under the log name: "Synced · 12:09", "3 pending", "Offline". */
+    /** Short state under the log name: "Saved on this device · synced 12:09", "3 pending", "Offline". */
     const syncLine = $derived(
         syncPhase === "synced" && lastSyncedAt && dataReady
-            ? `Synced · ${lastSyncedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
+            ? `Saved on this device · synced ${lastSyncedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
             : syncLabel,
     );
     const syncShort = $derived(syncTone === "danger" ? "Review" : syncLabel);

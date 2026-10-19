@@ -22,7 +22,7 @@
         onOpen,
     }: {
         currentLogName: string | null;
-        /** Short sync state, e.g. "Synced · 12:09". */
+        /** Short sync state, e.g. "Saved on this device · synced 12:09". */
         statusLine: string;
         /** Full sync sentence for the tooltip and accessible description. */
         statusTitle: string;
@@ -118,7 +118,7 @@
                         <span class="truncate text-[13px] font-semibold">{logLabel}</span>
                         {@render versionTag()}
                     </span>
-                    <span class="truncate text-[11px] {danger ? '' : 'text-[var(--stor-muted-text)]'}">{statusLine}</span>
+                    <span class="line-clamp-2 text-[11px] {danger ? '' : 'text-[var(--stor-muted-text)]'}">{statusLine}</span>
                 </span>
                 {#if note}<span class="shrink-0 text-[11px] font-semibold text-[var(--stor-positive)]">{note}</span>{/if}
                 <IconUnfold class="h-4 w-4 shrink-0 {danger ? '' : 'text-[var(--stor-muted-text)]'}" />
