@@ -454,7 +454,7 @@ import IconArrowRight from "~icons/mdi/arrow-right";
                     type="text"
                     placeholder="snake_case_name"
                     bind:value={newName}
-                    class="stor-native-field"
+                    class="stor-field-control stor-native-field"
                 />
             </div>
             <div class="space-y-1.5">
@@ -465,7 +465,7 @@ import IconArrowRight from "~icons/mdi/arrow-right";
                     type="text"
                     placeholder="Pretty Name"
                     bind:value={newDisplayName}
-                    class="stor-native-field"
+                    class="stor-field-control stor-native-field"
                 />
             </div>
         </div>
@@ -497,7 +497,7 @@ import IconArrowRight from "~icons/mdi/arrow-right";
                             type="text"
                             placeholder="title"
                             bind:value={editingField.name}
-                            class="stor-native-field"
+                            class="stor-field-control stor-native-field"
                         />
                     </div>
                     <div class="md:col-span-2 space-y-1">
@@ -507,7 +507,7 @@ import IconArrowRight from "~icons/mdi/arrow-right";
                         >
                         <select
                             bind:value={editingField.type}
-                            class="stor-native-field"
+                            class="stor-field-control stor-native-field"
                         >
                             <option value="string">String</option>
                             <option value="number">Number</option>
@@ -524,7 +524,7 @@ import IconArrowRight from "~icons/mdi/arrow-right";
                             >
                             <select
                                 bind:value={editingField.referenceTo}
-                                class="stor-native-field"
+                                class="stor-field-control stor-native-field"
                             >
                                 <option value="">Select entity...</option>
                                 {#each entityTypes as et}
@@ -543,7 +543,7 @@ import IconArrowRight from "~icons/mdi/arrow-right";
                                 type="text"
                                 placeholder="optional"
                                 bind:value={editingField.default}
-                                class="stor-native-field"
+                                class="stor-field-control stor-native-field"
                             />
                         </div>
                     {:else if editingField.type === "datetime"}
@@ -578,7 +578,7 @@ import IconArrowRight from "~icons/mdi/arrow-right";
                                 type="text"
                                 placeholder="optional"
                                 bind:value={editingField.default}
-                                class="stor-native-field"
+                                class="stor-field-control stor-native-field"
                             />
                         </div>
                     {/if}
@@ -731,7 +731,7 @@ import IconArrowRight from "~icons/mdi/arrow-right";
                         placeholder="snake_case_name"
                         bind:value={newName}
                         disabled
-                        class="stor-native-field"
+                        class="stor-field-control stor-native-field"
                     />
                     <p class="text-[10.5px] text-[var(--stor-muted-text)] ml-1">
                         Cannot be changed
@@ -745,7 +745,7 @@ import IconArrowRight from "~icons/mdi/arrow-right";
                         type="text"
                         placeholder="Pretty Name"
                         bind:value={newDisplayName}
-                        class="stor-native-field"
+                        class="stor-field-control stor-native-field"
                     />
                 </div>
             </div>
@@ -779,7 +779,7 @@ import IconArrowRight from "~icons/mdi/arrow-right";
                                 type="text"
                                 placeholder="title"
                                 bind:value={editingField.name}
-                                class="stor-native-field"
+                                class="stor-field-control stor-native-field"
                             />
                         </div>
                         <div class="md:col-span-2 space-y-1">
@@ -789,7 +789,7 @@ import IconArrowRight from "~icons/mdi/arrow-right";
                             >
                             <select
                                 bind:value={editingField.type}
-                                class="stor-native-field"
+                                class="stor-field-control stor-native-field"
                             >
                                 <option value="string">String</option>
                                 <option value="number">Number</option>
@@ -806,7 +806,7 @@ import IconArrowRight from "~icons/mdi/arrow-right";
                                 >
                                 <select
                                     bind:value={editingField.referenceTo}
-                                    class="stor-native-field"
+                                    class="stor-field-control stor-native-field"
                                 >
                                     <option value="">Select entity...</option>
                                     {#each entityTypes as et}
@@ -825,7 +825,7 @@ import IconArrowRight from "~icons/mdi/arrow-right";
                                     type="text"
                                     placeholder="optional"
                                     bind:value={editingField.default}
-                                    class="stor-native-field"
+                                    class="stor-field-control stor-native-field"
                                 />
                             </div>
                         {:else if editingField.type === "datetime"}
@@ -861,7 +861,7 @@ import IconArrowRight from "~icons/mdi/arrow-right";
                                     type="text"
                                     placeholder="optional"
                                     bind:value={editingField.default}
-                                    class="stor-native-field"
+                                    class="stor-field-control stor-native-field"
                                 />
                             </div>
                         {/if}
