@@ -6,7 +6,7 @@ import { cva } from "class-variance-authority";
  * 2px outline with a 2px gap; a press scales to 0.98. ConfirmDialog draws its actions from this recipe too.
  */
 export const buttonVariants = cva(
-    "relative inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl text-sm font-semibold transition-[background-color,color,box-shadow,transform,filter] duration-[var(--stor-dur-1)] ease-out active:scale-[0.98] motion-reduce:active:scale-100 disabled:pointer-events-none disabled:opacity-45 sm:rounded-[10px]",
+    "relative inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl text-sm font-semibold transition-[background-color,color,box-shadow,transform,filter] duration-[var(--stor-dur-1)] ease-out active:scale-[0.98] motion-reduce:active:scale-100 disabled:pointer-events-none disabled:opacity-45 fine:rounded-[10px]",
     {
         variants: {
             variant: {
@@ -16,9 +16,9 @@ export const buttonVariants = cva(
                 destructive: "bg-[var(--stor-negative-soft)] text-[var(--stor-negative)] hover:bg-[color-mix(in_srgb,var(--stor-negative)_8%,var(--stor-negative-soft))]",
             },
             size: {
-                sm: "h-11 px-3 sm:h-9",
-                md: "h-11 px-4.5 sm:h-9 sm:px-3.5",
-                icon: "h-11 w-11 p-0 sm:h-9 sm:w-9",
+                sm: "h-11 px-3 fine:h-9",
+                md: "h-11 px-4.5 fine:h-9 fine:px-3.5",
+                icon: "h-11 w-11 p-0 fine:h-9 fine:w-9",
             },
         },
         defaultVariants: {

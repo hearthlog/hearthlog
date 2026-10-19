@@ -1,5 +1,6 @@
 <script lang="ts">
     import { timeTravel } from '../../utils/time-travel.js';
+    import { registerTimeNavigation } from '../../state/time-navigation.js';
     import { Dialog, Popover } from 'bits-ui';
     import IconArrowLeft from '~icons/mdi/arrow-left';
     import IconArrowRight from '~icons/mdi/arrow-right';
@@ -61,6 +62,13 @@
             choosingYear = false;
         }
     }
+
+    // The keyboard: ← and → step the month, T returns to the current one (see state/time-navigation).
+    $effect(() => registerTimeNavigation({
+        previous: () => navigateTo(previous.year, previous.month),
+        next: () => navigateTo(next.year, next.month),
+        today: () => { if (!isCurrentMonth) navigateTo(currentYear, currentMonth); },
+    }));
 
     function navigateTo(targetYear: number, targetMonth: number): void {
         desktopOpen = false;

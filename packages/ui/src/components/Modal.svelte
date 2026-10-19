@@ -66,7 +66,7 @@
                 <div class="ml-auto flex shrink-0 items-center gap-2">
                     <kbd class="stor-kbd max-sm:hidden" aria-hidden="true">Esc</kbd>
                     <Dialog.Close
-                        class="flex h-11 w-11 items-center justify-center rounded-xl text-[var(--stor-muted-text)] transition-colors hover:bg-[var(--stor-surface-hover)] hover:text-[var(--stor-ink)] sm:h-9 sm:w-9 sm:rounded-[10px]"
+                        class="flex h-11 w-11 items-center justify-center rounded-xl text-[var(--stor-muted-text)] transition-colors hover:bg-[var(--stor-surface-hover)] hover:text-[var(--stor-ink)] fine:h-9 fine:w-9 sm:rounded-[10px]"
                         aria-label="Close dialog"
                         aria-keyshortcuts="Escape"
                         onclick={(event) => { if (stacked) { event.preventDefault(); sheetStack.closeAll(); } }}

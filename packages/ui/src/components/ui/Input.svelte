@@ -14,7 +14,7 @@
     {type}
     bind:value
     class={cn(
-        "stor-field-control w-full h-11 px-3 py-2.5 text-base sm:h-9 sm:py-1.5 sm:text-sm",
+        "stor-field-control w-full h-11 px-3 py-2.5 text-base fine:h-9 fine:py-1.5 sm:text-sm",
         className,
     )}
     {...restProps}

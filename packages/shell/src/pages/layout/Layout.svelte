@@ -2,7 +2,8 @@
     import { onMount, tick, untrack } from "svelte";
     import { MediaQuery } from "svelte/reactivity";
     import { page } from "$app/state";
-    import { invalidate, beforeNavigate } from "$app/navigation";
+    import { goto, invalidate, beforeNavigate } from "$app/navigation";
+    import { installShortcuts } from "@hearthlog/shell/components/layout/shortcuts.js";
     import { eventLogFilename } from "@hearthlog/runtime/store/event-log.svelte.js";
     import {
         syncStatus,
@@ -114,6 +115,7 @@
     onMount(() => initializeAppearance(tenant.id));
 
     onMount(() => startup.startModules());
+    onMount(() => installShortcuts((href) => goto(href)));
     onMount(() => startWorkspaceClock());
     onMount(() => startNativeShell({ toggleSidebar: () => toggleSidebar() }));
 

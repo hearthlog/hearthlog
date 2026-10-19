@@ -44,7 +44,7 @@
         CalendarSourceInfo,
         CalendarWeek,
     } from "@hearthlog/contracts/calendar/types";
-    import { dayColumn, monthEdges, monthInView, WEEK_SPAN } from "@hearthlog/runtime/calendar/weeks.js";
+    import { dayColumn, monthInView, WEEK_SPAN } from "@hearthlog/runtime/calendar/weeks.js";
     import { monthKeyOf, shiftDay, shiftMonthKey, shiftWeek, weekAxis, weekStartOf } from "@hearthlog/ui/utils/endless-axis.js";
     import EndlessList, { type EndlessBlock, type EndlessPosition, type EndlessTarget, type EndlessView } from "@hearthlog/ui/components/endless/EndlessList.svelte";
     import { CalendarWeeks } from "@hearthlog/shell/components/calendar/calendar-weeks.svelte.js";
@@ -927,18 +927,15 @@
             {@const hasItems = cellItems.length + cellRanges.length > 0}
             {@const today = dayKey === data.today}
             {@const selected = dayKey === selectedDate}
-            {@const edges = monthEdges(dayKey)}
             <div
                 role="gridcell"
                 data-calendar-day={dayKey}
                 aria-label={dayLabel(info, cellItems, cellRanges)}
                 aria-selected={selected}
                 style="grid-column: {col + 1}; grid-row: 1"
-                class="stor-calendar-day group {selected ? 'bg-[var(--stor-selected)]' : 'hover:bg-[var(--stor-surface-hover)]'}"
+                class="stor-calendar-day group hover:bg-[var(--stor-surface-hover)]"
                 onclick={() => { if (phone.current) selectDay(dayKey); }}
                 class:stor-calendar-out={monthKeyOf(dayKey) !== shownMonth}
-                class:stor-calendar-month-top={edges.top}
-                class:stor-calendar-month-start={edges.start}
             >
                 <button
                     type="button"
@@ -947,7 +944,7 @@
                     aria-pressed={selected}
                     class="stor-calendar-select flex w-full items-center rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-[var(--stor-focus)]"
                 >
-                    <span aria-current={today ? "date" : undefined} class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-medium {selected || today ? 'bg-[var(--stor-action)] text-[var(--stor-action-text)]' : info.isWeekend || info.isHoliday ? 'text-[var(--stor-muted-text)]' : 'text-[var(--stor-ink)]'}">{info.date.getDate()}</span>
+                    <span aria-current={today ? "date" : undefined} data-today={today ? "" : undefined} class="stor-calendar-date flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-medium {selected ? 'bg-[var(--stor-action)] text-[var(--stor-action-text)]' : info.isWeekend || info.isHoliday ? 'text-[var(--stor-muted-text)]' : 'text-[var(--stor-ink)]'}">{info.date.getDate()}</span>
                     {#if dayKey.endsWith("-01")}<span class="ml-1 hidden text-[10.5px] font-semibold uppercase tracking-wide text-[var(--stor-muted-text)] sm:inline" aria-hidden="true">{formatDay(info.date, "MMM")}</span>{/if}
                 </button>
                 <div class="mt-1 hidden items-center justify-center gap-1 md:flex lg:hidden" aria-hidden="true">
@@ -971,7 +968,7 @@
                     {#each cellItems.slice(0, MAX_DAY_CHIPS) as item (item.sourceKey + item.id)}
                         {@const presentation = calendarSourcePresentation(item.sourceKey)}
                         {@const href = itemHref(item, dayKey)}
-                        {@const chipClass = `flex w-full min-w-0 items-center gap-1 rounded-lg px-1.5 py-1 text-left text-[10.5px] max-md:rounded-md max-md:px-1 max-md:py-0.5 max-md:text-[10px] max-md:tracking-[-0.01em] transition hover:bg-[var(--stor-surface)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--stor-focus)] ${TONE_CLASSES[presentation.tone]}`}
+                        {@const chipClass = `flex w-full min-w-0 items-center gap-1 rounded-[6px] px-1.5 py-1 text-left text-[10.5px] max-md:rounded-[5px] max-md:px-1 max-md:py-0.5 max-md:text-[10px] max-md:tracking-[-0.01em] transition hover:bg-[var(--stor-surface)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--stor-focus)] bg-[var(--stor-surface-muted)] text-[var(--stor-ink)]`}
                         {#if item.sourceKey === "event"}
                             <button
                                 type="button"
@@ -979,6 +976,7 @@
                                 onclick={() => runCommandAction(() => void openItem(item))}
                                 aria-label={itemAriaLabel(item)}
                             >
+                                <span class="h-1.5 w-1.5 shrink-0 rounded-full {TONE_DOTS[presentation.tone]}" aria-hidden="true"></span>
                                 {#if item.startTime}<span class="hidden shrink-0 font-mono text-[var(--stor-muted-text)] xl:inline">{item.startTime}</span>{/if}
                                 <span class="min-w-0 flex-1 truncate font-semibold">{item.title}</span>
                                 {#if item.pinned}<IconPin class="h-3 w-3 shrink-0 text-[var(--stor-accent-text)]" />{/if}
@@ -988,9 +986,10 @@
                                 href={href}
                                 class={chipClass}
                                 aria-label={itemAriaLabel(item)}
-                            ><span class="min-w-0 flex-1 truncate font-semibold">{item.title}</span></a>
+                            ><span class="h-1.5 w-1.5 shrink-0 rounded-full {TONE_DOTS[presentation.tone]}" aria-hidden="true"></span><span class="min-w-0 flex-1 truncate font-semibold">{item.title}</span></a>
                         {:else}
                             <span class={chipClass} aria-label={itemAriaLabel(item)}>
+                                <span class="h-1.5 w-1.5 shrink-0 rounded-full {TONE_DOTS[presentation.tone]}" aria-hidden="true"></span>
                                 <span class="min-w-0 flex-1 truncate font-semibold">{item.title}</span>
                             </span>
                         {/if}
@@ -1268,34 +1267,6 @@
         --stor-cal-gap: 2px;
         --stor-cal-head: 0px;
         --stor-cal-band-h: 0px;
-    }
-    /* Months meet along one stepped line drawn in the gaps between days. */
-    .stor-calendar-month-top::before,
-    .stor-calendar-month-start::after {
-        content: "";
-        position: absolute;
-        z-index: 1;
-        background: color-mix(in srgb, var(--stor-ink) 30%, transparent);
-        pointer-events: none;
-    }
-    .stor-calendar-month-top::before {
-        top: calc(var(--stor-cal-gap) / -2 - 0.5px);
-        right: calc(var(--stor-cal-gap) / -2 - 0.5px);
-        left: calc(var(--stor-cal-gap) / -2 - 0.5px);
-        height: 1px;
-    }
-    /* Days are a week's first seven children; the line stops at the grid's edges. */
-    .stor-calendar-month-top:nth-child(1)::before {
-        left: 0;
-    }
-    .stor-calendar-month-top:nth-child(7)::before {
-        right: 0;
-    }
-    .stor-calendar-month-start::after {
-        top: calc(var(--stor-cal-gap) / -2 - 0.5px);
-        bottom: calc(var(--stor-cal-gap) / -2 - 0.5px);
-        left: calc(var(--stor-cal-gap) / -2 - 0.5px);
-        width: 1px;
     }
     .stor-calendar-band {
         display: none;
