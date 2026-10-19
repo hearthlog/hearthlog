@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { timeTravel } from '../../utils/time-travel.js';
     import { Dialog, Popover } from 'bits-ui';
     import IconArrowLeft from '~icons/mdi/arrow-left';
     import IconArrowRight from '~icons/mdi/arrow-right';
@@ -64,7 +65,8 @@
     function navigateTo(targetYear: number, targetMonth: number): void {
         desktopOpen = false;
         mobileOpen = false;
-        void onNavigate(targetYear, targetMonth);
+        const direction = targetYear * 12 + targetMonth >= year * 12 + month ? 1 : -1;
+        void timeTravel(direction, () => onNavigate(targetYear, targetMonth));
     }
 </script>
 

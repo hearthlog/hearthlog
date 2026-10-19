@@ -28,14 +28,14 @@
     aria-checked={checked}
     aria-label={ariaLabel}
     {disabled}
-    class={cn("flex min-h-12 w-full items-center gap-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--stor-focus)] disabled:opacity-50", className)}
+    class={cn("flex min-h-12 w-full items-center gap-3 rounded-[10px] text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--stor-focus)] disabled:opacity-45", className)}
     onclick={() => onCheckedChange(!checked)}
 >
     {#if label}<span class="min-w-0 flex-1">
-        <span class="block text-[15px] font-medium text-[var(--stor-ink)]">{label}</span>
-        {#if hint}<span class="block text-[12.5px] text-[var(--stor-muted-text)]">{hint}</span>{/if}
+        <span class="block text-body font-medium text-[var(--stor-ink)]">{label}</span>
+        {#if hint}<span class="block text-caption text-[var(--stor-muted-text)]">{hint}</span>{/if}
     </span>{/if}
-    <span class="relative h-[30px] w-12 shrink-0 rounded-full transition-colors {checked ? 'bg-[var(--stor-action)]' : 'bg-[var(--stor-surface-well)] shadow-[inset_0_0_0_1px_var(--stor-border)]'}" aria-hidden="true">
-        <span class="absolute top-[3px] h-6 w-6 rounded-full bg-white shadow transition-[left] {checked ? 'left-[21px]' : 'left-[3px]'}"></span>
+    <span class="relative h-6 w-10 shrink-0 rounded-full transition-colors duration-[var(--stor-dur-2)] {checked ? 'bg-[var(--stor-action)]' : 'bg-[var(--stor-surface-well)] shadow-[inset_0_0_0_1px_var(--stor-field-border)]'}" aria-hidden="true">
+        <span class="absolute top-[3px] h-[18px] w-[18px] rounded-full shadow-[0_1px_2px_rgb(0_0_0/.2)] transition-[left] duration-[var(--stor-dur-2)] {checked ? 'left-[19px] bg-[var(--stor-action-text)]' : 'left-[3px] bg-[var(--stor-surface-raised)]'}"></span>
     </span>
 </button>

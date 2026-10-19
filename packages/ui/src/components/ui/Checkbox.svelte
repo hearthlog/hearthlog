@@ -19,7 +19,7 @@
     {onCheckedChange}
     {disabled}
     class={cn(
-        "inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-md border border-[var(--stor-field-border)] stor-well text-[var(--stor-action-text)] transition data-[state=checked]:border-[var(--stor-accent)] data-[state=checked]:bg-[var(--stor-action)] data-[state=checked]:shadow-[0_1px_2px_rgb(0_0_0/.18),inset_0_1px_0_rgb(255_255_255/.22)] disabled:cursor-not-allowed disabled:opacity-50 [&[data-state=checked]_.checkbox-check]:opacity-100",
+        "inline-flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-[5px] border border-[var(--stor-field-border)] bg-[var(--stor-surface-muted)] text-[var(--stor-action-text)] transition duration-[var(--stor-dur-1)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--stor-focus)] data-[state=checked]:border-[var(--stor-action)] data-[state=checked]:bg-[var(--stor-action)] disabled:cursor-not-allowed disabled:opacity-45 [&[data-state=checked]_.checkbox-check]:opacity-100",
         className,
     )}
     {...restProps}

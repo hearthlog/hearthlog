@@ -84,6 +84,13 @@
     .stor-tab-indicator,
     .stor-page-tab:is([data-state="active"], [aria-selected="true"], [aria-current="page"], [aria-current="true"]),
     .stor-segmented-option:is([aria-pressed="true"], [data-state="active"]) { background: var(--stor-surface-raised); box-shadow: var(--stor-elevation-2); }
+    /* Toasts: the inverse ink pill (ink fill, canvas text), the same face as the last-change bar. */
+    .stor-toast { display: flex; width: 100%; align-items: flex-start; gap: 10px; min-height: 44px; box-sizing: border-box; padding: 6px 6px 6px 16px; border-radius: 22px; background: var(--stor-tooltip); box-shadow: 0 12px 32px -8px rgba(0, 0, 0, .3); font-size: 13px; font-weight: 500; line-height: 20px; color: var(--stor-tooltip-text); }
+    .stor-toast > svg:first-child { margin-top: 8px; }
+    .stor-toast-action { flex: none; align-self: center; min-height: 32px; padding: 0 12px; border-radius: 999px; font-weight: 600; color: var(--stor-action-inverse); }
+    .stor-toast-close { flex: none; align-self: center; display: grid; place-items: center; width: 32px; height: 32px; border-radius: 999px; color: inherit; opacity: .72; }
+    .stor-toast-action:hover, .stor-toast-close:hover { background: color-mix(in srgb, var(--stor-tooltip-text) 12%, transparent); opacity: 1; }
+    .stor-toast :is(button):focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--stor-action-inverse); }
     .stor-nav-selected, .stor-nav-indicator { background: var(--stor-surface-raised); box-shadow: var(--stor-nav-card-shadow); }
     .stor-nav-sliding .stor-nav-selected,
     .stor-tabs-sliding .stor-page-tab:is([data-state="active"], [aria-selected="true"], [aria-current="page"], [aria-current="true"]) { background: transparent; box-shadow: none; }
@@ -218,3 +225,19 @@
 @media (hover: none), (pointer: coarse) {
     .stor-kbd, [data-stor-shortcut]::after { display: none; }
 }
+
+/* Time travel (utils/time-travel.ts): the page panel's content leaves 16px against the direction of time and the
+   new content arrives with it; the sidebar and the rest of the page stay put. */
+
+html[data-time-direction] [data-stor-main] { view-transition-name: stor-main; }
+html[data-time-direction]::view-transition-old(root), html[data-time-direction]::view-transition-new(root) { animation: none; mix-blend-mode: normal; }
+
+@keyframes stor-time-out-forward { to { opacity: 0; transform: translateX(-16px); } }
+@keyframes stor-time-in-forward { from { opacity: 0; transform: translateX(16px); } }
+@keyframes stor-time-out-back { to { opacity: 0; transform: translateX(16px); } }
+@keyframes stor-time-in-back { from { opacity: 0; transform: translateX(-16px); } }
+
+html[data-time-direction="forward"]::view-transition-old(stor-main) { animation: stor-time-out-forward var(--stor-dur-2) var(--stor-ease-in) both; }
+html[data-time-direction="forward"]::view-transition-new(stor-main) { animation: stor-time-in-forward var(--stor-dur-3) var(--stor-ease-out) both; }
+html[data-time-direction="back"]::view-transition-old(stor-main) { animation: stor-time-out-back var(--stor-dur-2) var(--stor-ease-in) both; }
+html[data-time-direction="back"]::view-transition-new(stor-main) { animation: stor-time-in-back var(--stor-dur-3) var(--stor-ease-out) both; }
