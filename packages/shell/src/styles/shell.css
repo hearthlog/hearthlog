@@ -1,7 +1,6 @@
 @layer components {
-    .stor-native-field { width: 100%; min-height: 44px; border: 1px solid var(--stor-field-border); border-radius: 12px; background: var(--stor-surface-muted); padding: 0 12px; color: var(--stor-ink); font-size: 16px; outline: none; }
-    .stor-native-field:focus { border-color: var(--stor-focus); box-shadow: 0 0 0 2px var(--stor-selected); }
-    .stor-native-field:disabled { cursor: not-allowed; color: var(--stor-muted-text); }
+    /* Raw native controls: sizing only; the look is `.stor-field-control` (add both classes). */
+    .stor-native-field { width: 100%; min-height: 44px; padding: 0 12px; font-size: 16px; }
     @media (min-width: 640px) { .stor-native-field { min-height: 36px; font-size: 14px; } }
     /* Navigation: the current destination is a raised pill, the same selection as tabs. In the expanded
        sidebar the pill is a card around the whole section, its row and its open sub-pages. */
