@@ -31,9 +31,56 @@
     src: url('../assets/fonts/fira-code-latin-ext-ui.woff2') format('woff2-variations');
     unicode-range: U+010C-010D, U+010E-0111, U+011A-011B, U+0139-013A, U+013D-013E, U+0147-0148, U+0154-0159, U+0160-0165, U+016E-0171, U+0179-017E;
 }
+/* Newsreader (SIL OFL 1.1, newsreader-OFL.txt): optical size 6–72 and weight 200–800, for titles only. */
+@font-face {
+    font-family: 'Newsreader Variable';
+    font-style: normal;
+    font-display: optional;
+    font-weight: 200 800;
+    src: url('../assets/fonts/newsreader-latin.woff2') format('woff2-variations');
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+    font-family: 'Newsreader Variable';
+    font-style: normal;
+    font-display: optional;
+    font-weight: 200 800;
+    src: url('../assets/fonts/newsreader-latin-ext.woff2') format('woff2-variations');
+    unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
 @theme {
     --font-sans: var(--stor-font-sans);
     --font-mono: var(--stor-font-mono);
+    --font-serif: var(--stor-font-serif);
+    /* The type scale as text-* sizes (text-title-2, text-caption, ...); the values live in :root below. */
+    --text-display: var(--stor-text-display);
+    --text-display--line-height: var(--stor-text-display-line);
+    --text-display--letter-spacing: -0.03em;
+    --text-display--font-weight: 600;
+    --text-title-1: var(--stor-text-title-1);
+    --text-title-1--line-height: var(--stor-text-title-1-line);
+    --text-title-1--letter-spacing: -0.015em;
+    --text-title-1--font-weight: 500;
+    --text-title-2: var(--stor-text-title-2);
+    --text-title-2--line-height: var(--stor-text-title-2-line);
+    --text-title-2--letter-spacing: -0.01em;
+    --text-title-2--font-weight: 500;
+    --text-title-3: var(--stor-text-title-3);
+    --text-title-3--line-height: var(--stor-text-title-3-line);
+    --text-title-3--letter-spacing: -0.006em;
+    --text-title-3--font-weight: 600;
+    --text-body: var(--stor-text-body);
+    --text-body--line-height: var(--stor-text-body-line);
+    --text-small: var(--stor-text-small);
+    --text-small--line-height: var(--stor-text-small-line);
+    --text-caption: var(--stor-text-caption);
+    --text-caption--line-height: var(--stor-text-caption-line);
+    --text-caption--letter-spacing: 0.005em;
+    --text-caption--font-weight: 500;
+    --text-overline: var(--stor-text-overline);
+    --text-overline--line-height: var(--stor-text-overline-line);
+    --text-overline--letter-spacing: 0.06em;
+    --text-overline--font-weight: 600;
     /* Push desktop-plus breakpoint so multi-column only appears on very wide screens */
     --breakpoint-2xl: 1920px;
     /* Four radii: 8 small tiles, 12 controls and inner blocks, 20 panels, full pills.
@@ -52,7 +99,33 @@
     --stor-layer-dialog-content: 101;
     --stor-layer-toast: 110;
     --stor-layer-tooltip: 120;
-    --stor-font-serif: ui-serif, "New York", "Iowan Old Style", Charter, Georgia, "Times New Roman", serif;
+    --stor-font-serif: "Newsreader Variable", ui-serif, "New York", "Iowan Old Style", Charter, Georgia, "Times New Roman", serif;
+    /* Type scale, size and line height. Newsreader sets title-1 and title-2 (.stor-title-1/-2), Inter the rest;
+       overline is uppercase (.stor-overline). */
+    --stor-text-display: 40px;
+    --stor-text-display-line: 44px;
+    --stor-text-title-1: 30px;
+    --stor-text-title-1-line: 36px;
+    --stor-text-title-2: 22px;
+    --stor-text-title-2-line: 28px;
+    --stor-text-title-3: 16px;
+    --stor-text-title-3-line: 24px;
+    --stor-text-body: 14px;
+    --stor-text-body-line: 22px;
+    --stor-text-small: 13px;
+    --stor-text-small-line: 18px;
+    --stor-text-caption: 12px;
+    --stor-text-caption-line: 16px;
+    --stor-text-overline: 11px;
+    --stor-text-overline-line: 16px;
+    /* Motion: four durations and two curves. 1 press and hover, 2 fades and every exit, 3 the selection pill,
+       popovers and changing figures, 4 sheets and time. Enter with ease-out, leave with ease-in. */
+    --stor-dur-1: 90ms;
+    --stor-dur-2: 160ms;
+    --stor-dur-3: 240ms;
+    --stor-dur-4: 320ms;
+    --stor-ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+    --stor-ease-in: cubic-bezier(0.4, 0, 1, 1);
     color-scheme: light;
     font-family: var(--stor-font-sans);
     background: var(--stor-bg);
@@ -71,14 +144,18 @@
     --stor-sidebar-rail-width: 5rem;
     /* One short panel slide keeps the form legible as soon as it opens. */
     --stor-drawer-shift: 1.5rem;
-    --stor-drawer-enter-motion: 190ms cubic-bezier(0.2, 0.8, 0.2, 1);
-    --stor-drawer-enter-fade: 150ms ease-out;
-    --stor-drawer-exit-motion: 150ms ease-in;
-    --stor-drawer-exit-fade: 120ms ease-in;
-    --stor-overlay-enter-fade: 180ms ease-out;
-    --stor-overlay-exit-fade: 150ms ease-in;
+    --stor-drawer-enter-motion: var(--stor-dur-4) var(--stor-ease-out);
+    --stor-drawer-enter-fade: var(--stor-dur-2) var(--stor-ease-out);
+    --stor-drawer-exit-motion: var(--stor-dur-2) var(--stor-ease-in);
+    --stor-drawer-exit-fade: var(--stor-dur-2) var(--stor-ease-in);
+    --stor-overlay-enter-fade: var(--stor-dur-2) var(--stor-ease-out);
+    --stor-overlay-exit-fade: var(--stor-dur-2) var(--stor-ease-in);
     /* The selected tab pill slides between triggers. */
-    --stor-tab-motion: 280ms cubic-bezier(0.22, 1, 0.36, 1);
+    --stor-tab-motion: var(--stor-dur-3) var(--stor-ease-out);
+}
+/* Phones set page titles one step smaller, so a month name fits beside the time navigator. */
+@media (max-width: 639px) {
+    :root { --stor-text-title-1: 26px; --stor-text-title-1-line: 32px; }
 }
 html[data-theme="dark"] {
     color-scheme: dark;
@@ -101,9 +178,9 @@ input,
 select,
 textarea {
     transition:
-        background-color 160ms ease,
-        border-color 160ms ease,
-        color 160ms ease;
+        background-color var(--stor-dur-2) ease,
+        border-color var(--stor-dur-2) ease,
+        color var(--stor-dur-2) ease;
 }
 button,
 a,

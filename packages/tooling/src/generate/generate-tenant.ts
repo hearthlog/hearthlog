@@ -30,8 +30,11 @@ import { generateTenantWranglerConfigs } from "../tenants/wrangler-config.js";
 import { activeSiteId } from "../root.js";
 import { brandMarkMaskUrl, wordmarkParts } from "@hearthlog/contracts/tenant/brand";
 import {
+    contrastRatio,
+    oklch,
+    themePaletteFor,
     themeVariablesCss,
-    themeVariablesFor,
+    type ThemePalette,
 } from "@hearthlog/contracts/tenant/theme";
 
 const APP_TEMPLATE_PATH = join(packageDirectory("@hearthlog/shell"), "src/app.template.html");
@@ -93,8 +96,9 @@ export const TENANT = {
 // template keeps explicit %%BRAND_*%% markers; everything else stays
 // byte-identical across tenants.
 const template = await readFile(APP_TEMPLATE_PATH, "utf8");
-const lightTheme = themeVariablesFor(site.theme.accent, "light");
-const darkTheme = themeVariablesFor(site.theme.accent, "dark");
+const palettes = [themePaletteFor(site.theme.accent, "light"), themePaletteFor(site.theme.accent, "dark")] as const;
+const lightTheme = palettes[0].variables;
+const darkTheme = palettes[1].variables;
 const themeStyle = themeVariablesCss(lightTheme);
 const brandable = template
     .replaceAll("%%BRAND_MARK_MASK%%", brandMarkMaskUrl())
@@ -126,6 +130,7 @@ if (/%%BRAND_[A-Z_]+%%/.test(brandable)) {
             `features, home ${site.home}, accent ${site.theme.accent ?? "default"}) ` +
             `at ${outputPath}`,
     );
+    console.log(paletteReport(site.id, palettes));
     if (wranglerConfigs.length > 0) {
         console.log(
             `Generated ${wranglerConfigs.length} tenant wrangler config(s): ` +
@@ -141,6 +146,30 @@ if (process.env.STOR_SKIP_TENANT_GENERATION !== "1") {
     await generateTenant(activeSiteId(), {
         generateWranglerConfigs: process.env.STOR_WRANGLER_CONFIGS !== "0",
     });
+}
+
+/** The palette the site's accent derives in each mode, and every clash with a meaning colour it resolved. */
+function paletteReport(siteId: string, palettes: readonly ThemePalette[]): string {
+    const lines = [`Palette for "${siteId}" from accent ${palettes[0]!.accent}:`];
+    for (const palette of palettes) {
+        const mode = palette.mode.padEnd(5);
+        const action = palette.monochrome ? `monochrome, action in ink ${palette.action}` : `action ${palette.action}`;
+        lines.push(
+            `  ${mode}  ${action} (text ${palette.actionText}, ${contrastRatio(palette.action, palette.actionText).toFixed(1)}:1)` +
+                ` · links ${palette.accentText} · soft ${palette.soft} · focus ${palette.focus}`,
+        );
+    }
+    for (const palette of palettes) {
+        for (const clash of palette.clashes) {
+            const rule = clash.role === "now" ? "drawn in ink" : `hue turned to ${Math.round(oklch(clash.to).H)}°`;
+            lines.push(
+                `  ${palette.mode.padEnd(5)}  ${clash.role} ${clash.from} → ${clash.to} ` +
+                    `(ΔE ${clash.distance.toFixed(3)} from the action; ${rule})`,
+            );
+        }
+    }
+    if (palettes.every((palette) => palette.clashes.length === 0)) lines.push("  no clashes with status or now");
+    return lines.join("\n");
 }
 
 /** The tenant title with the brand mark in place of its first "s". */

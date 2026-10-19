@@ -1,7 +1,7 @@
 const SELECTED = 'a[data-nav-link][aria-current="page"]';
 
-/** Smoothing constant: the pill covers 95% of the distance in about 280 ms, the same as `--stor-tab-motion`. */
-const TIME_CONSTANT_MS = 93;
+/** Smoothing constant: the pill covers 95% of the distance in about 240 ms, the same as `--stor-tab-motion` (`--stor-dur-3`). */
+const TIME_CONSTANT_MS = 80;
 
 /** Keep following the row after a change, so the pill tracks sub-lists that are still opening or closing. */
 const FOLLOW_MS = 320;

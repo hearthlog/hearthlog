@@ -31,7 +31,7 @@ export function colorDistance(a: string, b: string): number {
     return Math.hypot(l1 - l2, a1 - a2, b1 - b2);
 }
 
-interface Oklch {
+export interface Oklch {
     L: number;
     C: number;
     H: number;
@@ -70,7 +70,7 @@ function oklabChannelsToRgb(L: number, a: number, b: number): number[] {
 
 const wrapHue = (hue: number): number => ((hue % 360) + 360) % 360;
 
-function oklch(color: string): Oklch {
+export function oklch(color: string): Oklch {
     const [L, a, b] = oklab(color);
     return {
         L,
@@ -80,7 +80,7 @@ function oklch(color: string): Oklch {
 }
 
 /** OKLCH to sRGB hex, reducing chroma until the colour fits the gamut. */
-function oklchToHex(L: number, C: number, H: number): string {
+export function oklchToHex(L: number, C: number, H: number): string {
     const radians = (wrapHue(H) * Math.PI) / 180;
     const channels = (chroma: number): number[] =>
         oklabChannelsToRgb(
@@ -105,16 +105,233 @@ function oklchToHex(L: number, C: number, H: number): string {
     return hex(channels(low));
 }
 
-function accessibleShade(color: string, backgrounds: string[], ratio: number, toward: '#000000' | '#ffffff'): string {
-    for (let step = 0; step <= 100; step++) {
-        const candidate = mix(color, toward, 1 - step / 100);
-        if (backgrounds.every((bg) => contrastRatio(candidate, bg) >= ratio)) return candidate;
-    }
-    return toward;
+const withLightness = (color: string, lightness: number): string => {
+    const { C, H } = oklch(color);
+    return oklchToHex(Math.max(0, Math.min(1, lightness)), C, H);
+};
+
+const withHue = (color: string, hue: number): string => {
+    const { L, C } = oklch(color);
+    return oklchToHex(L, C, hue);
+};
+
+const DEFAULT_ACCENT = '#b23a34';
+const TEXT_CONTRAST = 4.5;
+const MARK_CONTRAST = 3;
+/** Below this chroma an accent has no usable hue: the site is monochrome and acts in ink. */
+const MONOCHROME_CHROMA = 0.02;
+/** Loud accents are capped in light mode, so the action cannot outshout status and the charts. */
+const LIGHT_MAX_CHROMA = 0.17;
+/** Dark mode lifts the accent to this lightness instead of washing it toward white. */
+const DARK_ACTION_LIGHTNESS = 0.78;
+const DARK_MIN_CHROMA = 0.09;
+/** Closer than this (OKLab ΔE), the action and a meaning colour read as one hue side by side. */
+const CLASH_DISTANCE = 0.1;
+
+interface Neutrals {
+    bg: string;
+    surface: string;
+    raised: string;
+    muted: string;
+    well: string;
+    hover: string;
+    overlay: string;
+    sheet: string;
+    border: string;
+    borderStrong: string;
+    field: string;
+    ink: string;
+    mutedText: string;
+    faintText: string;
 }
 
-function readableOn(background: string): '#151719' | '#ffffff' {
-    return contrastRatio('#151719', background) >= 4.5 ? '#151719' : '#ffffff';
+/**
+ * Warm, low-chroma OKLCH steps (hue 70–80, chroma ≤ 0.013), the same on every site. The accent never tints them,
+ * so a tinted surface always means selection. Dark mode shows height as lighter tone.
+ */
+const NEUTRALS: Record<ResolvedTheme, Neutrals> = {
+    light: {
+        bg: '#f7f5f2',
+        surface: '#fefdfc',
+        raised: '#ffffff',
+        muted: '#f2f0ec',
+        well: '#ece9e4',
+        hover: '#f0ede9',
+        overlay: '#ffffff',
+        sheet: '#ffffff',
+        border: '#e2dfda',
+        borderStrong: '#cecac3',
+        field: '#918b84',
+        ink: '#221d18',
+        mutedText: '#68625b',
+        faintText: '#8b857f',
+    },
+    dark: {
+        bg: '#171412',
+        surface: '#1f1c18',
+        raised: '#26231f',
+        muted: '#23201c',
+        well: '#13110f',
+        hover: '#2a2622',
+        overlay: '#2f2b26',
+        sheet: '#2f2b26',
+        border: '#38332f',
+        borderStrong: '#49443f',
+        field: '#736e67',
+        ink: '#ece9e4',
+        mutedText: '#b0aaa1',
+        faintText: '#847f78',
+    },
+};
+
+export type StatusRole = 'positive' | 'negative' | 'warning' | 'info';
+
+/** Each status colour and its soft fill. Shared by every site, so a meaning looks the same everywhere. */
+const STATUS: Record<ResolvedTheme, Record<StatusRole, readonly [string, string]>> = {
+    light: {
+        positive: ['#337344', '#e1f5e4'],
+        negative: ['#a8372a', '#ffe9e5'],
+        warning: ['#976213', '#fbedd1'],
+        info: ['#39688e', '#e4f0fb'],
+    },
+    dark: {
+        positive: ['#7ccd8e', '#1a3520'],
+        negative: ['#f2897c', '#47211c'],
+        warning: ['#edbb64', '#403012'],
+        info: ['#88bfe6', '#1a3040'],
+    },
+};
+
+/** The OKLCH hues a status colour may turn to, when the action sits too close, and still mean the same. */
+const STATUS_FAMILIES: Record<StatusRole, readonly [number, number]> = {
+    negative: [15, 35],
+    warning: [55, 90],
+    positive: [135, 165],
+    info: [225, 255],
+};
+
+/** Ember marks today and now, the same on every site. It is never a tenant colour, and never text. */
+const NOW: Record<ResolvedTheme, readonly [string, string]> = {
+    light: ['#dd6f23', '#feeadb'],
+    dark: ['#f59d4f', '#4a2a12'],
+};
+
+/** Health's Eat, Move and Body are fixed like status, so a meal looks the same on every site. */
+const HEALTH_DOMAINS: Record<ResolvedTheme, Record<'eat' | 'move' | 'body', string>> = {
+    light: { eat: '#b36139', move: '#2e8178', body: '#795a90' },
+    dark: { eat: '#e3966a', move: '#6cbcb1', body: '#b695cf' },
+};
+
+/**
+ * The colour itself when it clears `ratio` against every background; otherwise the first OKLCH lightness, in steps
+ * of 0.01, that does (darker in light mode, lighter in dark), at the same hue and chroma. Never a mix toward black
+ * or white.
+ */
+function withContrast(color: string, backgrounds: readonly string[], ratio: number, mode: ResolvedTheme): string {
+    const passes = (candidate: string): boolean => backgrounds.every((bg) => contrastRatio(candidate, bg) >= ratio);
+    if (passes(color)) return color;
+    const { L, C, H } = oklch(color);
+    const direction = mode === 'light' ? -1 : 1;
+    for (let step = 1; step <= 100; step++) {
+        const lightness = L + direction * step * 0.01;
+        if (lightness < 0 || lightness > 1) break;
+        const candidate = oklchToHex(lightness, C, H);
+        if (passes(candidate)) return candidate;
+    }
+    return mode === 'light' ? '#000000' : '#ffffff';
+}
+
+/** Text on a fill: white in light mode and the canvas colour in dark mode, unless the other one reads better. */
+function readableOn(fill: string, mode: ResolvedTheme): string {
+    const preferred = mode === 'light' ? '#ffffff' : NEUTRALS.dark.bg;
+    if (contrastRatio(preferred, fill) >= TEXT_CONTRAST) return preferred;
+    const other = mode === 'light' ? NEUTRALS.light.ink : '#ffffff';
+    return contrastRatio(other, fill) > contrastRatio(preferred, fill) ? other : preferred;
+}
+
+/** Hover moves a fill away from its text: darker under light text, lighter under dark text. */
+function hoverOf(fill: string, mode: ResolvedTheme): string {
+    const { L } = oklch(fill);
+    return withLightness(fill, luminance(readableOn(fill, mode)) > luminance(fill) ? L - 0.06 : L + 0.05);
+}
+
+interface AccentRoles {
+    monochrome: boolean;
+    action: string;
+    actionText: string;
+    actionHover: string;
+    /** Links and selected labels: the action, darkened (lightened in dark mode) until it reads on every surface. */
+    text: string;
+    soft: string;
+    focus: string;
+}
+
+function accentRoles(accent: string, mode: ResolvedTheme): AccentRoles {
+    const n = NEUTRALS[mode];
+    const surfaces = [n.bg, n.surface, n.raised, n.muted, n.hover, n.well, n.overlay];
+    const { L, C, H } = oklch(accent);
+    if (C < MONOCHROME_CHROMA) {
+        // A gray accent has no hue to keep: the site acts in ink and selects in the well tone.
+        return {
+            monochrome: true,
+            action: n.ink,
+            actionText: readableOn(n.ink, mode),
+            actionHover: hoverOf(n.ink, mode),
+            text: n.ink,
+            soft: n.well,
+            focus: n.ink,
+        };
+    }
+    const action = mode === 'light'
+        ? withContrast(C > LIGHT_MAX_CHROMA ? oklchToHex(L, LIGHT_MAX_CHROMA, H) : accent, [n.surface], TEXT_CONTRAST, mode)
+        : withContrast(oklchToHex(DARK_ACTION_LIGHTNESS, Math.max(C, DARK_MIN_CHROMA), H), [n.bg], TEXT_CONTRAST, mode);
+    const soft = mode === 'light'
+        ? oklchToHex(0.94, Math.min(C, 0.04), H)
+        : oklchToHex(0.3, Math.min(C, 0.05), H);
+    return {
+        monochrome: false,
+        action,
+        actionText: readableOn(action, mode),
+        actionHover: hoverOf(action, mode),
+        text: withContrast(action, [...surfaces, soft], TEXT_CONTRAST, mode),
+        soft,
+        focus: withContrast(action, surfaces, MARK_CONTRAST, mode),
+    };
+}
+
+/** A meaning colour that sat within ΔE 0.10 of the action, and what it became. */
+export interface ThemeClash {
+    role: StatusRole | 'now';
+    /** OKLab ΔE between the action and the role's own colour. */
+    distance: number;
+    from: string;
+    to: string;
+}
+
+const hueGap = (a: number, b: number): number => {
+    const gap = Math.abs(wrapHue(a) - wrapHue(b));
+    return Math.min(gap, 360 - gap);
+};
+
+/**
+ * A status colour reads as text on the surfaces and on its own soft fill. One the action sits too close to turns
+ * to the end of its family farther from the action's hue, keeping its lightness and chroma.
+ */
+function resolveStatus(role: StatusRole, mode: ResolvedTheme, action: string, clashes: ThemeClash[]): readonly [string, string] {
+    const n = NEUTRALS[mode];
+    const readable = (color: string, soft: string): string =>
+        withContrast(color, [n.bg, n.surface, n.raised, soft], TEXT_CONTRAST, mode);
+    const [own, ownSoft] = STATUS[mode][role];
+    const color = readable(own, ownSoft);
+    const distance = colorDistance(action, color);
+    if (distance >= CLASH_DISTANCE) return [color, ownSoft];
+    const [from, to] = STATUS_FAMILIES[role];
+    const actionHue = oklch(action).H;
+    const hue = hueGap(from, actionHue) >= hueGap(to, actionHue) ? from : to;
+    const soft = withHue(ownSoft, hue);
+    const turned = readable(withHue(own, hue), soft);
+    clashes.push({ role, distance, from: color, to: turned });
+    return [turned, soft];
 }
 
 type ChartPalette = Record<
@@ -225,7 +442,7 @@ function chartPalette(
     const accentLch = oklch(accent);
     // A near-gray accent has no usable identity hue; the default clay family
     // provides a stable, recognisable fallback.
-    const baseHue = accentLch.C >= 0.02 ? accentLch.H : 25;
+    const baseHue = accentLch.C >= MONOCHROME_CHROMA ? accentLch.H : 25;
     const family = chartPaletteFamily(baseHue);
 
     const tuneContrast = (
@@ -248,17 +465,17 @@ function chartPalette(
         return targetMode === 'dark' ? '#ffffff' : '#000000';
     };
 
-    const accentSeed = accentLch.C >= 0.02
+    const accentSeed = accentLch.C >= MONOCHROME_CHROMA
         ? oklchToHex(
               accentLch.L > 0.7 ? 0.62 : accentLch.L,
-              Math.max(0.07, Math.min(accentLch.C, 0.17)),
+              Math.max(0.07, Math.min(accentLch.C, LIGHT_MAX_CHROMA)),
               baseHue,
           )
-        : '#b23a34';
+        : DEFAULT_ACCENT;
     // Establish the light-mode identity first. Pale accents such as bravo's
     // sand become a legible shade of the same hue, while extreme chroma is
     // capped so a tenant accent cannot overpower the companion family.
-    const issuedLight = tuneContrast(accentSeed, 'light', '#ffffff', '#ffffff');
+    const issuedLight = tuneContrast(accentSeed, 'light', NEUTRALS.light.surface, NEUTRALS.light.raised);
 
     const adapt = (seed: string, darkLightnessShift: number): string => {
         if (mode === 'light') return tuneContrast(seed, mode, surface, raised);
@@ -282,189 +499,143 @@ function chartPalette(
     };
 }
 
-/**
- * Health gives each part of the day a colour: Eat, Move and Body take three
- * roles of the tenant's chart family, so they are contrast-checked already and
- * follow the accent. Status colours (warning, positive) keep their own meaning.
- */
-function healthDomainVariables(charts: ChartPalette): Record<string, string> {
-    return {
-        '--stor-health-eat': charts.incomeTax,
-        '--stor-health-move': charts.socialInsurance,
-        '--stor-health-body': charts.medicalInsurance,
-    };
-}
-
-/** One light from above. Every shadow scales with this; 1 is the default depth. */
+/** One light from above. Every shadow's opacity scales with this; 1 is the default depth. */
 const ELEVATION_STRENGTH = 1;
 
 /**
- * The elevation scale: well (-1), panel (1), raised (2), menu (3), sheet (4). Light mode shows height
- * as shadow. Dark mode shows it as lighter surfaces plus a top rim, so the shadows only add contact.
+ * The elevation scale: well (-1), page (1), raised (2), float (3), sheet (4). Every level above the canvas has a
+ * hairline; light mode adds a warm-ink shadow, deep only for what floats. Dark mode shows height as lighter tone,
+ * so page and raised are the hairline alone. The sidebar's current-section card has its own, a step above raised.
  */
 function elevationVariables(mode: ResolvedTheme): Record<string, string> {
     const dark = mode === 'dark';
-    const shade = dark ? '0, 0, 0' : '16, 42, 67';
-    const alpha = (n: number): string => Math.min(n * ELEVATION_STRENGTH * (dark ? 2.2 : 1), 0.7).toFixed(3);
-    const drop = (n: number): string => `rgba(${shade}, ${alpha(n)})`;
-    const ring = (n: number): string => (dark ? `rgba(255, 255, 255, ${(n * 0.9 * ELEVATION_STRENGTH).toFixed(3)})` : drop(n));
-    const rim = dark ? 'rgba(255, 255, 255, 0.07)' : 'rgba(255, 255, 255, 0.9)';
-    const rimSoft = dark ? 'rgba(255, 255, 255, 0.04)' : 'rgba(255, 255, 255, 0.55)';
+    const edge = `0 0 0 1px ${NEUTRALS[mode].border}`;
+    const shade = (alpha: number): string =>
+        `rgba(${dark ? '0, 0, 0' : '34, 29, 24'}, ${Math.min(alpha * ELEVATION_STRENGTH, 0.7).toFixed(3)})`;
     return {
-        '--stor-well-shadow': `inset 0 1px 2px ${drop(0.1)}`,
-        '--stor-elevation-1': `0 0 0 1px ${ring(0.05)}, 0 1px 2px ${drop(0.06)}, 0 10px 28px -14px ${drop(0.16)}, inset 0 1px 0 ${rimSoft}`,
-        '--stor-elevation-2': `0 0 0 1px ${ring(0.07)}, 0 1px 1px ${drop(0.08)}, 0 3px 8px -2px ${drop(0.12)}, inset 0 1px 0 ${rim}`,
-        '--stor-elevation-pressed': `0 0 0 1px ${ring(0.08)}, inset 0 1px 2px ${drop(0.1)}`,
-        '--stor-elevation-3': `0 0 0 1px ${ring(0.07)}, 0 4px 10px -2px ${drop(0.1)}, 0 20px 44px -10px ${drop(0.24)}, inset 0 1px 0 ${rim}`,
-        '--stor-elevation-4': `0 0 0 1px ${ring(0.06)}, 0 10px 24px ${drop(0.1)}, 0 36px 90px -16px ${drop(0.34)}, inset 0 1px 0 ${rim}`,
+        '--stor-well-shadow': 'none',
+        '--stor-elevation-1': dark ? edge : `${edge}, 0 1px 2px ${shade(0.04)}`,
+        '--stor-elevation-2': dark ? edge : `${edge}, 0 1px 1px ${shade(0.06)}`,
+        '--stor-elevation-pressed': edge,
+        '--stor-elevation-3': `${edge}, 0 12px 32px -8px ${shade(dark ? 0.5 : 0.18)}`,
+        '--stor-elevation-4': `${edge}, 0 24px 64px -16px ${shade(dark ? 0.6 : 0.28)}`,
+        '--stor-nav-card-shadow': dark ? edge : `${edge}, 0 1px 2px ${shade(0.06)}, 0 6px 16px -10px ${shade(0.2)}`,
     };
 }
 
-export function themeVariablesFor(accent = '#b23a34', mode: ResolvedTheme = 'light'): Record<string, string> {
-    if (mode === 'dark') {
-        const canvas = mix(accent, '#121c26', 0.04);
-        const surface = mix(accent, '#21313f', 0.05);
-        const subtle = mix(accent, '#243746', 0.05);
-        const raised = mix(accent, '#293b4b', 0.05);
-        const well = mix(accent, '#16222d', 0.04);
-        const overlay = mix(accent, '#2d4052', 0.05);
-        const sheet = mix(accent, '#324759', 0.05);
-        const selected = mix(accent, '#263e50', 0.24);
-        const surfaces = [canvas, surface, subtle, raised, well, overlay, sheet, selected];
-        const action = accessibleShade(accent, surfaces, 4.5, '#ffffff');
-        const focus = accessibleShade(accent, surfaces, 3, '#ffffff');
-        const charts = chartPalette(accent, 'dark', surface, raised);
-        return {
-            '--stor-accent': accent,
-            '--stor-chart-issued': charts.issued,
-            '--stor-chart-received': charts.received,
-            '--stor-chart-income-tax': charts.incomeTax,
-            '--stor-chart-social-insurance': charts.socialInsurance,
-            '--stor-chart-medical-insurance': charts.medicalInsurance,
-            ...healthDomainVariables(charts),
-            '--stor-bg': canvas,
-            // The sidebar sits on the canvas; the page panel beside it is the raised surface.
-            '--stor-sidebar': canvas,
-            '--stor-surface': surface,
-            '--stor-surface-muted': subtle,
-            '--stor-surface-raised': raised,
-            '--stor-surface-hover': mix(accent, '#2f3b4a', 0.03),
-            '--stor-surface-well': well,
-            '--stor-surface-overlay': overlay,
-            '--stor-surface-sheet': sheet,
-            ...elevationVariables('dark'),
-            // Aliases: the older shadow names point at the scale.
-            '--stor-panel-shadow': 'var(--stor-elevation-1)',
-            '--stor-sidebar-shadow': 'none',
-            '--stor-shadow-sm': 'var(--stor-elevation-2)',
-            '--stor-shadow-md': 'var(--stor-elevation-3)',
-            '--stor-shadow-lg': 'var(--stor-elevation-4)',
-            '--stor-header-shadow': '0 8px 24px rgba(0, 0, 0, 0.16)',
-            '--stor-tooltip': '#3a4d60',
-            '--stor-tooltip-text': '#edf4f9',
-            '--stor-selected': selected,
-            '--stor-border': mix(accent, '#3a5367', 0.15),
-            '--stor-field-border': accessibleShade('#8a8d91', surfaces, 3, '#ffffff'),
-            '--stor-ink': '#edf4f9',
-            '--stor-muted-text': accessibleShade('#b5c8d7', surfaces, 4.5, '#ffffff'),
-            '--stor-accent-text': action,
-            '--stor-action': action,
-            '--stor-action-text': readableOn(action),
-            '--stor-action-hover': mix(action, '#ffffff', 0.84),
-            '--stor-focus': focus,
-            '--stor-accent-strong': action,
-            '--stor-accent-soft': selected,
-            '--stor-overlay': '#090b0d47',
-            '--stor-positive': '#65d391',
-            '--stor-positive-soft': '#163c2a',
-            '--stor-negative': '#ff918d',
-            '--stor-negative-text': readableOn('#ff918d'),
-            '--stor-negative-soft': '#472321',
-            '--stor-warning': '#f2c66d',
-            '--stor-warning-soft': '#44351c',
-            '--stor-info': '#9bd5fa',
-            '--stor-info-soft': '#172f43',
-            '--stor-info-border': '#47738c',
-            '--stor-chart-axis': '#a9adb2',
-            '--stor-chart-fill': `color-mix(in srgb, ${action}, transparent 84%)`,
-            '--stor-code-key': '#ff9aae',
-            '--stor-code-string': '#77d79a',
-            '--stor-code-number': '#8fc9f4',
-            '--stor-code-literal': '#d5a6ff',
-            '--stor-theme-color': canvas,
-        };
-    }
+/** The tenant's derived palette for one mode: its accent roles, any clash it resolved, and the CSS variables. */
+export interface ThemePalette {
+    mode: ResolvedTheme;
+    accent: string;
+    monochrome: boolean;
+    action: string;
+    actionText: string;
+    accentText: string;
+    soft: string;
+    focus: string;
+    clashes: ThemeClash[];
+    variables: Record<string, string>;
+}
 
-    // One step darker than the panels' white so a panel lifts off the page by tone as well as shadow.
-    const canvas = mix(accent, '#edf0f4', 0.025);
-    // Muted and hover surfaces derive from the canvas, not the accent, so a
-    // tinted surface always means selection.
-    const subtle = mix(canvas, '#ffffff', 0.45);
-    const well = mix(canvas, '#e0e6ed', 0.5);
-    const selected = mix(accent, '#ffffff', 0.12);
-    const surfaces = ['#ffffff', canvas, subtle, well, selected];
-    const action = accessibleShade(accent, surfaces, 4.5, '#000000');
-    const text = accessibleShade(mix(accent, '#15364b', 0.78), surfaces, 4.5, '#000000');
-    const charts = chartPalette(accent, 'light', '#ffffff', '#ffffff');
-    return {
-        '--stor-accent': accent,
+export function themePaletteFor(accent = DEFAULT_ACCENT, mode: ResolvedTheme = 'light'): ThemePalette {
+    const dark = mode === 'dark';
+    const n = NEUTRALS[mode];
+    const roles = accentRoles(accent, mode);
+    const clashes: ThemeClash[] = [];
+    const [positive, positiveSoft] = resolveStatus('positive', mode, roles.action, clashes);
+    const [negative, negativeSoft] = resolveStatus('negative', mode, roles.action, clashes);
+    const [warning, warningSoft] = resolveStatus('warning', mode, roles.action, clashes);
+    const [info, infoSoft] = resolveStatus('info', mode, roles.action, clashes);
+    let [now, nowSoft] = NOW[mode];
+    const nowDistance = colorDistance(roles.action, now);
+    if (nowDistance < CLASH_DISTANCE) {
+        // Ember beside an ember-like action would stop meaning "now": the mark draws in ink instead.
+        clashes.push({ role: 'now', distance: nowDistance, from: now, to: n.ink });
+        now = n.ink;
+    }
+    const charts = chartPalette(accent, mode, n.surface, n.raised);
+    const health = HEALTH_DOMAINS[mode];
+    const variables: Record<string, string> = {
+        '--stor-accent': roles.action,
         '--stor-chart-issued': charts.issued,
         '--stor-chart-received': charts.received,
         '--stor-chart-income-tax': charts.incomeTax,
         '--stor-chart-social-insurance': charts.socialInsurance,
         '--stor-chart-medical-insurance': charts.medicalInsurance,
-        ...healthDomainVariables(charts),
-        '--stor-bg': canvas,
-        // The sidebar sits on the canvas; the page panel beside it is the raised surface.
-        '--stor-sidebar': canvas,
-        '--stor-surface': '#ffffff',
-        '--stor-surface-muted': subtle,
-        '--stor-surface-raised': '#ffffff',
-        '--stor-surface-hover': mix(canvas, '#ffffff', 0.8),
-        '--stor-surface-well': well,
-        '--stor-surface-overlay': '#ffffff',
-        '--stor-surface-sheet': '#ffffff',
-        ...elevationVariables('light'),
+        '--stor-health-eat': health.eat,
+        '--stor-health-move': health.move,
+        '--stor-health-body': health.body,
+        '--stor-bg': n.bg,
+        // The sidebar sits on the canvas; the page panel beside it is the surface.
+        '--stor-sidebar': n.bg,
+        '--stor-surface': n.surface,
+        '--stor-surface-muted': n.muted,
+        '--stor-surface-raised': n.raised,
+        '--stor-surface-hover': n.hover,
+        '--stor-surface-well': n.well,
+        '--stor-surface-overlay': n.overlay,
+        '--stor-surface-sheet': n.sheet,
+        ...elevationVariables(mode),
         // Aliases: the older shadow names point at the scale.
         '--stor-panel-shadow': 'var(--stor-elevation-1)',
         '--stor-sidebar-shadow': 'none',
         '--stor-shadow-sm': 'var(--stor-elevation-2)',
         '--stor-shadow-md': 'var(--stor-elevation-3)',
         '--stor-shadow-lg': 'var(--stor-elevation-4)',
-        '--stor-header-shadow': '0 8px 24px rgba(16, 42, 67, 0.04)',
-        '--stor-tooltip': '#1b2d3d',
-        '--stor-tooltip-text': '#ffffff',
-        '--stor-selected': selected,
-        '--stor-border': mix(accent, '#dce5ed', 0.06),
-        '--stor-field-border': accessibleShade(mix(accent, '#999999', 0.18), surfaces, 3, '#000000'),
-        '--stor-ink': '#1b2d3d',
-        '--stor-muted-text': accessibleShade('#5c6c7c', surfaces, 4.5, '#000000'),
-        '--stor-accent-text': text,
-        '--stor-action': action,
-        '--stor-action-text': readableOn(action),
-        '--stor-action-hover': mix(action, '#000000', 0.84),
-        '--stor-focus': action,
-        '--stor-accent-strong': text,
-        '--stor-accent-soft': selected,
-        '--stor-overlay': '#14283b1f',
-        '--stor-positive': '#15803d',
-        '--stor-positive-soft': '#dcfce7',
-        '--stor-negative': '#b91c1c',
-        '--stor-negative-text': readableOn('#b91c1c'),
-        '--stor-negative-soft': '#fee2e2',
-        '--stor-warning': '#a16207',
-        '--stor-warning-soft': '#fef3c7',
-        '--stor-info': '#0369a1',
-        '--stor-info-soft': '#f0f9ff',
-        '--stor-info-border': '#7dd3fc',
-        '--stor-chart-axis': '#78716c',
-        '--stor-chart-fill': `color-mix(in srgb, ${accent}, transparent 87%)`,
-        '--stor-code-key': '#be1238',
-        '--stor-code-string': '#15803d',
-        '--stor-code-number': '#0369a1',
-        '--stor-code-literal': '#7e22ce',
-        '--stor-theme-color': canvas,
+        '--stor-header-shadow': dark ? '0 8px 24px rgba(0, 0, 0, 0.16)' : '0 8px 24px rgba(34, 29, 24, 0.04)',
+        '--stor-tooltip': n.ink,
+        '--stor-tooltip-text': n.bg,
+        '--stor-selected': roles.soft,
+        '--stor-border': n.border,
+        '--stor-border-strong': n.borderStrong,
+        '--stor-field-border': n.field,
+        '--stor-ink': n.ink,
+        '--stor-muted-text': n.mutedText,
+        '--stor-faint-text': n.faintText,
+        '--stor-accent-text': roles.text,
+        '--stor-action': roles.action,
+        '--stor-action-text': roles.actionText,
+        '--stor-action-hover': roles.actionHover,
+        '--stor-focus': roles.focus,
+        '--stor-accent-strong': roles.text,
+        '--stor-accent-soft': roles.soft,
+        '--stor-overlay': dark ? 'rgba(0, 0, 0, 0.28)' : 'rgba(34, 29, 24, 0.12)',
+        '--stor-now': now,
+        '--stor-now-soft': nowSoft,
+        '--stor-positive': positive,
+        '--stor-positive-soft': positiveSoft,
+        '--stor-negative': negative,
+        '--stor-negative-text': readableOn(negative, mode),
+        '--stor-negative-soft': negativeSoft,
+        '--stor-warning': warning,
+        '--stor-warning-soft': warningSoft,
+        '--stor-info': info,
+        '--stor-info-soft': infoSoft,
+        '--stor-info-border': mix(info, infoSoft, 0.4),
+        '--stor-chart-axis': n.mutedText,
+        '--stor-chart-fill': `color-mix(in srgb, ${roles.action}, transparent ${dark ? 84 : 87}%)`,
+        '--stor-code-key': dark ? '#ff9aae' : '#be1238',
+        '--stor-code-string': dark ? '#77d79a' : '#15803d',
+        '--stor-code-number': dark ? '#8fc9f4' : '#0369a1',
+        '--stor-code-literal': dark ? '#d5a6ff' : '#7e22ce',
+        '--stor-theme-color': n.bg,
     };
+    return {
+        mode,
+        accent,
+        monochrome: roles.monochrome,
+        action: roles.action,
+        actionText: roles.actionText,
+        accentText: roles.text,
+        soft: roles.soft,
+        focus: roles.focus,
+        clashes,
+        variables,
+    };
+}
+
+export function themeVariablesFor(accent = DEFAULT_ACCENT, mode: ResolvedTheme = 'light'): Record<string, string> {
+    return themePaletteFor(accent, mode).variables;
 }
 
 export function themeVariablesCss(variables: Readonly<Record<string, string>>): string {

@@ -415,34 +415,54 @@ All colors and shadows are `--stor-*` CSS variables generated per tenant
 (`packages/tooling/src/generate/generate-tenant.ts` → `.generated/sites/<id>/app.html`, from `packages/shell/src/app.template.html`) and consumed through Tailwind
 arbitrary values, for example `text-[var(--stor-muted-text)]`.
 
+A tenant sets one value, `theme.accent`; `themePaletteFor()` in `packages/contracts/src/tenant/theme.ts` derives
+the rest. Neutrals, status, ember, and the Health domains are fixed warm values shared by every site (the accent
+never tints a surface, so a tinted surface always means selection); only the accent's roles are derived, in OKLCH:
+
+- Light action: the accent when it clears 4.5:1 on `--stor-surface` (chroma capped at 0.17), else the same hue at
+  a lower lightness. Dark action: the same hue at L 0.78, chroma at least 0.09, with text in the canvas colour.
+  Soft: L 0.94, chroma ≤ 0.04 (light); L 0.30, chroma ≤ 0.05 (dark). An accent with chroma under 0.02 makes a
+  monochrome site: the action is ink and soft is the well tone.
+- Clashes (OKLab ΔE < 0.10 with the action): a status colour turns its hue only inside its family (negative
+  15–35°, warning 55–90°, positive 135–165°, info 225–255°), to the end farther from the accent; ember too close
+  draws `--stor-now` in ink. `hearthlog build` prints the site's palette and every clash it resolved, and
+  `theme.test.ts` sweeps 144 accents in both modes for text ≥ 4.5:1, focus ≥ 3:1, and a rule for every clash.
+
 | Role | Tokens |
 | --- | --- |
 | Canvas / surfaces | `--stor-bg`, `--stor-sidebar`, `--stor-surface`, `--stor-surface-muted`, `--stor-surface-raised`, `--stor-surface-hover` |
-| Text | `--stor-ink` (primary), `--stor-muted-text` (secondary) |
-| Brand / action | `--stor-accent`, `--stor-accent-text`, `--stor-accent-strong`, `--stor-accent-soft`; buttons use `--stor-action`, `--stor-action-text`, `--stor-action-hover` |
-| Lines / focus | `--stor-border`, `--stor-field-border`, `--stor-selected`, `--stor-focus`, `--stor-overlay` |
+| Text | `--stor-ink` (primary), `--stor-muted-text` (secondary), `--stor-faint-text` (placeholders and disabled text only; below 4.5:1) |
+| Brand / action | `--stor-accent` (the derived action colour for marks: dots, rings, progress; never the raw input), `--stor-accent-text` and `--stor-accent-strong` (links and selected labels, ≥ 4.5:1 on every surface), `--stor-accent-soft`; buttons use `--stor-action`, `--stor-action-text`, `--stor-action-hover` |
+| Lines / focus | `--stor-border` (hairlines), `--stor-border-strong` (rules that must show), `--stor-field-border`, `--stor-selected`, `--stor-focus`, `--stor-overlay` |
+| Now | `--stor-now`, `--stor-now-soft`: ember, for today and now marks only, never text |
 | Status | `--stor-positive`, `--stor-negative`, `--stor-warning`, `--stor-info` (+ `-soft`, `--stor-info-border`) |
-| Charts / code | `--stor-chart-*`, `--stor-code-*` |
-| Health domains | `--stor-health-eat`, `--stor-health-move`, `--stor-health-body` (per tenant, from the chart palette); `.stor-tone-eat/-move/-body` set `--tone` from them, and tints are `color-mix(in srgb, var(--tone) N%, var(--stor-surface))` |
-| Elevation | `--stor-surface-well/-overlay/-sheet`, `--stor-well-shadow`, `--stor-elevation-1…4`, `--stor-elevation-pressed`, `--stor-tooltip`; `--stor-shadow-sm/md/lg`, `--stor-panel-shadow`, `--stor-sidebar-shadow` are aliases; `--stor-header-shadow` |
+| Charts / code | `--stor-chart-*` (curated families chosen by accent hue), `--stor-code-*` |
+| Health domains | `--stor-health-eat`, `--stor-health-move`, `--stor-health-body` (fixed, the same on every site); `.stor-tone-eat/-move/-body` set `--tone` from them, and tints are `color-mix(in srgb, var(--tone) N%, var(--stor-surface))` |
+| Elevation | `--stor-surface-well/-overlay/-sheet`, `--stor-well-shadow` (flat: `none`), `--stor-elevation-1…4`, `--stor-elevation-pressed`, `--stor-nav-card-shadow`, `--stor-tooltip`; `--stor-shadow-sm/md/lg`, `--stor-panel-shadow`, `--stor-sidebar-shadow` are aliases; `--stor-header-shadow` |
 
 **Depth.** Every surface sits on one level of a z scale, lit from above. A component picks a level, never its
-own shadow: well (`.stor-well`: fields, tab and segmented tracks, checkboxes),
-canvas (`--stor-bg`, which the sidebar sits on), panel (`.stor-panel`, the page panel, dock; `--stor-elevation-1`),
-raised (`.stor-raised`, buttons, the selected pill and section card; level 2), menu (`.stor-menu`:
-Select, dropdowns, popovers, date picker; level 3), sheet (`.stor-sheet`: Drawer,
-Modal, ConfirmDialog; level 4). Dark mode shows height as lighter surfaces plus
-a top rim. From 768px `[data-stor-main]` is the page panel: inside it `--stor-bg` is the
+own shadow: well (`.stor-well`: fields, tab and segmented tracks, checkboxes; a flat tone, no inset shadow),
+canvas (`--stor-bg`, which the sidebar sits on), panel (`.stor-panel`, the page panel, dock; `--stor-elevation-1`,
+a hairline and a 4% shadow), raised (`.stor-raised`, secondary buttons, the selected pill; level 2, a hairline and
+a 6% shadow), menu (`.stor-menu`: Select, dropdowns, popovers, date picker; level 3), sheet (`.stor-sheet`: Drawer,
+Modal, ConfirmDialog; level 4); only menus and sheets cast a deep shadow. Shadows are warm ink, rgb(34 29 24), with
+no inset rims, and primary and destructive buttons are flat fills. Dark mode shows height as lighter surfaces: page
+and raised are the hairline alone, menus and sheets add black. The sidebar's current section is a raised card that
+holds its sub-pages (`[data-nav-section][data-active]` and the sliding `.stor-nav-indicator`); it keeps a step more
+lift than raised (`--stor-nav-card-shadow`), so keep that structure. From 768px `[data-stor-main]` is the page panel: inside it `--stor-bg` is the
 panel's surface and `.stor-panel` sections are outlined rather than shadowed (`shell.css`). Strength is the single `ELEVATION_STRENGTH` constant in
 `packages/contracts/src/tenant/theme.ts`. Stack with the `--stor-layer-*` tokens
 (`z-[var(--stor-layer-menu)]`), not literal z-index numbers, and do not use raw
 Tailwind `shadow-sm/md/lg/xl`.
 
-Layout and motion tokens live in `packages/ui/src/styles/base.css` `:root`:
+Layout, type, and motion tokens live in `packages/ui/src/styles/base.css` `:root`:
 `--stor-section-gap`, `--stor-panel-padding`, `--stor-panel-radius`,
 `--stor-mobile-*` (header/nav/action geometry, safe-area aware),
-`--stor-sidebar-width`, `--stor-drawer-*` (enter/exit motion),
-`--stor-tab-motion` (the sliding tab pill; zeroed by reduced motion).
+`--stor-sidebar-width`, the type scale `--stor-text-*` (below), and motion: four durations
+`--stor-dur-1…4` (90 ms press and hover, 160 ms fades and every exit, 240 ms the selection pill, popovers and
+changing figures, 320 ms sheets and time) and two curves, `--stor-ease-out` (everything that enters) and
+`--stor-ease-in` (everything that leaves). `--stor-drawer-*` (enter/exit motion) and `--stor-tab-motion` (the
+sliding tab pill) are built from them; reduced motion zeroes them. Use the tokens rather than literal durations.
 
 - Use tokens for anything that must follow theme or tenant. Literal palette
   classes (`bg-white`, `text-stone-900`, …) survive only through the
@@ -470,11 +490,15 @@ Layout and motion tokens live in `packages/ui/src/styles/base.css` `:root`:
 - Format numbers with `@hearthlog/ui/utils/number-format.js` (`formatMoney`,
   `formatAmount`, `formatNumber`) and `Amount` for large money figures; do not
   create local `Intl.NumberFormat` instances. Negative amounts stay in ink.
-- Type: Inter Variable (`--stor-font-sans`), Fira Code (`--stor-font-mono`),
-  a system serif (`--stor-font-serif`, via `.stor-serif-title`) for page,
-  month, and overlay titles only,
-  14px body with tabular numbers, `text-2xl`/28px page titles, 28–32px metrics,
-  `--stor-muted-text` for secondary copy.
+- Type: Inter Variable (`--stor-font-sans`), Fira Code (`--stor-font-mono`, developer pages, JSON, and IDs),
+  and Newsreader Variable (`--stor-font-serif`, self-hosted like Inter with `font-display: optional`, the system
+  serif as fallback; via `.stor-serif-title`, `.stor-title-1/-2`, or `font-serif`) for page, month, day, and
+  overlay titles only. Eight sizes, as `--stor-text-<name>` / `-line` variables and Tailwind `text-<name>` sizes
+  that carry their line height, tracking, and weight: `display` 40/44 (hero figures), `title-1` 30/36 serif (26/32
+  below 640px), `title-2` 22/28 serif, `title-3` 16/24, `body` 14/22, `small` 13/18, `caption` 12/16, `overline`
+  11/16 (uppercase +0.06em: `.stor-overline`). Body is 14px with tabular numbers, `--stor-muted-text` for
+  secondary copy. Prefer these sizes to new ad-hoc ones; existing `text-2xl`/28px page titles and 28–32px metrics
+  move onto them component by component.
 - Icons come from `~icons/mdi/*` (unplugin): `h-4 w-4` inline, `h-5 w-5` in
   headers and empty states.
 

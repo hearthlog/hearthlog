@@ -10,7 +10,7 @@
     .stor-nav-indicator { position: absolute; z-index: 0; left: 0; top: 0; border-radius: 12px; opacity: 0; pointer-events: none; will-change: transform; }
     .stor-nav-sliding .stor-nav-indicator { opacity: 1; }
     [data-nav-section] { position: relative; border-radius: 12px; }
-    [data-nav-section][data-active] { background: var(--stor-surface-raised); box-shadow: var(--stor-elevation-2); }
+    [data-nav-section][data-active] { background: var(--stor-surface-raised); box-shadow: var(--stor-nav-card-shadow); }
     [data-nav-section] .stor-nav-selected, .stor-nav-sliding [data-nav-section][data-active] { background: transparent; box-shadow: none; }
     /* A section's live figure: muted, right-aligned, and the first thing to truncate when the sidebar is narrow. */
     .stor-nav-figure { min-width: 0; flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: right; font-size: 12px; font-weight: 500; color: var(--stor-muted-text); font-variant-numeric: tabular-nums; }

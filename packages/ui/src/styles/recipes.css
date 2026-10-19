@@ -15,12 +15,7 @@
     .stor-well { background: var(--stor-surface-well); box-shadow: var(--stor-well-shadow); }
     .stor-menu { background: var(--stor-surface-overlay); box-shadow: var(--stor-elevation-3); border-radius: 16px; }
     .stor-sheet { background: var(--stor-surface-sheet); box-shadow: var(--stor-elevation-4); }
-    /* Buttons: the primary and destructive faces carry a soft top highlight; pressing sinks them. */
-    [data-stor-button-variant="default"], [data-stor-button-variant="destructive"] {
-        background-image: linear-gradient(180deg, rgb(255 255 255 / .14), rgb(255 255 255 / 0));
-        box-shadow: 0 0 0 1px rgb(0 0 0 / .1), 0 1px 2px rgb(0 0 0 / .16), 0 4px 10px -4px rgb(0 0 0 / .22), inset 0 1px 0 rgb(255 255 255 / .22);
-    }
-    [data-stor-button-variant="default"]:active, [data-stor-button-variant="destructive"]:active { box-shadow: 0 0 0 1px rgb(0 0 0 / .12), inset 0 1px 2px rgb(0 0 0 / .24); }
+    /* Buttons: primary and destructive are flat fills; a pressed secondary button loses its lift. */
     [data-stor-button-variant="secondary"]:active { box-shadow: var(--stor-elevation-pressed); }
     .stor-page-header { min-width: 0; padding-bottom: 4px; }
     .stor-page-header h1, .stor-health-header h1 { font-size: 24px; line-height: 1.2; }
@@ -29,8 +24,13 @@
     .stor-page-title { margin-bottom: 12px; }
     .stor-page-label { margin-bottom: 8px; font-size: 18px; font-weight: 600; letter-spacing: -.01em; color: var(--stor-ink); }
     /* Serif titles: page and overlay titles only. Controls, data, and body copy stay in Inter.
-       A system serif (New York on Apple devices) keeps first paint free of an extra font. */
-    .stor-page-title, .stor-page-label, .stor-serif-title { font-family: var(--stor-font-serif); font-weight: 600; letter-spacing: -.012em; font-optical-sizing: auto; }
+       Newsreader is self-hosted with font-display: optional, so first paint never waits for it. */
+    .stor-page-title, .stor-page-label, .stor-serif-title { font-family: var(--stor-font-serif); font-weight: 500; letter-spacing: -.012em; font-optical-sizing: auto; }
+    /* The type scale's named styles that need more than a size: the serif titles and the uppercase overline. */
+    .stor-title-1, .stor-title-2 { font-family: var(--stor-font-serif); font-weight: 500; font-optical-sizing: auto; }
+    .stor-title-1 { font-size: var(--stor-text-title-1); line-height: var(--stor-text-title-1-line); letter-spacing: -.015em; }
+    .stor-title-2 { font-size: var(--stor-text-title-2); line-height: var(--stor-text-title-2-line); letter-spacing: -.01em; }
+    .stor-overline { font-size: var(--stor-text-overline); line-height: var(--stor-text-overline-line); font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--stor-muted-text); }
     .stor-page-header-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; }
     /* Tabs: one capsule track with a raised active pill. Page-level links use
        .stor-primary-tabs; compact in-panel rows use .stor-section-tabs. */
@@ -44,7 +44,7 @@
     .stor-tabs-sliding .stor-page-tab:is([data-state="active"], [aria-selected="true"], [aria-current="page"], [aria-current="true"]) { background: transparent; box-shadow: none; }
     .stor-tab-indicator { position: absolute; top: 3px; bottom: 3px; left: 0; width: var(--stor-tab-w, 0px); border-radius: 9999px; opacity: 0; pointer-events: none; transform: translateX(var(--stor-tab-x, 0px)); }
     .stor-tabs-sliding .stor-tab-indicator { opacity: 1; }
-    .stor-tabs-ready .stor-tab-indicator { transition: transform var(--stor-tab-motion), width var(--stor-tab-motion), opacity 160ms ease; }
+    .stor-tabs-ready .stor-tab-indicator { transition: transform var(--stor-tab-motion), width var(--stor-tab-motion), opacity var(--stor-dur-2) ease; }
     .stor-primary-tabs { width: fit-content; max-width: 100%; }
     .stor-primary-tabs .stor-page-tab { font-size: 14px; padding-inline: 18px; }
     /* Five sections fit a phone's row without scrolling the last one out of sight. */
@@ -60,10 +60,12 @@
     .stor-segmented-control { gap: 2px; border-radius: 9999px; background: var(--stor-surface-well); padding: 3px; box-shadow: var(--stor-well-shadow); }
     .stor-segmented-option { min-height: 36px; border-radius: 9999px; padding-inline: 12px; color: var(--stor-muted-text); font-size: 12px; font-weight: 600; }
     .stor-segmented-option[aria-pressed="true"], .stor-segmented-option[data-state="active"] { color: var(--stor-accent-strong); }
-    /* The selected pill: navigation, page tabs, segmented options and the sliding indicators. */
-    .stor-nav-selected, .stor-nav-indicator, .stor-tab-indicator,
+    /* The selected pill: page tabs, segmented options and the sliding tab indicator. Navigation's pill, which in
+       the expanded sidebar is the card around the current section, sits a step above it. */
+    .stor-tab-indicator,
     .stor-page-tab:is([data-state="active"], [aria-selected="true"], [aria-current="page"], [aria-current="true"]),
     .stor-segmented-option:is([aria-pressed="true"], [data-state="active"]) { background: var(--stor-surface-raised); box-shadow: var(--stor-elevation-2); }
+    .stor-nav-selected, .stor-nav-indicator { background: var(--stor-surface-raised); box-shadow: var(--stor-nav-card-shadow); }
     .stor-nav-sliding .stor-nav-selected,
     .stor-tabs-sliding .stor-page-tab:is([data-state="active"], [aria-selected="true"], [aria-current="page"], [aria-current="true"]) { background: transparent; box-shadow: none; }
 }
