@@ -12,6 +12,7 @@ export { default as Checkbox } from '@hearthlog/ui/components/ui/Checkbox.svelte
 export { default as Metric } from '@hearthlog/ui/components/ui/Metric.svelte';
 export { default as Badge } from '@hearthlog/ui/components/ui/Badge.svelte';
 export { default as Amount } from '@hearthlog/ui/components/ui/Amount.svelte';
+export { default as AmountField } from '@hearthlog/ui/components/ui/AmountField.svelte';
 export { default as Button } from '@hearthlog/ui/components/ui/Button.svelte';
 export { default as ChoiceChips } from '@hearthlog/ui/components/ui/ChoiceChips.svelte';
 export { default as CollectionToolbar } from '@hearthlog/ui/components/ui/CollectionToolbar.svelte';

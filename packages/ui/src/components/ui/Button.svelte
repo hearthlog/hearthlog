@@ -1,35 +1,17 @@
 <script lang="ts">
     import { Button as BitsButton } from "bits-ui";
-    import { cva, type VariantProps } from "class-variance-authority";
+    import type { VariantProps } from "class-variance-authority";
     import type { Snippet } from "svelte";
     import type { HTMLButtonAttributes } from "svelte/elements";
     import { cn } from "../../utils/cn.js";
-
-    const buttonVariants = cva(
-        "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl text-sm font-semibold transition-[background-color,color,box-shadow,transform,filter] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--stor-focus)] duration-100 active:translate-y-px motion-reduce:transition-none motion-reduce:active:translate-y-0 disabled:pointer-events-none disabled:opacity-50 disabled:shadow-none",
-        {
-            variants: {
-                variant: {
-                    default: "bg-[var(--stor-action)] text-[var(--stor-action-text)] hover:bg-[var(--stor-action-hover)] active:brightness-95",
-                    secondary: "bg-[var(--stor-surface-raised)] shadow-[var(--stor-elevation-2)] text-[var(--stor-ink)] hover:shadow-[var(--stor-elevation-3)] active:brightness-95",
-                    ghost: "text-[var(--stor-muted-text)] hover:bg-[var(--stor-accent-soft)] hover:text-[var(--stor-accent-strong)]",
-                    destructive: "bg-[var(--stor-negative)] text-[var(--stor-negative-text)] hover:brightness-90 active:brightness-95",
-                },
-                size: {
-                    sm: "h-11 px-3 sm:h-9",
-                    md: "h-11 px-4 sm:h-9",
-                    icon: "h-11 w-11 p-0 sm:h-9 sm:w-9",
-                },
-            },
-            defaultVariants: {
-                variant: "default",
-                size: "md",
-            },
-        },
-    );
+    import { buttonVariants, spinnerTone } from "./button-variants.js";
 
     type ButtonProps = HTMLButtonAttributes &
         VariantProps<typeof buttonVariants> & {
+            /** Saving: keeps the button's width, swaps its face for a spinner, and blocks presses. */
+            busy?: boolean;
+            /** A keyboard hint drawn as a key cap after the label, e.g. "N". Hidden on touch screens. */
+            shortcut?: string;
             children?: Snippet;
         };
 
@@ -38,6 +20,9 @@
         variant = "default",
         size = "md",
         type = "button",
+        busy = false,
+        shortcut = "",
+        disabled,
         children,
         ...restProps
     }: ButtonProps = $props();
@@ -46,8 +31,21 @@
 <BitsButton.Root
     {type}
     data-stor-button-variant={variant}
-    class={cn(buttonVariants({ variant, size }), className)}
+    disabled={disabled || busy}
+    aria-busy={busy || undefined}
+    class={cn(
+        buttonVariants({ variant, size }),
+        // Important: base.css pins the action text colour on every action fill.
+        busy && "!text-transparent disabled:opacity-100 [&>:not([data-button-spinner])]:invisible",
+        className,
+    )}
     {...restProps}
 >
     {@render children?.()}
+    {#if shortcut}<kbd class="stor-kbd" aria-hidden="true">{shortcut}</kbd>{/if}
+    {#if busy}
+        <span data-button-spinner class="absolute inset-0 grid place-items-center {spinnerTone[variant ?? 'default']}" aria-hidden="true">
+            <svg class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none"><path d="M12 3a9 9 0 1 0 9 9" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" /></svg>
+        </span>
+    {/if}
 </BitsButton.Root>

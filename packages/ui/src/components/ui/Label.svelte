@@ -11,7 +11,7 @@
 </script>
 
 <BitsLabel.Root
-    class={cn("text-sm font-semibold text-stone-800", className)}
+    class={cn("text-caption text-[var(--stor-muted-text)]", className)}
     {...restProps}
 >
     {@render children?.()}

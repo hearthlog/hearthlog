@@ -8,18 +8,20 @@
         title = "",
         onClose = () => {},
         children,
+        footer,
     }: {
         show?: boolean;
         title?: string;
         onClose?: () => void;
         children: Snippet;
+        footer?: Snippet;
     } = $props();
 </script>
 
 <CommandOnly onUnavailable={() => {
     if (show) onClose();
 }}>
-    <Modal {show} {title} {onClose}>
+    <Modal {show} {title} {onClose} {footer}>
         {@render children()}
     </Modal>
 </CommandOnly>

@@ -68,6 +68,30 @@ export function formatFixed(value: number, digits = 1, { signed = false }: { sig
     return withSign(text, value, signed);
 }
 
+/**
+ * Reads a typed amount, a simple sum included: `1 284,50`, `1284.5`, `1200+84`, `120 + 85 − 10`.
+ *
+ * Spaces group thousands and a comma or a dot marks decimals. Each term rounds half up to the haléř in decimal,
+ * before the sum, so `0,1+0,2` is exactly `0,3`. Anything else (letters, two decimal marks, a dangling sign) is
+ * `null`. A total below zero comes back negative; callers that take direction from a toggle reject it.
+ */
+export function parseAmount(text: string): number | null {
+    const compact = text.replace(/[\s\u00a0\u202f]/g, '').replace(/[−–]/g, '-').replace(/,/g, '.');
+    const terms = compact.match(/[+-]?[^+-]+/g);
+    if (!terms || terms.join('') !== compact) return null;
+    let cents = 0;
+    for (const term of terms) {
+        const match = /^([+-]?)(\d*)(?:\.(\d*))?$/.exec(term);
+        if (!match) return null;
+        const [, sign, whole, fraction = ''] = match;
+        if (!whole && !fraction) return null;
+        const roundUp = Number(fraction[2] ?? '0') >= 5 ? 1 : 0;
+        const magnitude = Number(whole || '0') * 100 + Number(`${fraction}00`.slice(0, 2)) + roundUp;
+        cents += sign === '-' ? -magnitude : magnitude;
+    }
+    return cents / 100;
+}
+
 /** Human file size for stored originals; em dash without a size. */
 export function formatFileSize(bytes: number): string {
     if (!bytes) return '—';

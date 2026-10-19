@@ -139,6 +139,8 @@
     /* Padding at least the 20px panel radius keeps content clear of the curve. */
     --stor-panel-padding: 20px;
     --stor-panel-radius: 20px;
+    /* Sections inside the page panel nest one step in: 16px corners. */
+    --stor-section-radius: 16px;
     --stor-sidebar-width: 224px;
     /* Page gutters, panel padding and gaps; phones tighten them below. */
     --stor-sidebar-rail-width: 5rem;

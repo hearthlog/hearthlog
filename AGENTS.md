@@ -441,12 +441,12 @@ never tints a surface, so a tinted surface always means selection); only the acc
 | Elevation | `--stor-surface-well/-overlay/-sheet`, `--stor-well-shadow` (flat: `none`), `--stor-elevation-1…4`, `--stor-elevation-pressed`, `--stor-nav-card-shadow`, `--stor-tooltip`; `--stor-shadow-sm/md/lg`, `--stor-panel-shadow`, `--stor-sidebar-shadow` are aliases; `--stor-header-shadow` |
 
 **Depth.** Every surface sits on one level of a z scale, lit from above. A component picks a level, never its
-own shadow: well (`.stor-well`: fields, tab and segmented tracks, checkboxes; a flat tone, no inset shadow),
+own shadow: well (`.stor-well`: tab and segmented tracks, checkboxes; a flat tone, no inset shadow),
 canvas (`--stor-bg`, which the sidebar sits on), panel (`.stor-panel`, the page panel, dock; `--stor-elevation-1`,
-a hairline and a 4% shadow), raised (`.stor-raised`, secondary buttons, the selected pill; level 2, a hairline and
+a hairline and a 4% shadow), raised (`.stor-raised`, the selected pill; level 2, a hairline and
 a 6% shadow), menu (`.stor-menu`: Select, dropdowns, popovers, date picker; level 3), sheet (`.stor-sheet`: Drawer,
 Modal, ConfirmDialog; level 4); only menus and sheets cast a deep shadow. Shadows are warm ink, rgb(34 29 24), with
-no inset rims, and primary and destructive buttons are flat fills. Dark mode shows height as lighter surfaces: page
+no inset rims, and buttons cast none: primary is a flat fill, secondary the raised surface with a 1px border. Dark mode shows height as lighter surfaces: page
 and raised are the hairline alone, menus and sheets add black. The sidebar's current section is a raised card that
 holds its sub-pages (`[data-nav-section][data-active]` and the sliding `.stor-nav-indicator`); it keeps a step more
 lift than raised (`--stor-nav-card-shadow`), so keep that structure. From 768px `[data-stor-main]` is the page panel: inside it `--stor-bg` is the
@@ -482,14 +482,17 @@ sliding tab pill) are built from them; reduced motion zeroes them. Use the token
   surface, radius, and shadow; its header/body own padding. Do not nest cards
   for ordinary content.
 - Controls are 44px tall on mobile (`h-11`) and compact 36px from `sm:` up
-  (`sm:h-9`); panels use `--stor-panel-radius` (20px, 16px on phones), controls
-  `rounded-xl`, small tiles `rounded-lg`, pills and tabs `rounded-full` (`md` and
-  `2xl` fold into this set). Panel padding is 16px on phones, 20px from `sm`,
+  (`sm:h-9`); the page panel and sheets use `--stor-panel-radius` (20px, 16px on phones), sections inside it
+  (`.stor-panel`) `--stor-section-radius` (16px), controls `rounded-xl` on phones and 10px from `sm:`
+  (Button and the field recipe do this), badges 6px, small tiles `rounded-lg`, pills and tabs `rounded-full`
+  (`md` and `2xl` fold into this set). Panel padding is 16px on phones, 20px from `sm`,
   24px from `lg`; section gaps are 12px on phones; page gutters are
   `p-2.5 sm:p-3`.
 - Format numbers with `@hearthlog/ui/utils/number-format.js` (`formatMoney`,
   `formatAmount`, `formatNumber`) and `Amount` for large money figures; do not
-  create local `Intl.NumberFormat` instances. Negative amounts stay in ink.
+  create local `Intl.NumberFormat` instances. Negative amounts stay in ink. Read typed amounts with
+  `parseAmount` (Czech or plain decimals and simple sums such as `1200+84`, exact to the haléř), as
+  `AmountField` does.
 - Type: Inter Variable (`--stor-font-sans`), Fira Code (`--stor-font-mono`, developer pages, JSON, and IDs),
   and Newsreader Variable (`--stor-font-serif`, self-hosted like Inter with `font-display: optional`, the system
   serif as fallback; via `.stor-serif-title`, `.stor-title-1/-2`, or `font-serif`) for page, month, day, and
@@ -522,22 +525,36 @@ imported through `.generated/module-sources.generated.css` only for tenants that
   `DayPager`, and the week panels beside it), `HealthDayTitle` (a day's serif date), `HealthHead` (title
   and primary action), `HealthRow`, `HealthRing`, `HealthBudgetBar`, and
   `WeekBars` are the shared pieces.
-- Content: `.stor-panel`, `.stor-panel-header`, `.stor-panel-body`, `.stor-metric*`,
-  `.stor-today-card`, `.stor-section-link`.
+- Content: `.stor-panel`, `.stor-panel-header` (with `.stor-panel-title`, title-3; it sits over a hairline when a
+  `.stor-panel-body` follows it, or with `.stor-panel-header-rule`), `.stor-panel-body`, `.stor-metric*` (a figure:
+  overline label, value, support line in small), `.stor-unit` (0.55em after a figure), `.stor-today-card`,
+  `.stor-section-link`.
+- Controls: `.stor-field-control` (the field recipe: muted fill in the 3:1 outline; focus lifts it to the surface
+  with a `--stor-focus` border and a 3px `--stor-accent-soft` halo instead of the global outline; `aria-invalid` or
+  a surrounding `[data-stor-invalid]`, which `Field` sets with its error, turns it negative) and `.stor-kbd` (a
+  key cap; hidden on touch screens, like every key hint).
 - Reuse these before adding global CSS; complex one-off geometry belongs in the
   owning component's scoped `<style>`.
 
 ### Components
 
 - Primitives in `packages/ui/src/components/ui/`: `Button` (`default | secondary |
-  ghost | destructive`; `sm | md | icon`), `Badge` (`default | success |
-  warning | danger | info`), `Input`, `Select`, `Textarea`, `Checkbox`,
-  `Label`, `Field`, date/time pickers, and `Tooltip` (Bits UI underneath).
-  Compose classes with `cn()` and use `class` for placement only.
+  ghost | destructive`; `sm | md | icon`; `busy` keeps its width and shows a spinner, `shortcut` draws a key
+  cap; primary is the flat accent fill, secondary a raised surface with a 1px border, ghost hovers on the neutral
+  hover surface, destructive is tonal), `Badge` (`default | success | warning | danger | info`; caption text and a
+  6px status dot, always with a word), `Input`, `Select`, `Textarea`, `Checkbox`, `Label` (caption, muted),
+  `Field` (label above, help or `role="alert"` error below), `AmountField` (a money amount at display size with
+  its currency and an Expense/Income toggle inside; `value` is the unsigned amount, `direction` is bindable, simple
+  sums resolve on blur or Enter), `Metric` (`unit`, and `delta` / `sparkline` snippets), date/time pickers, and
+  `Tooltip` (Bits UI underneath). Compose classes with `cn()` (it knows the `text-<name>` type sizes) and use
+  `class` for placement only.
 - Overlays: `Drawer` (right-hand sheet; full-width on mobile, floating 28rem /
-  36rem at `lg`), `Modal` (bottom sheet on mobile, centered dialog on `sm:`),
+  36rem at `lg`), `Modal` (bottom sheet on mobile, centered dialog on `sm:`; optional `footer`),
   `ConfirmDialog` (Bits UI AlertDialog; Cancel is autofocused; tone `danger` or
-  `primary`). Use the `Command*` wrappers for mutation overlays.
+  `primary`; the one place a destructive action is a red fill). All three have title-2 serif titles and a footer
+  below the scrolling body with the primary action last (on the right); ⌘↵ (Ctrl+Enter elsewhere) presses the
+  footer's last primary-variant button, which shows the hint, and Esc is hinted beside the close button
+  (`overlay-keys.ts`). Use the `Command*` wrappers for mutation overlays.
 - Data surfaces: `DataTable` (TanStack Table, `variant="quiet"` inside panels)
   with SQL-backed manual pagination/sorting, `EndlessList` (TanStack Virtual)
   for endless date blocks read from SQL as they scroll into view (Finance
@@ -556,8 +573,9 @@ imported through `.generated/module-sources.generated.css` only for tenants that
 - Loading: `PageDataStatus` at page level, `DataRegion` + `DataPlaceholder` per
   region, `DataValue` for single values, table skeletons for lists. All
   skeletons pair `role="status"` with `motion-safe:animate-pulse`.
-- Empty: `EmptyState` (icon, title, description, optional action) for a whole
-  panel or table; a short muted sentence for inline lists.
+- Empty: `EmptyState` (a domain `illustration` snippet or an icon, a serif title, one sentence, then the
+  primary action and an optional secondary one) for a whole panel or table; a short muted sentence for inline
+  lists.
 - Errors: blocking page errors render in `PageDataStatus` with a Retry
   (`invalidateAll`); form errors are inline `role="alert"` text; background
   failures use `notify.error`.

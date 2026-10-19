@@ -17,7 +17,7 @@ const needModules = [
 export default hearthlogConfig({
 	test: {
 		dir: resolve(import.meta.dirname, '..'),
-		include: ['src/**/*.{test,spec}.{js,ts}', 'packages/czech/src/**/*.test.ts', 'packages/contracts/src/**/*.test.ts', 'packages/runtime/src/**/*.test.ts', 'packages/tooling/src/deploy/access-provisioning.test.ts', 'packages/cloudflare/src/**/*.test.ts'],
+		include: ['src/**/*.{test,spec}.{js,ts}', 'packages/czech/src/**/*.test.ts', 'packages/ui/src/**/*.test.ts', 'packages/contracts/src/**/*.test.ts', 'packages/runtime/src/**/*.test.ts', 'packages/tooling/src/deploy/access-provisioning.test.ts', 'packages/cloudflare/src/**/*.test.ts'],
 		// The sync tests open real SQLite databases; on a loaded CI runner five seconds is not enough.
 		testTimeout: 30_000,
 		exclude: integration ? ['**/node_modules/**'] : ['**/node_modules/**', ...needModules],

@@ -4,6 +4,7 @@
     import IconClose from "~icons/mdi/close";
     import { sheetStack } from "../state/sheet-stack.svelte.js";
     import IconBack from "~icons/mdi/arrow-left";
+    import { primaryShortcut } from "./overlay-keys.js";
 
     let {
         show = false,
@@ -92,42 +93,47 @@
             class="stor-drawer fixed right-0 top-0 z-[var(--stor-layer-sheet-content)] flex w-full flex-col pt-[env(safe-area-inset-top)] outline-none"
         >
             <span class="stor-drawer-grabber" aria-hidden="true"></span>
-            <header class="stor-drawer-header flex items-start gap-4 px-4 py-4 lg:px-5">
+            <header class="stor-drawer-header flex items-start gap-3 px-4 py-4 lg:pb-2 lg:pl-6 lg:pr-5 lg:pt-5">
                 {#if stacked}
                     <button
                         type="button"
-                        class="-ml-2 mr-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-[var(--stor-muted-text)] hover:bg-[var(--stor-surface-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--stor-focus)]"
+                        class="-ml-2 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-[var(--stor-muted-text)] hover:bg-[var(--stor-surface-hover)] hover:text-[var(--stor-ink)]"
                         aria-label="Back"
                         onclick={() => onClose()}
                     ><IconBack class="h-5 w-5" /></button>
                 {/if}
-                <div class="min-w-0 flex-1">
-                    <Dialog.Title level={2} class="stor-serif-title text-xl text-[var(--stor-ink)]">
+                <div class="min-w-0 flex-1 pt-2 sm:pt-1">
+                    <Dialog.Title level={2} class="stor-title-2 text-[var(--stor-ink)]">
                         {title}
                     </Dialog.Title>
                     {#if description}
-                        <Dialog.Description class="mt-1 text-sm text-[var(--stor-muted-text)] max-md:sr-only">
+                        <Dialog.Description class="mt-0.5 text-small text-[var(--stor-muted-text)] max-md:sr-only">
                             {description}
                         </Dialog.Description>
                     {/if}
                 </div>
-                <Dialog.Close
-                    class="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-[var(--stor-muted-text)] hover:bg-[var(--stor-surface-muted)] hover:text-[var(--stor-ink)]"
-                    aria-label="Close drawer"
-                    onclick={(event) => { if (stacked) { event.preventDefault(); sheetStack.closeAll(); } }}
-                >
-                    <IconClose class="h-5 w-5" />
-                </Dialog.Close>
+                <div class="flex shrink-0 items-center gap-2">
+                    <kbd class="stor-kbd max-lg:hidden" aria-hidden="true">Esc</kbd>
+                    <Dialog.Close
+                        class="flex h-11 w-11 items-center justify-center rounded-xl text-[var(--stor-muted-text)] hover:bg-[var(--stor-surface-hover)] hover:text-[var(--stor-ink)] sm:h-9 sm:w-9 sm:rounded-[10px]"
+                        aria-label="Close drawer"
+                        aria-keyshortcuts="Escape"
+                        onclick={(event) => { if (stacked) { event.preventDefault(); sheetStack.closeAll(); } }}
+                    >
+                        <IconClose class="h-5 w-5" />
+                    </Dialog.Close>
+                </div>
             </header>
             {#if lead}
-                <div class="stor-drawer-lead shrink-0 px-4 pb-3 lg:px-5">{@render lead()}</div>
+                <div class="stor-drawer-lead shrink-0 px-4 pb-3 lg:px-6">{@render lead()}</div>
             {/if}
-            <div class="stor-drawer-body min-h-0 flex-1 overflow-y-auto p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:p-5">
+            <div class="stor-drawer-body min-h-0 flex-1 overflow-y-auto p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:p-5 lg:px-6 lg:pt-3">
                 {@render children()}
             </div>
             {#if footer}
-                <footer class="stor-drawer-footer shrink-0 border-t border-[var(--stor-border)] bg-[var(--stor-surface)] px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] lg:px-5">
-                    <div class="flex w-full flex-wrap justify-end gap-2" {@attach markCancel}>{@render footer()}</div>
+                <!-- Stays below the scrolling body; the primary action sits on the right and answers ⌘↵. -->
+                <footer class="stor-drawer-footer shrink-0 border-t border-[var(--stor-border)] px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] lg:pb-5 lg:pl-6 lg:pr-5 lg:pt-4">
+                    <div class="flex w-full flex-wrap items-center justify-end gap-2" {@attach markCancel} {@attach primaryShortcut}>{@render footer()}</div>
                 </footer>
             {/if}
         </Dialog.Content>
