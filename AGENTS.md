@@ -432,7 +432,7 @@ never tints a surface, so a tinted surface always means selection); only the acc
 | --- | --- |
 | Canvas / surfaces | `--stor-bg`, `--stor-sidebar`, `--stor-surface`, `--stor-surface-muted`, `--stor-surface-raised`, `--stor-surface-hover` |
 | Text | `--stor-ink` (primary), `--stor-muted-text` (secondary), `--stor-faint-text` (placeholders and disabled text only; below 4.5:1) |
-| Brand / action | `--stor-accent` (the derived action colour for marks: dots, rings, progress; never the raw input), `--stor-accent-text` and `--stor-accent-strong` (links and selected labels, ≥ 4.5:1 on every surface), `--stor-accent-soft`; buttons use `--stor-action`, `--stor-action-text`, `--stor-action-hover` |
+| Brand / action | `--stor-accent` (the derived action colour for marks: dots, rings, progress; never the raw input), `--stor-accent-text` and `--stor-accent-strong` (links and selected labels, ≥ 4.5:1 on every surface), `--stor-accent-soft`; buttons use `--stor-action`, `--stor-action-text`, `--stor-action-hover`; `--stor-action-inverse` is the action as the other mode draws it, for Undo on the inverse pill (≥ 4.5:1 on `--stor-tooltip`) |
 | Lines / focus | `--stor-border` (hairlines), `--stor-border-strong` (rules that must show), `--stor-field-border`, `--stor-selected`, `--stor-focus`, `--stor-overlay` |
 | Now | `--stor-now`, `--stor-now-soft`: ember, for today and now marks only, never text |
 | Status | `--stor-positive`, `--stor-negative`, `--stor-warning`, `--stor-info` (+ `-soft`, `--stor-info-border`) |
@@ -579,10 +579,11 @@ imported through `.generated/module-sources.generated.css` only for tenants that
 - Errors: blocking page errors render in `PageDataStatus` with a Retry
   (`invalidateAll`); form errors are inline `role="alert"` text; background
   failures use `notify.error`.
-- Notifications: `notify.success | info | error(message, action?)`;
+- Notifications (toasts are `.stor-toast`, inverse ink pills): `notify.success | info | error(message, action?)`;
   `notify.progress` returns an id for sticky tasks and is dismissed with
   `dismissNotification`. Prefer an action button (for example Undo) over a
   second confirmation when the domain supports reversal.
+- Time travel: a month or day change that goes through `timeTravel(direction, update)` (`@hearthlog/ui/utils/time-travel.js`, used by `MonthNavigator`) slides the page panel's content 16px against the direction of time while it cross-fades (View Transitions; none under reduced motion or without the API). Day-level navigation in module pages can call it the same way.
 - Destructive actions confirm through `ConfirmDialog`, disable themselves
   while running, and offer undo where one exists.
 - Phones (below 768 px): one top bar
@@ -598,7 +599,7 @@ imported through `.generated/module-sources.generated.css` only for tenants that
   outside the section in view (`recent-places.svelte.ts`, browser storage, never synced). A place
   is named by the first part of the page's `<title>`, so give a month, sub-page, or record its own
   title; a page titled only with its section name is not listed.
-- Last change: from 768px the shell shows a quiet bar for the latest change this tab committed,
+- Last change: from 768px the shell shows an inverse ink pill (`.stor-last-change`, the toast face: `--stor-tooltip` fill, `--stor-tooltip-text`, Undo in `--stor-action-inverse`) for the latest change this tab committed,
   named as Log history names it, with History and, when the action only added standard records, Undo
   (`LastChangeBar`). Undo appends those records' `…_REMOVED` events (`runtime/commands/undo.ts`);
   it never tombstones or edits events. Edits, removals and module-specific events offer no undo.

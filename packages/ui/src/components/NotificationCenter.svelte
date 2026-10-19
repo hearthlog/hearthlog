@@ -64,41 +64,16 @@
     {#each notificationState.items as item (item.id)}
         {@const Icon = iconFor(item)}
         <div
-            class="pointer-events-auto flex w-full items-start gap-3 rounded-xl border bg-[var(--stor-surface-overlay)] px-4 py-3 shadow-[var(--stor-elevation-3)] {item.type ===
-            'error'
-                ? 'border-red-200'
-                : item.type === 'success'
-                  ? 'border-emerald-200'
-                  : 'border-[var(--stor-border)]'}"
+            class="stor-toast pointer-events-auto"
             role={item.type === "error" ? "alert" : "status"}
+            data-type={item.type}
         >
-            <Icon
-                class="mt-0.5 h-5 w-5 shrink-0 {item.type === 'error'
-                    ? 'text-red-600'
-                    : item.type === 'success'
-                      ? 'text-emerald-600'
-                      : item.type === 'progress'
-                        ? 'animate-spin text-[var(--stor-accent-strong)]'
-                        : 'text-stone-600'}"
-            />
-            <div class="min-w-0 flex-1 text-sm font-medium text-stone-800">
-                {item.message}
-            </div>
+            <Icon class="h-[18px] w-[18px] shrink-0 {item.type === 'progress' ? 'animate-spin' : 'opacity-80'}" />
+            <div class="min-w-0 flex-1 py-1.5">{item.message}</div>
             {#if item.action}
-                <button
-                    type="button"
-                    class="shrink-0 text-sm font-semibold text-stone-950 underline decoration-stone-300 underline-offset-4 hover:decoration-stone-900"
-                    onclick={() => runAction(item)}
-                >
-                    {item.action.label}
-                </button>
+                <button type="button" class="stor-toast-action" onclick={() => runAction(item)}>{item.action.label}</button>
             {/if}
-            <button
-                type="button"
-                class="-mr-1 shrink-0 rounded-lg p-1 text-[var(--stor-muted-text)] hover:bg-[var(--stor-surface-muted)] hover:text-stone-700"
-                aria-label="Dismiss notification"
-                onclick={() => dismissNotification(item.id)}
-            >
+            <button type="button" class="stor-toast-close" aria-label="Dismiss notification" onclick={() => dismissNotification(item.id)}>
                 <IconClose class="h-4 w-4" />
             </button>
         </div>

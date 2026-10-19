@@ -553,10 +553,14 @@ export function themePaletteFor(accent = DEFAULT_ACCENT, mode: ResolvedTheme = '
         clashes.push({ role: 'now', distance: nowDistance, from: now, to: n.ink });
         now = n.ink;
     }
+    const other = dark ? 'light' : 'dark';
+    const inverseAction = roles.monochrome ? n.bg : withContrast(accentRoles(accent, other).action, [n.ink], TEXT_CONTRAST, other);
     const charts = chartPalette(accent, mode, n.surface, n.raised);
     const health = HEALTH_DOMAINS[mode];
     const variables: Record<string, string> = {
         '--stor-accent': roles.action,
+        // The action as it draws in the other mode: the Undo on the inverse pill (ink fill in light, canvas fill in dark).
+        '--stor-action-inverse': inverseAction,
         '--stor-chart-issued': charts.issued,
         '--stor-chart-received': charts.received,
         '--stor-chart-income-tax': charts.incomeTax,
