@@ -21,6 +21,7 @@
     import { SIDEBAR_WIDTH_KEY, readSidebarWidth } from "@hearthlog/shell/components/layout/sidebar-size.js";
     import LogCreateDrawer from "@hearthlog/shell/components/layout/LogCreateDrawer.svelte";
     import NotificationCenter from "@hearthlog/ui/components/NotificationCenter.svelte";
+    import Announcer from "@hearthlog/ui/components/Announcer.svelte";
     import MovedBanner from "@hearthlog/shell/components/layout/MovedBanner.svelte";
     import { notify } from "@hearthlog/ui/state/notifications.svelte.js";
     import { recordTiming, measurementMetadata, beginNavigationTiming } from "@hearthlog/runtime/utils/perf.js";
@@ -584,6 +585,7 @@
     {/if}
     <LastChangeBar collapsed={sidebarCollapsed} logId={eventLogFilename.value} />
     <NotificationCenter />
+    <Announcer />
     <LogCreateDrawer
         show={createLogDrawerOpen}
         onClose={() => createLogDrawerOpen = false}

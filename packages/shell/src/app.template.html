@@ -149,6 +149,15 @@
             .stor-boot-sidebar{position:absolute;left:var(--boot-sidebar-margin);top:var(--boot-sidebar-margin);bottom:var(--boot-sidebar-margin);width:var(--boot-sidebar-width);background:var(--stor-sidebar);border:0;border-radius:var(--boot-sidebar-radius);box-shadow:var(--stor-sidebar-shadow);box-sizing:border-box;overflow:hidden}
             /* The page panel beside the sidebar, as Layout draws it from the rail up. */
             .stor-boot-page{position:absolute;left:calc(var(--boot-sidebar-width) + 2 * var(--boot-sidebar-margin));top:var(--boot-page-margin);right:var(--boot-page-margin);bottom:var(--boot-page-margin);border-radius:var(--boot-page-radius);background:var(--stor-surface);box-shadow:var(--stor-elevation-1)}
+            /* A page-shaped skeleton in the first frame: a title, a band of figures, then rows. */
+            .stor-boot-skeleton{box-sizing:border-box;display:flex;flex-direction:column;gap:14px;padding:28px 32px;max-width:1280px;margin:0 auto}
+            .stor-boot-skeleton i{display:block;border-radius:10px;background:var(--stor-surface-muted);animation:stor-boot-pulse 1.6s ease-in-out infinite}
+            .stor-boot-skeleton i:nth-child(1){width:240px;height:34px;border-radius:8px;margin-bottom:6px}
+            .stor-boot-skeleton i:nth-child(2){height:92px;border-radius:16px;margin-bottom:10px}
+            .stor-boot-skeleton i:nth-child(n+3){height:44px}
+            .stor-boot-skeleton i:nth-child(5){width:86%}.stor-boot-skeleton i:nth-child(6){width:72%}.stor-boot-skeleton i:nth-child(7){width:58%}
+            @keyframes stor-boot-pulse{50%{opacity:.55}}
+            @media(prefers-reduced-motion:reduce){.stor-boot-skeleton i{animation:none}}
             .stor-boot-brandbar{height:72px;display:flex;gap:12px;align-items:center;padding:0 14px;box-sizing:border-box}
             html[data-sidebar-collapsed="true"] .stor-boot-brandbar{justify-content:center;padding:0 8px}
             .stor-boot-mark{display:none}
@@ -172,7 +181,7 @@
     <body data-sveltekit-preload-code="hover">
         <div id="stor-boot-shell" inert aria-hidden="true">
             <aside class="stor-boot-sidebar"><div class="stor-boot-brandbar"><span class="stor-boot-title stor-brand-title">%%BRAND_WORDMARK%%</span><span class="stor-boot-mark stor-brand-logo"><span class="stor-mark"></span></span></div></aside>
-            <div class="stor-boot-page"></div>
+            <div class="stor-boot-page"><div class="stor-boot-skeleton"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div></div>
             <div class="stor-boot-mobile-head"><span class="stor-brand-logo"><span class="stor-mark"></span></span><span class="stor-brand-title stor-boot-mobile-title">%%BRAND_WORDMARK%%</span></div>
             <div class="stor-boot-mobile-nav"></div>
             <section class="stor-boot-recovery" aria-labelledby="stor-boot-recovery-title">

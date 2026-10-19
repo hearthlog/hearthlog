@@ -181,24 +181,24 @@
     </div>
 
     {#if hrefForMonth}
-        <a href={hrefForMonth(previous.year, previous.month)} class="{phoneArrows ? '' : 'max-sm:hidden'} col-start-1 row-start-1 flex h-11 w-11 items-center justify-center rounded-xl bg-[var(--stor-surface-raised)] text-[var(--stor-muted-text)] shadow-[var(--stor-shadow-sm)] transition hover:bg-[var(--stor-surface-hover)] hover:text-[var(--stor-ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--stor-focus)] {compact ? 'sm:col-start-1' : 'sm:col-start-2'}" aria-label="Previous month"><IconArrowLeft class="h-5 w-5" /></a>
+        <a href={hrefForMonth(previous.year, previous.month)} class="{phoneArrows ? '' : 'max-sm:hidden'} col-start-1 row-start-1 flex h-11 w-11 items-center justify-center rounded-xl bg-[var(--stor-surface-raised)] text-[var(--stor-muted-text)] shadow-[var(--stor-shadow-sm)] transition hover:bg-[var(--stor-surface-hover)] hover:text-[var(--stor-ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--stor-focus)] {compact ? 'sm:col-start-1' : 'sm:col-start-2'}" aria-label="Previous month" title="Previous month (←)" aria-keyshortcuts="ArrowLeft"><IconArrowLeft class="h-5 w-5" /></a>
     {:else}
-        <button type="button" onclick={() => navigateTo(previous.year, previous.month)} class="{phoneArrows ? '' : 'max-sm:hidden'} col-start-1 row-start-1 flex h-11 w-11 items-center justify-center rounded-xl bg-[var(--stor-surface-raised)] text-[var(--stor-muted-text)] shadow-[var(--stor-shadow-sm)] transition hover:bg-[var(--stor-surface-hover)] hover:text-[var(--stor-ink)] {compact ? 'sm:col-start-1' : 'sm:col-start-2'} focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--stor-focus)]" aria-label="Previous month"><IconArrowLeft class="h-5 w-5" /></button>
+        <button type="button" onclick={() => navigateTo(previous.year, previous.month)} class="{phoneArrows ? '' : 'max-sm:hidden'} col-start-1 row-start-1 flex h-11 w-11 items-center justify-center rounded-xl bg-[var(--stor-surface-raised)] text-[var(--stor-muted-text)] shadow-[var(--stor-shadow-sm)] transition hover:bg-[var(--stor-surface-hover)] hover:text-[var(--stor-ink)] {compact ? 'sm:col-start-1' : 'sm:col-start-2'} focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--stor-focus)]" aria-label="Previous month" title="Previous month (←)" aria-keyshortcuts="ArrowLeft"><IconArrowLeft class="h-5 w-5" /></button>
     {/if}
 
     {#if !isCurrentMonth}
         {#if hrefForMonth}
-            <a href={hrefForMonth(currentYear, currentMonth)} class={`${todayActionClass} ${compact ? 'sm:col-start-4' : 'sm:col-start-3'}`} aria-label="Go to current month">Today</a>
+            <a href={hrefForMonth(currentYear, currentMonth)} class={`${todayActionClass} ${compact ? 'sm:col-start-4' : 'sm:col-start-3'}`} aria-label="Go to current month" title="Today (T)" aria-keyshortcuts="t">Today</a>
         {:else}
-            <button type="button" onclick={() => navigateTo(currentYear, currentMonth)} class={`${todayActionClass} ${compact ? 'sm:col-start-4' : 'sm:col-start-3'}`} aria-label="Go to current month">Today</button>
+            <button type="button" onclick={() => navigateTo(currentYear, currentMonth)} class={`${todayActionClass} ${compact ? 'sm:col-start-4' : 'sm:col-start-3'}`} aria-label="Go to current month" title="Today (T)" aria-keyshortcuts="t">Today</button>
         {/if}
     {:else}
         <span class={`${todayActionClass} ${compact ? 'sm:col-start-4' : 'sm:col-start-3'} invisible`} aria-hidden="true">Today</span>
     {/if}
 
     {#if hrefForMonth}
-        <a href={hrefForMonth(next.year, next.month)} class="{phoneArrows ? '' : 'max-sm:hidden'} col-start-3 row-start-1 flex h-11 w-11 items-center justify-center rounded-xl bg-[var(--stor-surface-raised)] text-[var(--stor-muted-text)] shadow-[var(--stor-shadow-sm)] transition hover:bg-[var(--stor-surface-hover)] hover:text-[var(--stor-ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--stor-focus)] {compact ? 'sm:col-start-3' : 'sm:col-start-4'}" aria-label="Next month"><IconArrowRight class="h-5 w-5" /></a>
+        <a href={hrefForMonth(next.year, next.month)} class="{phoneArrows ? '' : 'max-sm:hidden'} col-start-3 row-start-1 flex h-11 w-11 items-center justify-center rounded-xl bg-[var(--stor-surface-raised)] text-[var(--stor-muted-text)] shadow-[var(--stor-shadow-sm)] transition hover:bg-[var(--stor-surface-hover)] hover:text-[var(--stor-ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--stor-focus)] {compact ? 'sm:col-start-3' : 'sm:col-start-4'}" aria-label="Next month" title="Next month (→)" aria-keyshortcuts="ArrowRight"><IconArrowRight class="h-5 w-5" /></a>
     {:else}
-        <button type="button" onclick={() => navigateTo(next.year, next.month)} class="{phoneArrows ? '' : 'max-sm:hidden'} col-start-3 row-start-1 flex h-11 w-11 items-center justify-center rounded-xl bg-[var(--stor-surface-raised)] text-[var(--stor-muted-text)] shadow-[var(--stor-shadow-sm)] transition hover:bg-[var(--stor-surface-hover)] hover:text-[var(--stor-ink)] {compact ? 'sm:col-start-3' : 'sm:col-start-4'} focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--stor-focus)]" aria-label="Next month"><IconArrowRight class="h-5 w-5" /></button>
+        <button type="button" onclick={() => navigateTo(next.year, next.month)} class="{phoneArrows ? '' : 'max-sm:hidden'} col-start-3 row-start-1 flex h-11 w-11 items-center justify-center rounded-xl bg-[var(--stor-surface-raised)] text-[var(--stor-muted-text)] shadow-[var(--stor-shadow-sm)] transition hover:bg-[var(--stor-surface-hover)] hover:text-[var(--stor-ink)] {compact ? 'sm:col-start-3' : 'sm:col-start-4'} focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--stor-focus)]" aria-label="Next month" title="Next month (→)" aria-keyshortcuts="ArrowRight"><IconArrowRight class="h-5 w-5" /></button>
     {/if}
 </section>

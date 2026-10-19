@@ -1054,6 +1054,8 @@
             <Button
                 size="sm"
                 class="hidden lg:inline-flex"
+                data-stor-new
+                shortcut="N"
                 onclick={() => startCreate()}
             ><IconPlus class="h-4 w-4" />Add event</Button>
         </CommandOnly>
