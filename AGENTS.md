@@ -481,8 +481,8 @@ sliding tab pill) are built from them; reduced motion zeroes them. Use the token
   `.stor-panel` sections separated by `--stor-section-gap`. A panel owns its
   surface, radius, and shadow; its header/body own padding. Do not nest cards
   for ordinary content.
-- Controls are 44px tall on mobile (`h-11`) and compact 36px from `sm:` up
-  (`sm:h-9`); the page panel and sheets use `--stor-panel-radius` (20px, 16px on phones), sections inside it
+- Controls are 44px tall on touch (`h-11`) and compact 36px with a mouse from 640px (`fine:h-9`, the
+  `fine` variant is 640px and a fine pointer; width alone is not a finger); the page panel and sheets use `--stor-panel-radius` (20px, 16px on phones), sections inside it
   (`.stor-panel`) `--stor-section-radius` (16px), controls `rounded-xl` on phones and 10px from `sm:`
   (Button and the field recipe do this), badges 6px, small tiles `rounded-lg`, pills and tabs `rounded-full`
   (`md` and `2xl` fold into this set). Panel padding is 16px on phones, 20px from `sm`,
@@ -583,6 +583,7 @@ imported through `.generated/module-sources.generated.css` only for tenants that
   `notify.progress` returns an id for sticky tasks and is dismissed with
   `dismissNotification`. Prefer an action button (for example Undo) over a
   second confirmation when the domain supports reversal.
+- Keyboard (`shortcuts.ts`, installed by the layout): N opens the page's first create shortcut (its feature's `commands[0]`), ← / → and T step and reset the page's time navigator (`MonthNavigator` registers itself in `state/time-navigation.ts`; a new navigator should do the same), G then F, H, C or I goes to Finance, Health, Calendar or Invoices (matched by nav label), ⌘Z undoes the last change, ⌘↵ and Esc belong to sheets. Nothing fires while typing, inside a grid, list or menu, or while a sheet is open. A shortcut always has a visible control too.
 - Time travel: a month or day change that goes through `timeTravel(direction, update)` (`@hearthlog/ui/utils/time-travel.js`, used by `MonthNavigator`) slides the page panel's content 16px against the direction of time while it cross-fades (View Transitions; none under reduced motion or without the API). Day-level navigation in module pages can call it the same way.
 - Destructive actions confirm through `ConfirmDialog`, disable themselves
   while running, and offer undo where one exists.
@@ -615,6 +616,7 @@ imported through `.generated/module-sources.generated.css` only for tenants that
   respect `env(safe-area-inset-*)`.
 - Log history: show the source log, accepted action, and fork point clearly;
   keep the original log available in the switcher.
+- High contrast: `prefers-contrast: more` swaps hairlines for `--stor-border-strong` and muted and faint text for ink (`base.css`); `forced-colors: active` keeps borders on sections, menus and sheets and an outline on selected pills.
 - Accessibility: focus-visible rings via `--stor-focus`, `aria-label` on
   icon-only controls, `aria-pressed` / `aria-current` / `data-state` on tabs and
   segmented controls, `aria-live`/`role="status"` for status regions, 44px

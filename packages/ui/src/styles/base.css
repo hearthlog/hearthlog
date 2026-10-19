@@ -48,6 +48,9 @@
     src: url('../assets/fonts/newsreader-latin-ext.woff2') format('woff2-variations');
     unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
 }
+/* Compact controls are for a mouse or trackpad on a wide screen: width alone says nothing about a finger, so
+   `fine:` is 640px and up with a fine pointer; touch screens keep 44px targets at any width. */
+@custom-variant fine (@media (min-width: 640px) and (pointer: fine));
 @theme {
     --font-sans: var(--stor-font-sans);
     --font-mono: var(--stor-font-mono);
@@ -320,3 +323,20 @@ html[data-theme="dark"] [class~="border-sky-200"] { border-color: var(--stor-inf
     }
 }
 /* Borderless surfaces: ordinary information stays on the canvas. */
+
+/* More contrast: hairlines become the strong rule colour and secondary text becomes ink. The selector is heavier
+   than the tenant's own theme block, whichever stylesheet comes first. */
+@media (prefers-contrast: more) {
+    html:root[data-theme], html:root:not([data-theme]) {
+        --stor-border: var(--stor-border-strong);
+        --stor-muted-text: var(--stor-ink);
+        --stor-faint-text: var(--stor-muted-text);
+    }
+}
+/* Forced colors drop shadows and fills: sections, the selected pill and buttons keep a visible edge. */
+@media (forced-colors: active) {
+    .stor-panel, .stor-today-card, .stor-menu, .stor-sheet, .stor-toast, .stor-last-change { border: 1px solid CanvasText; }
+    .stor-tab-indicator, .stor-page-tab:is([data-state="active"], [aria-selected="true"], [aria-current="page"], [aria-current="true"]), .stor-segmented-option:is([aria-pressed="true"], [data-state="active"]) { outline: 2px solid Highlight; }
+    [data-stor-button-variant] { border: 1px solid ButtonText; }
+    .stor-field-control:is(:focus, :focus-within) { outline: 2px solid Highlight; }
+}

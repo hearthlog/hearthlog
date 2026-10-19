@@ -54,7 +54,7 @@
             id={id || undefined}
             aria-label={ariaLabel || undefined}
             class={cn(
-                "stor-field-control flex w-full items-center justify-between gap-2 h-11 px-3 py-2.5 sm:h-9 sm:py-1.5 text-left text-sm",
+                "stor-field-control flex w-full items-center justify-between gap-2 h-11 px-3 py-2.5 fine:h-9 fine:py-1.5 text-left text-sm",
                 triggerClass,
             )}
         >
