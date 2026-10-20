@@ -213,6 +213,7 @@ extension HearthlogEngine: WKNavigationDelegate {
         if nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorCancelled { return }
         if nsError.domain == "WebKitErrorDomain" && nsError.code == 102 { return }
         if case .signInRequired = state { return }
-        state = .failed("\(site.title) can't open yet. Connect to the internet once so the app can download itself.")
+        // Say what failed and where: "offline" and "wrong address" look the same otherwise.
+        state = .failed("\(site.title) can't open \(engineURL.absoluteString): \(nsError.localizedDescription) Connect to the internet once so the app can download itself.")
     }
 }
