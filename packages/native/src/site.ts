@@ -119,9 +119,15 @@ export async function loadAppleSite(id: string, settings: AppleSettings): Promis
         accent: accent ?? "",
         tile: brandColor(accent, themeVariablesFor(accent, "light")["--stor-action"]),
         bundleId: `${settings.bundlePrefix}.${site.id}`,
-        version: (JSON.parse(readFileSync(path.join(REPOSITORY_ROOT, "package.json"), "utf8")) as { version: string }).version,
+        version: siteVersion(),
         build: buildNumber(),
     };
+}
+
+/** The site's package version; a site without one (the development site) takes this package's. */
+function siteVersion(): string {
+    const read = (file: string) => (JSON.parse(readFileSync(file, "utf8")) as { version?: string }).version;
+    return read(path.join(REPOSITORY_ROOT, "package.json")) ?? read(fileURLToPath(new URL("../package.json", import.meta.url))) ?? "0.0.0";
 }
 
 /** Commits on this branch: strictly rising, which is all an installed build number needs. */

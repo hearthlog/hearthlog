@@ -81,18 +81,25 @@ final class HearthlogEngine: NSObject, ObservableObject {
     /// Calls a bridge function by name: `engine.status`, or a module's `stash.scenes.list`.
     func call<Arguments: Encodable, Value: Decodable>(_ name: String, _ arguments: Arguments, as type: Value.Type = Value.self) async throws -> Value {
         let argumentsJSON = try EngineReply.encode(arguments)
-        let result: Any?
-        do {
-            result = try await webView.callAsyncJavaScript(
+        // The completion-handler form, wrapped by hand: with its handler defaulted, the compiler
+        // picks it over the `async` overload and the reply is lost.
+        let json: String = try await withCheckedThrowingContinuation { continuation in
+            webView.callAsyncJavaScript(
                 "if (!window.hearthlogNative) throw new Error('not_ready'); return await window.hearthlogNative.call(name, args);",
                 arguments: ["name": name, "args": argumentsJSON],
                 in: nil,
                 in: .page
-            )
-        } catch {
-            throw EngineCallError(code: "not_ready", message: "The engine is not running yet.")
+            ) { result in
+                switch result {
+                case .success(let value as String):
+                    continuation.resume(returning: value)
+                case .success:
+                    continuation.resume(throwing: EngineCallError.badReply("the reply is not text"))
+                case .failure:
+                    continuation.resume(throwing: EngineCallError(code: "not_ready", message: "The engine is not running yet."))
+                }
+            }
         }
-        guard let json = result as? String else { throw EngineCallError.badReply("the reply is not text") }
         return try EngineReply.decode(Value.self, from: json)
     }
 
