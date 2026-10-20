@@ -1,6 +1,6 @@
 {
   "name": "@hearthlog/czech",
-  "version": "0.6.1",
+  "version": "0.7.0",
   "description": "Czech public holidays, working-time rules, and the flat-rate (paušál) tax estimate",
   "license": "AGPL-3.0-only",
   "repository": {

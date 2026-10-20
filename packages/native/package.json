@@ -1,6 +1,6 @@
 {
   "name": "@hearthlog/native",
-  "version": "0.6.1",
+  "version": "0.7.0",
   "description": "Hearthlog's native shells: the Swift sources of the Mac and iOS apps and the tools that build them for one tenant (`hearthlog apple:mac|ios|test|resign`)",
   "license": "AGPL-3.0-only",
   "repository": {
