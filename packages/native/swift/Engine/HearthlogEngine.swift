@@ -100,11 +100,25 @@ final class HearthlogEngine: NSObject, ObservableObject {
                 }
             }
         }
+        let started = ContinuousClock.now
+        defer { lastDecodeDuration = ContinuousClock.now - started }
         return try EngineReply.decode(Value.self, from: json)
     }
 
+    /// How long the last call's reply took to decode, for checking a screen's budget.
+    private(set) var lastDecodeDuration: Duration?
+
     func call<Value: Decodable>(_ name: String, as type: Value.Type = Value.self) async throws -> Value {
         try await call(name, NoArguments(), as: type)
+    }
+
+    /// Calls a generated module function: `engine.query(Stash.Scenes.list, .init(page: 1, pageSize: 60))`.
+    func query<Arguments, Value>(_ query: EngineQuery<Arguments, Value>, _ arguments: Arguments) async throws -> Value {
+        try await call(query.name, arguments, as: Value.self)
+    }
+
+    func query<Value>(_ query: EngineQuery<NoArguments, Value>) async throws -> Value {
+        try await call(query.name, NoArguments(), as: Value.self)
     }
 
     @discardableResult

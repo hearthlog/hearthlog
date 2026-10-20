@@ -96,6 +96,13 @@ struct EngineCallError: Error, Equatable, LocalizedError {
     }
 }
 
+/// A module function as `hearthlog apple:types` generates it: its bridge name, argument and result types, and the
+/// refresh keys whose change makes it worth reading again.
+struct EngineQuery<Arguments: Encodable, Value: Decodable>: Sendable {
+    let name: String
+    let depends: [String]
+}
+
 /// A call without arguments.
 struct NoArguments: Encodable, Equatable {}
 

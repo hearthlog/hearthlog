@@ -50,6 +50,7 @@ test('the engine route opens the workspace without the shell and reports to the 
     expect(posted).toEqual(status.value);
 
     expect(await call(page, 'engine.context')).toMatchObject({ ok: true, value: { tenantId: 'st', origin: new URL(page.url()).origin } });
+    expect(await call(page, 'engine.logs')).toMatchObject({ ok: true, value: { currentLogId: ready.context.logId, logs: [{ id: ready.context.logId }] } });
     expect(await call(page, 'engine.nope')).toMatchObject({ ok: false, error: { code: 'unknown_function' } });
     expect(await call(page, 'engine.setActive', { active: 'no' })).toMatchObject({ ok: false, error: { code: 'invalid_arguments' } });
 

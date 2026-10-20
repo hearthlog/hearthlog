@@ -7,7 +7,7 @@ import { test } from 'node:test';
 import { findCollisions, ManifestError, moduleSettingPlaceholder, moduleSettingProblem, validateManifest, type ModuleManifest } from '@hearthlog/contracts';
 
 import { coreNamesNoDomain, directGeneratedImports, moduleImportProblem } from '../check/check-modules.js';
-import { loadModules, modulesForFeatures, renderRoute } from './compose-modules.js';
+import { loadModules, modulesForFeatures, renderNative, renderRoute } from './compose-modules.js';
 
 /** Tests that need the real modules run in `pnpm test:integration`, which installs them. */
 const needsModules = { skip: loadModules().length === 0 && 'needs the modules: pnpm test:integration' };
@@ -174,4 +174,20 @@ test('module setting formats accept only values of their shape', () => {
     assert.match(moduleSettingProblem({}, ' ') ?? '', /non-empty/);
     assert.equal(moduleSettingPlaceholder({ values: ['0', '1'] }), '0');
     for (const format of ['text', 'https-origin', 's3-bucket', 's3-region'] as const) assert.equal(moduleSettingProblem({ format }, moduleSettingPlaceholder({ format })), null);
+});
+
+test('the engine page loads only the native APIs of the modules it composes, on demand', () => {
+    assert.match(renderNative([]), /loadNativeApis\(\): Promise<readonly NativeApi\[\]> \{\n {4}return \[\];\n\}/);
+    const native = { contract: './src/native/contract.ts', api: './src/native/api.ts' };
+    const rendered = renderNative([{ directory: '/notes', manifest: manifest({ native }) }, { directory: '/plain', manifest: manifest({ id: 'org.example.plain', package: '@hearthlog/module-plain' }) }]);
+    assert.match(rendered, /Promise\.all\(\[import\('@hearthlog\/module-notes\/native\/api\.js'\)\]\)/);
+    assert.doesNotMatch(rendered, /module-plain/);
+});
+
+test('a manifest\'s native files live in src/native/ and its Swift stays inside the module', () => {
+    const native = (value: unknown) => ({ ...manifest(), native: value });
+    assert.equal(validateManifest(native({ contract: './src/native/contract.ts', api: './src/native/api.ts', swiftTypes: './apple/Generated/Notes.swift' })).native?.api, './src/native/api.ts');
+    assert.throws(() => validateManifest(native({ contract: './src/contract.ts', api: './src/native/api.ts' })), ManifestError);
+    assert.throws(() => validateManifest(native({ contract: './src/native/contract.ts', api: './src/native/api.ts', swiftTypes: './../Notes.swift' })), ManifestError);
+    assert.throws(() => validateManifest(native({ contract: './src/native/contract.ts', api: './src/native/api.ts', extra: true })), ManifestError);
 });

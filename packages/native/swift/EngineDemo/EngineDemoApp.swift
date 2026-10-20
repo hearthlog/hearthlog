@@ -1,5 +1,3 @@
-import AppKit
-import Combine
 import SwiftUI
 
 /// Milestone 1 of the native apps: one window that shows what the hidden engine reports, to check
@@ -10,40 +8,14 @@ struct EngineDemoApp: App {
         site: SiteConfig.load(),
         inspectable: Bundle.main.object(forInfoDictionaryKey: "StorInspectable") as? Bool ?? false
     )
-    @StateObject private var signIn = SignInPresenter()
 
     var body: some Scene {
         Window(engine.site.title, id: "engine") {
             EngineStatusView(engine: engine)
                 .frame(minWidth: 460, minHeight: 420)
-                .task { engine.startIfNeeded() }
-                .onChange(of: engine.state) { _, state in
-                    if case .signInRequired(let url) = state { signIn.present(url, engine: engine) }
-                }
-                .onReceive(NotificationCenter.default.publisher(for: NSApplication.didHideNotification)) { _ in
-                    Task { await engine.setActive(false) }
-                }
-                .onReceive(NotificationCenter.default.publisher(for: NSApplication.didUnhideNotification)) { _ in
-                    Task { await engine.setActive(true) }
-                }
+                .runsEngine(engine)
         }
         .windowResizability(.contentMinSize)
-    }
-}
-
-/// Opens the shell's sign-in window for the engine and reloads the engine once Access lets the person in.
-@MainActor
-final class SignInPresenter: ObservableObject {
-    private var controller: SignInWindowController?
-
-    func present(_ url: URL, engine: HearthlogEngine) {
-        guard controller == nil else { return }
-        let controller = SignInWindowController(site: engine.site, policy: engine.policy, dataStore: engine.dataStore, url: url) { [weak self, weak engine] success in
-            self?.controller = nil
-            if success { engine?.reload() }
-        }
-        self.controller = controller
-        controller.showWindow(nil)
     }
 }
 

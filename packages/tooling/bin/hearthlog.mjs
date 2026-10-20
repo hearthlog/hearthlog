@@ -62,6 +62,7 @@ const entry = {
     init: 'init/init.ts',
     export: 'init/export-tenant.ts',
     'check-module': 'init/check-module.ts',
+    'apple:types': 'native/apple-types.ts',
     lock: 'tenants/module-lock.ts',
     'gallery-public:build': 'public-workers/build-gallery-public.ts',
     artifact: 'deploy/artifact.ts',

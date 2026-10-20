@@ -19,7 +19,10 @@ import {
     type NativeHandler,
     type NativeMessage,
 } from './bridge.js';
+import type { NativeApi } from './api.js';
+import { nativeRegistry } from './registry.js';
 import { shell } from './shell.js';
+import { logs } from '../store/logs.svelte.js';
 
 declare global {
     interface Window {
@@ -84,16 +87,24 @@ const CORE_HANDLERS: Readonly<Record<string, NativeHandler>> = {
         setPageVisibilityOverride(engine.active);
         return engineStatus();
     },
+    /** The logs this device knows, newest list from the Ledger when online, and the open one. */
+    'engine.logs': () => ({
+        currentLogId: eventLogFilename.value || null,
+        logs: logs.value.map((log) => ({ id: log.id, name: log.name, headVersion: log.headVersion, lastUpdatedAt: log.lastUpdatedAt })),
+    }),
 };
 
 /**
  * Installs the endpoint and starts reporting. `ready` is the workspace opening (the layout load's
- * `workspace.ready`); `native:ready` follows it, or `native:failed` when it cannot open.
+ * `workspace.ready`); `loadApis` loads the enabled modules' native APIs (the composed `(modules)/native`).
+ * `native:ready` follows both, or `native:failed` when either cannot finish.
  */
-export function startNativeEngine(ready: Promise<unknown>): () => void {
+export function startNativeEngine(ready: Promise<unknown>, loadApis: () => Promise<readonly NativeApi[]> = async () => []): () => void {
     // A hidden web view is never "visible" to WebKit; the app decides instead.
     setPageVisibilityOverride(engine.active);
-    const call = createDispatcher(CORE_HANDLERS);
+    // Module functions join once their code has loaded; until then they answer `unknown_function`.
+    const handlers: Record<string, NativeHandler> = { ...CORE_HANDLERS };
+    const call = createDispatcher(handlers);
     Object.defineProperty(window, 'hearthlogNative', {
         value: Object.freeze({ version: NATIVE_BRIDGE_VERSION, call } satisfies NativeEndpoint),
         configurable: true,
@@ -101,11 +112,12 @@ export function startNativeEngine(ready: Promise<unknown>): () => void {
     });
 
     let stopped = false;
-    ready.then(
-        () => {
+    Promise.all([ready, loadApis()]).then(([, apis]) => nativeRegistry(apis, { beforeCall: requireReady })).then(
+        (registry) => {
             if (stopped) return;
+            Object.assign(handlers, registry.handlers);
             engine.ready = true;
-            post({ type: 'native:ready', body: { bridgeVersion: NATIVE_BRIDGE_VERSION, context: engineContext(), apis: {} } });
+            post({ type: 'native:ready', body: { bridgeVersion: NATIVE_BRIDGE_VERSION, context: engineContext(), apis: registry.versions } });
         },
         (error: unknown) => {
             if (stopped) return;

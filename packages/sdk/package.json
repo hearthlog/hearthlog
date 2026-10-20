@@ -28,9 +28,11 @@
     "./axis": "./src/axis.ts",
     "./server": "./src/server.ts",
     "./ai": "./src/ai.ts",
-    "./server-testing": "./src/server-testing.ts"
+    "./server-testing": "./src/server-testing.ts",
+    "./native": "./src/native.ts"
   },
   "dependencies": {
+    "@sinclair/typebox": "0.34.52",
     "@hearthlog/contracts": "workspace:*",
     "@hearthlog/ui": "workspace:*",
     "@hearthlog/runtime": "workspace:*",
