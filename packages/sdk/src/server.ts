@@ -1,3 +1,5 @@
+export { DurableObject } from 'cloudflare:workers';
+
 /**
  * Module API v0 for gateway Worker code: Access authorization, Ledger scope
  * verification, and request bodies. A module's server entry imports only this

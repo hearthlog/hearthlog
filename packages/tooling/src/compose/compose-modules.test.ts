@@ -7,7 +7,7 @@ import { test } from 'node:test';
 import { findCollisions, ManifestError, moduleSettingPlaceholder, moduleSettingProblem, validateManifest, type ModuleManifest } from '@hearthlog/contracts';
 
 import { coreNamesNoDomain, directGeneratedImports, moduleImportProblem } from '../check/check-modules.js';
-import { loadModules, modulesForFeatures, renderNative, renderRoute } from './compose-modules.js';
+import { loadModules, modulesForFeatures, renderNative, renderRoute, renderGatewayEntry, renderGatewayModules } from './compose-modules.js';
 
 /** Tests that need the real modules run in `pnpm test:integration`, which installs them. */
 const needsModules = { skip: loadModules().length === 0 && 'needs the modules: pnpm test:integration' };
@@ -41,6 +41,21 @@ test('a manifest cannot point outside its module or declare unknown keys', () =>
     assert.throws(() => validateManifest(manifest({ routes: [{ path: '/notes', page: './src/../../app/x.svelte' }] })), ManifestError);
     assert.throws(() => validateManifest({ ...manifest(), extra: true }), ManifestError);
     assert.throws(() => validateManifest(manifest({ compatibility: { moduleApi: 2 } })), ManifestError);
+});
+
+test('module SQLite Durable Objects are validated, exported, and cannot claim another module or core export', () => {
+    const server: NonNullable<ModuleManifest['server']> = { entry: './src/server/index.ts', bindings: [
+        { binding: 'NOTE_INDEX', type: 'durable-object', className: 'NoteIndex' },
+    ] };
+    const first = manifest({ server });
+    assert.doesNotThrow(() => validateManifest(first));
+    assert.throws(() => validateManifest(manifest({ server: { ...server, bindings: [{ binding: 'NOTE_INDEX', type: 'durable-object', className: '../bad' }] } })), ManifestError);
+    const modules = [{ manifest: first, directory: '/fixture/notes' }];
+    assert.match(renderGatewayModules('st', modules), /export \{ NoteIndex \} from '@hearthlog\/module-notes\/server\/index.js'/);
+    assert.match(renderGatewayEntry('st', modules), /export \{ NoteIndex \} from '.\/server-modules.js'/);
+    const reserved = { featureIds: [], routePaths: [], refreshKeys: [] };
+    assert.ok(findCollisions([first, manifest({ id: 'org.example.other', package: '@hearthlog/module-other', server })], reserved).some(problem => problem.includes('Worker export')));
+    assert.ok(findCollisions([manifest({ server: { ...server, bindings: [{ binding: 'NOTE_INDEX', type: 'durable-object', className: 'CalendarFeedRenderer' }] } })], reserved).some(problem => problem.includes('the core')));
 });
 
 test('a tenant composes only modules whose features it enables', needsModules, () => {

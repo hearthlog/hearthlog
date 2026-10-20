@@ -5,3 +5,7 @@ export class WorkerEntrypoint<Env = unknown> {
         readonly env: Env,
     ) {}
 }
+
+export class DurableObject<Env = unknown> {
+    constructor(readonly ctx: DurableObjectState, readonly env: Env) {}
+}

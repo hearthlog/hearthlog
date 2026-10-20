@@ -267,10 +267,12 @@ export interface DevServerModule {
     handle(request: Request, context: DevServerContext): Promise<Response>;
 }
 
-/** A logical binding the module needs; the physical resource name comes from the tenant's infrastructure. */
+/** A module-owned binding; bucket resource names come from the tenant's infrastructure. */
 export type ModuleBinding =
     | { binding: string; type: 'r2'; resource: string }
-    | { binding: string; type: 'images' };
+    | { binding: string; type: 'images' }
+    /** A SQLite Durable Object exported by the module's server entry. Names are persistent deployment identities. */
+    | { binding: string; type: 'durable-object'; className: string };
 
 /** What a module's server entry exports. `TEnv` is the Worker's `Env`. */
 export interface ServerModule<TEnv = unknown> {
@@ -541,10 +543,17 @@ export function validateManifest(value: unknown, source = 'hearthlog.module.json
             if (!(server.routes as unknown[] | undefined)?.length) fail(label, 'dev needs routes to serve');
         }
         for (const prefix of (server.routes ?? []) as unknown[]) text(`${label} routes`, prefix, /^\/api\/[a-z0-9-]+(\/[a-z0-9-]+)*$/);
+        const objectClasses = new Set<string>();
         for (const [index, raw] of ((server.bindings ?? []) as unknown[]).entries()) {
-            const binding = keys(`${label} bindings[${index}]`, raw, ['binding', 'type', 'resource']);
+            const binding = keys(`${label} bindings[${index}]`, raw, ['binding', 'type', 'resource', 'className']);
             text(`${label} bindings[${index}] binding`, binding.binding, /^[A-Z][A-Z0-9_]*$/);
-            if (binding.type === 'r2') text(`${label} bindings[${index}] resource`, binding.resource, /^[a-zA-Z]+$/);
+            if (binding.type === 'durable-object') {
+                text(`${label} bindings[${index}] className`, binding.className, /^[A-Z][A-Za-z0-9]*$/);
+                if (objectClasses.has(binding.className as string)) fail(label, 'a Durable Object class is declared twice');
+                objectClasses.add(binding.className as string);
+                if (binding.resource !== undefined) fail(label, 'Durable Objects do not use an infrastructure resource');
+            } else if (binding.className !== undefined) fail(label, 'className belongs to a Durable Object');
+            else if (binding.type === 'r2') text(`${label} bindings[${index}] resource`, binding.resource, /^[a-zA-Z]+$/);
             else if (binding.type !== 'images' || binding.resource !== undefined) fail(label, `bindings[${index}] must be an r2 bucket (with a resource) or images`);
         }
         const settings = new Set<string>();
@@ -614,12 +623,16 @@ export function findCollisions(manifests: readonly ModuleManifest[], reserved: R
     for (const id of reserved.featureIds) claim('feature', id, 'the core');
     for (const path of reserved.routePaths) claim('route', path, 'the core');
     for (const key of reserved.refreshKeys) claim('refresh key', key, 'the core');
+    for (const name of ['CalendarFeedRenderer', 'default', 'proxyAccessSession', 'proxyLedgerAdminRequest', 'proxyLedgerRequest', 'serveAssetOrAppShell']) claim('Worker export', name, 'the core');
     for (const manifest of manifests) {
         claim('module', manifest.id, manifest.package);
         for (const feature of manifest.features) claim('feature', feature.id, manifest.id);
         for (const route of manifest.routes) claim('route', route.path, manifest.id);
         for (const key of manifest.refreshKeys ?? []) claim('refresh key', key, manifest.id);
-        for (const binding of manifest.server?.bindings ?? []) claim('binding', binding.binding, manifest.id);
+        for (const binding of manifest.server?.bindings ?? []) {
+            claim('binding', binding.binding, manifest.id);
+            if (binding.type === 'durable-object') claim('Worker export', binding.className, manifest.id);
+        }
         for (const variable of manifest.server?.vars ?? []) claim('binding', variable.name, manifest.id);
         for (const secret of manifest.server?.secrets ?? []) claim('binding', secret.name, manifest.id);
     }
