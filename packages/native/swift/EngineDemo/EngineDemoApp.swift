@@ -47,9 +47,23 @@ final class SignInPresenter: ObservableObject {
     }
 }
 
+/// The view's own state. Not `@State`: in recent SDKs that is a macro whose plugin ships only
+/// with Xcode, and these apps build with the Command Line Tools.
+@MainActor
+final class SyncNowAction: ObservableObject {
+    @Published var error: String?
+
+    func run(_ engine: HearthlogEngine) {
+        Task {
+            do { try await engine.syncNow(); self.error = nil }
+            catch { self.error = error.localizedDescription }
+        }
+    }
+}
+
 struct EngineStatusView: View {
     @ObservedObject var engine: HearthlogEngine
-    @State private var syncError: String?
+    @StateObject private var syncNow = SyncNowAction()
 
     var body: some View {
         Form {
@@ -77,19 +91,14 @@ struct EngineStatusView: View {
                     }
                 }
             }
-            if let syncError {
-                Text(syncError).foregroundStyle(.red)
+            if let error = syncNow.error {
+                Text(error).foregroundStyle(.red)
             }
         }
         .formStyle(.grouped)
         .toolbar {
             ToolbarItem {
-                Button("Sync Now", systemImage: "arrow.triangle.2.circlepath") {
-                    Task {
-                        do { try await engine.syncNow(); syncError = nil }
-                        catch { syncError = error.localizedDescription }
-                    }
-                }
+                Button("Sync Now", systemImage: "arrow.triangle.2.circlepath") { syncNow.run(engine) }
                 .disabled(engine.status?.ready != true)
             }
             ToolbarItem {
