@@ -1,6 +1,6 @@
 {
   "name": "@hearthlog/shell",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "description": "Hearthlog's application shell: layout and navigation, the log panel and history, the calendar, sync status, and the pages the host serves",
   "license": "AGPL-3.0-only",
   "repository": {
