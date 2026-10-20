@@ -6,7 +6,7 @@
  * Usage:
  *   hearthlog apple:engine <site>                 build .apple-build/engine/<site>/<title> Engine.app
  *   hearthlog apple:engine <site> --app <dir>     build the native app whose Swift is in <dir> instead
- *                                                 (for example modules/stash/apple: <title> Stash.app)
+ *                                                 (a module's apple/ folder: <title> Stash.app for Stash)
  *   hearthlog apple:engine <site> --mpv           also build the libmpv player (swift/Media), for an app that plays
  *                                                 video; libmpv comes from Homebrew (`brew install mpv`)
  *   hearthlog apple:engine <site> --dev           debugging aids; STOR_ORIGIN can point at a dev server
@@ -15,7 +15,7 @@
  * It uses the site's data store, so it opens the same local database as the Mac shell.
  */
 
-import { existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 import { SWIFT_DIRECTORY, AppleError, BUILD_ROOT, loadAppleSettings, loadAppleSite, macInfoPlist, run } from "./site.js";
@@ -63,12 +63,24 @@ function mpvFlags(): string[] {
     return [...flags, "-Xcc", "-DGL_SILENCE_DEPRECATION", "-import-objc-header", path.join(SWIFT_DIRECTORY, "Media", "MPVBridging.h")];
 }
 
+/**
+ * The app's name: its module's, from the package beside `apple/` (`@hearthlog-private/module-stash`: Stash), so a
+ * checkout, a link and an installed package build the same app; else the folder's own name.
+ */
+function appName(app: string): string {
+    const packagePath = path.join(path.dirname(app), "package.json");
+    const packageName = existsSync(packagePath) ? (JSON.parse(readFileSync(packagePath, "utf8")) as { name?: string }).name : undefined;
+    const base = (packageName?.split("/").at(-1) ?? path.basename(app)).replace(/^module-/, "");
+    const name = base.split(/[^A-Za-z0-9]+/).filter(Boolean).map((word) => word[0]!.toUpperCase() + word.slice(1)).join("");
+    if (!name) throw new AppleError(`${app}: cannot name the app`);
+    return name;
+}
+
 async function main() {
     if (!siteId || (args.includes("--app") && !appDirectory)) throw new AppleError("Usage: hearthlog apple:engine <site> [--app <dir>] [--mpv] [--dev] [--open]");
     const app = appDirectory ? path.resolve(appDirectory) : path.join(SWIFT_DIRECTORY, "EngineDemo");
     if (!existsSync(app)) throw new AppleError(`${app} does not exist`);
-    // The app's name: "Engine" for the check window, else its folder's parent (modules/stash/apple: Stash).
-    const name = appDirectory ? path.basename(path.basename(app) === "apple" ? path.dirname(app) : app).replace(/^\w/, (letter) => letter.toUpperCase()) : "Engine";
+    const name = appDirectory ? appName(app) : "Engine";
     const development = flags.has("--dev");
     const site = await loadAppleSite(siteId, loadAppleSettings({ requireDevice: false }));
     // Never the shell's bundle: the two apps keep their own windows, settings and permissions.
