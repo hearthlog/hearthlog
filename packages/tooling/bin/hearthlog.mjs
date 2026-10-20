@@ -18,7 +18,7 @@ const [command, ...rest] = process.argv.slice(2);
 
 // The native shell: the tool is a file of @hearthlog/native, found from the site, and every one of them reads the
 // site's generated files, so the build runs first (it does nothing when they are current).
-const native = { 'apple:mac': 'mac.js', 'apple:ios': 'ios.js', 'apple:resign': 'resign.js', 'apple:test': 'swift-checks.js' }[command];
+const native = { 'apple:mac': 'mac.js', 'apple:ios': 'ios.js', 'apple:resign': 'resign.js', 'apple:test': 'swift-checks.js', 'apple:engine': 'engine.js' }[command];
 if (native) {
     let tool;
     try {

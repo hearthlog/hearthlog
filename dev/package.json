@@ -55,6 +55,7 @@
     "calendar:public:smoke": "hearthlog build && tsx ../packages/tooling/src/public-workers/check-calendar-public-route.ts",
     "apple:ios": "hearthlog apple:ios",
     "apple:mac": "hearthlog apple:mac",
+    "apple:engine": "hearthlog apple:engine",
     "apple:test": "hearthlog apple:test",
     "apple:resign": "hearthlog apple:resign"
   },

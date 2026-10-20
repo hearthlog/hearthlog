@@ -1,4 +1,5 @@
 import type { StoredEvent } from './types.js';
+import { pageVisible } from '../runtime/visibility.js';
 
 export const LEDGER_SOCKET_PROTOCOL = 'ledger.v1';
 
@@ -89,7 +90,7 @@ export class EventSocket {
                 (() => typeof navigator === 'undefined' || navigator.onLine !== false),
             isVisible:
                 config.isVisible ??
-                (() => typeof document === 'undefined' || document.visibilityState !== 'hidden'),
+                pageVisible,
         };
     }
 

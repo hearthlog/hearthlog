@@ -13,7 +13,7 @@ export interface RouteFile {
 
 export const CORE_ROUTE_FILES: readonly RouteFile[] = [
     { path: "+error.svelte", content: "<script lang=\"ts\">\n    import ErrorPage from '@hearthlog/shell/pages/error/ErrorPage.svelte';\n</script>\n\n<ErrorPage />\n" },
-    { path: "+layout.svelte", content: "<script lang=\"ts\">\n    import '../app.css';\n    import ShellLayout from '@hearthlog/shell/pages/layout/Layout.svelte';\n    // The tenant's composed modules: `hearthlog compose` writes this file; the shell does not know them.\n    import { attentionContributions, startModules } from './(modules)/startup';\n\n    let { data, children } = $props();\n</script>\n\n<ShellLayout {data} {children} startup={{ attentionContributions, startModules }} />\n" },
+    { path: "+layout.svelte", content: "<script lang=\"ts\">\n    import '../app.css';\n    import { page } from '$app/state';\n    import ShellLayout from '@hearthlog/shell/pages/layout/Layout.svelte';\n    import EngineLayout from '@hearthlog/shell/pages/engine/EngineLayout.svelte';\n    import { isEnginePath } from '@hearthlog/shell/pages/engine/path.js';\n    // The tenant's composed modules: `hearthlog compose` writes this file; the shell does not know them.\n    import { attentionContributions, startModules } from './(modules)/startup';\n\n    let { data, children } = $props();\n</script>\n\n<!-- A native app's hidden engine page runs the runtime without the shell. -->\n{#if isEnginePath(page.url.pathname)}\n    <EngineLayout {data} />\n{:else}\n    <ShellLayout {data} {children} startup={{ attentionContributions, startModules }} />\n{/if}\n" },
     { path: "+layout.ts", content: "import { load as shellLoad } from '@hearthlog/shell/pages/layout/load.js';\n\nexport const load = shellLoad;\n\nexport const ssr = false;\nexport const prerender = false;\n" },
     { path: "+page.svelte", content: "<p role=\"status\">Opening your last section\u2026</p>\n" },
     { path: "+page.ts", content: "import { load as shellLoad } from '@hearthlog/shell/pages/redirects/start.js';\n\nexport const load = shellLoad;\n\nexport const ssr = false;\nexport const prerender = false;\n" },
@@ -27,6 +27,7 @@ export const CORE_ROUTE_FILES: readonly RouteFile[] = [
     { path: "entities/[type]/+page.ts", content: "import { load as shellLoad } from '@hearthlog/shell/pages/entity/load.js';\n\nexport const load = shellLoad;\n" },
     { path: "history/+page.svelte", content: "<svelte:head><title>Opening history</title></svelte:head>\n\n<p class=\"sr-only\" role=\"status\">Opening history in the sidebar\u2026</p>\n" },
     { path: "history/+page.ts", content: "import { load as shellLoad } from '@hearthlog/shell/pages/redirects/history.js';\n\nexport const load = shellLoad;\n" },
+    { path: "native-engine/+page.svelte", content: "<!-- The native engine page shows nothing: its layout is @hearthlog/shell/pages/engine/EngineLayout.svelte. -->\n" },
     { path: "today/+page.ts", content: "import { load as shellLoad } from '@hearthlog/shell/pages/redirects/today.js';\n\nexport const load = shellLoad;\n\nexport const ssr = false;\nexport const prerender = false;\n" },
 ];
 
