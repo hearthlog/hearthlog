@@ -8,9 +8,11 @@ import { tenant } from '@hearthlog/contracts/tenant/config';
 import { eventLogFilename } from '../store/event-log.svelte.js';
 import { accessSessionState, getSyncPhase, runSyncCoordinator, syncStatus } from '../store/sync.svelte.js';
 import { setPageVisibilityOverride } from '../runtime/visibility.js';
+import { onInvalidation } from '../runtime/invalidation.js';
 import {
     booleanArgument,
     createDispatcher,
+    stringArgument,
     NATIVE_BRIDGE_VERSION,
     NativeCallError,
     type EngineContext,
@@ -94,16 +96,35 @@ const CORE_HANDLERS: Readonly<Record<string, NativeHandler>> = {
     }),
 };
 
+/** What the shell gives the engine that the runtime cannot do alone. */
+export interface NativeEngineHost {
+    /** Opens another log (`switch-log.ts` in the shell); false when there is no such log to open. */
+    switchLog?: (logId: string) => Promise<boolean>;
+}
+
+/** Changed keys gathered over this long are sent as one `native:changed`. */
+const CHANGE_DEBOUNCE_MS = 150;
+
 /**
  * Installs the endpoint and starts reporting. `ready` is the workspace opening (the layout load's
  * `workspace.ready`); `loadApis` loads the enabled modules' native APIs (the composed `(modules)/native`).
  * `native:ready` follows both, or `native:failed` when either cannot finish.
  */
-export function startNativeEngine(ready: Promise<unknown>, loadApis: () => Promise<readonly NativeApi[]> = async () => []): () => void {
+export function startNativeEngine(ready: Promise<unknown>, loadApis: () => Promise<readonly NativeApi[]> = async () => [], host: NativeEngineHost = {}): () => void {
     // A hidden web view is never "visible" to WebKit; the app decides instead.
     setPageVisibilityOverride(engine.active);
     // Module functions join once their code has loaded; until then they answer `unknown_function`.
-    const handlers: Record<string, NativeHandler> = { ...CORE_HANDLERS };
+    const handlers: Record<string, NativeHandler> = {
+        ...CORE_HANDLERS,
+        /** Opens another of `engine.logs`; answers the new context once its data is read. */
+        'engine.switchLog': async (args) => {
+            requireReady();
+            const logId = stringArgument(args, 'logId');
+            if (!host.switchLog) throw new NativeCallError('failed', 'This engine cannot switch logs.');
+            if (!(await host.switchLog(logId))) throw new NativeCallError('invalid_arguments', 'No log on this device has that id.');
+            return engineContext();
+        },
+    };
     const call = createDispatcher(handlers);
     Object.defineProperty(window, 'hearthlogNative', {
         value: Object.freeze({ version: NATIVE_BRIDGE_VERSION, call } satisfies NativeEndpoint),
@@ -125,6 +146,18 @@ export function startNativeEngine(ready: Promise<unknown>, loadApis: () => Promi
         },
     );
 
+    let changed = new Set<string>();
+    let changeTimer: ReturnType<typeof setTimeout> | undefined;
+    const stopChanges = onInvalidation((keys) => {
+        for (const key of keys) changed.add(key);
+        clearTimeout(changeTimer);
+        changeTimer = setTimeout(() => {
+            const body = { keys: [...changed].sort() };
+            changed = new Set();
+            post({ type: 'native:changed', body });
+        }, CHANGE_DEBOUNCE_MS);
+    });
+
     let last = '';
     const stopEffects = $effect.root(() => {
         $effect(() => {
@@ -138,6 +171,8 @@ export function startNativeEngine(ready: Promise<unknown>, loadApis: () => Promi
 
     return () => {
         stopped = true;
+        stopChanges();
+        clearTimeout(changeTimer);
         stopEffects();
         engine.ready = false;
         setPageVisibilityOverride(null);

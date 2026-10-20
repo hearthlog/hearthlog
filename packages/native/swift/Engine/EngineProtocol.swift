@@ -50,11 +50,14 @@ enum EngineMessage: Equatable {
     case ready(bridgeVersion: Int, context: EngineContext, apis: [String: Int])
     case status(EngineStatus)
     case failed(message: String)
+    /// Refresh keys whose data changed: a sync, a write, a log switch.
+    case changed(keys: Set<String>)
 
     private struct Envelope: Decodable { var type: String }
     private struct Typed<Body: Decodable>: Decodable { var body: Body }
     private struct Ready: Decodable { var bridgeVersion: Int; var context: EngineContext; var apis: [String: Int] }
     private struct Failed: Decodable { var message: String }
+    private struct Changed: Decodable { var keys: [String] }
 
     /// `message` is a `WKScriptMessage` body: dictionaries, arrays, strings, numbers and booleans.
     init?(_ message: Any) {
@@ -74,6 +77,9 @@ enum EngineMessage: Equatable {
         case "native:status":
             guard let status = try? decoder.decode(Typed<EngineStatus>.self, from: data).body else { return nil }
             self = .status(status)
+        case "native:changed":
+            guard let changed = try? decoder.decode(Typed<Changed>.self, from: data).body else { return nil }
+            self = .changed(keys: Set(changed.keys))
         case "native:failed":
             guard let failed = try? decoder.decode(Typed<Failed>.self, from: data).body else { return nil }
             self = .failed(message: failed.message)
@@ -101,6 +107,24 @@ struct EngineCallError: Error, Equatable, LocalizedError {
 struct EngineQuery<Arguments: Encodable, Value: Decodable>: Sendable {
     let name: String
     let depends: [String]
+
+    /// Whether a `native:changed` with these keys makes this query's answer stale.
+    func isAffected(by keys: Set<String>) -> Bool {
+        depends.contains(where: keys.contains)
+    }
+}
+
+/// `engine.logs`: the logs this device knows and the open one.
+struct EngineLogs: Codable, Equatable {
+    struct Log: Codable, Equatable, Identifiable {
+        var id: String
+        var name: String
+        var headVersion: Int
+        var lastUpdatedAt: String?
+    }
+
+    var currentLogId: String?
+    var logs: [Log]
 }
 
 /// A call without arguments.

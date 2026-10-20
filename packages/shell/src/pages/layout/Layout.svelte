@@ -2,14 +2,11 @@
     import { onMount, tick, untrack } from "svelte";
     import { MediaQuery } from "svelte/reactivity";
     import { page } from "$app/state";
-    import { goto, invalidate, beforeNavigate } from "$app/navigation";
+    import { goto, beforeNavigate } from "$app/navigation";
     import { installShortcuts } from "@hearthlog/shell/components/layout/shortcuts.js";
     import { eventLogFilename } from "@hearthlog/runtime/store/event-log.svelte.js";
     import {
         syncStatus,
-        loadStoredLogSnapshot,
-        stopRealtime,
-        runSyncCoordinator,
         getSyncPhase,
     } from "@hearthlog/runtime/store/sync.svelte.js";
     import { localStoreStatus } from "@hearthlog/runtime/store/local-store.svelte.js";
@@ -24,17 +21,13 @@
     import { notify } from "@hearthlog/ui/state/notifications.svelte.js";
     import { recordTiming, measurementMetadata, beginNavigationTiming } from "@hearthlog/runtime/utils/perf.js";
     import { workspaceReadiness, workspaceIsReady } from "@hearthlog/ui/state/readiness.js";
-    import { waitForWorkspace } from "@hearthlog/runtime/runtime/workspace.js";
-    import { waitForPageUpdates } from "@hearthlog/runtime/runtime/page-data.svelte.js";
     import ErrorPage from "../error/ErrorPage.svelte";
     import { offlineReadiness } from "@hearthlog/runtime/store/offline-readiness.svelte.js";
     import { featureForPath, ENTITIES_PATH } from "@hearthlog/contracts/features/registry";
     import { attention } from "@hearthlog/runtime/store/attention.svelte.js";
     import { isFeatureEnabled, tenant } from "@hearthlog/contracts/tenant/config";
     import { calendarAttention } from "@hearthlog/shell/components/calendar/calendar-attention.js";
-    import { createAndActivateLog, prepareForkFiles } from "@hearthlog/runtime/log-management.js";
-    import { SYNC_INVALIDATION_TARGETS } from "@hearthlog/runtime/store/sync-invalidation.js";
-    import { beginReadTargetTransition, failReadTargetTransition } from "@hearthlog/runtime/runtime/read-coordinator.js";
+    import { createAndActivateLog } from "@hearthlog/runtime/log-management.js";
     import {
         isLocalDevelopmentHostname,
         loadCurrentUserEmail,
@@ -47,6 +40,7 @@
     import { startWorkspaceClock } from '@hearthlog/runtime/runtime/clock.js';
     import { startNativeShell } from '@hearthlog/runtime/native/shell.svelte.js';
     import { startWorkspaceSync } from './workspace-sync.js';
+    import { switchLog } from './switch-log.js';
     import { MODULE_ROUTES } from '#generated/modules';
     import { matchesPattern } from '@hearthlog/contracts/features/route-patterns';
 
@@ -277,38 +271,10 @@
         });
     });
 
-    async function invalidateAllViews(): Promise<void> {
-        await Promise.all(SYNC_INVALIDATION_TARGETS.map((target) => invalidate(target)));
-    }
-
     async function handleSwitchLog(logId: string): Promise<void> {
-        if (!workspaceIsReady()) return;
-        if (!logId) return;
-
-        let selectedLog = logs.value.find((log) => log.id === logId);
-        if (!selectedLog) return;
-
-        let transitionStarted = false;
         try {
-            if (selectedLog.status === 'preparing') {
-                notify.info(`Preparing ${selectedLog.name}…`);
-                await prepareForkFiles(logId);
-                await logs.refresh();
-                selectedLog = logs.value.find((log) => log.id === logId);
-                if (!selectedLog || selectedLog.status !== 'ready') throw new Error('Fork is still preparing');
-            }
-            beginReadTargetTransition();
-            transitionStarted = true;
-            await stopRealtime();
-
-            await eventLogFilename.set(logId, selectedLog.name);
-            await loadStoredLogSnapshot(logId, []);
-            await runSyncCoordinator("manual");
-            await waitForWorkspace();
-            await invalidateAllViews();
-            await waitForPageUpdates();
+            await switchLog(logId, { onPreparing: (name) => notify.info(`Preparing ${name}…`) });
         } catch (error) {
-            if (transitionStarted) failReadTargetTransition(error);
             console.error("[Layout] Failed to switch log:", error);
             notify.error(error instanceof Error ? error.message : 'Could not open this log');
             throw error;

@@ -176,6 +176,13 @@ expect(EngineMessage(["type": "native:status", "body": ["phase": "synced"]]) == 
 expect(EngineMessage(["type": "badge", "body": ["count": 1]]) == nil, "shell messages are not engine messages")
 expect(EngineMessage("text") == nil, "a message that is not an object is dropped")
 
+expect(EngineMessage(["type": "native:changed", "body": ["keys": ["app:stash", "app:stash-library"]]] as [String: Any]) == .changed(keys: ["app:stash", "app:stash-library"]), "a change message decodes")
+let scenesQuery = EngineQuery<NoArguments, NoValue>(name: "stash.scenes.list", depends: ["app:stash", "app:stash-library"])
+expect(scenesQuery.isAffected(by: ["app:stash-library"]), "a query is stale when one of its keys changed")
+expect(!scenesQuery.isAffected(by: ["app:finance"]), "a query is current when only other keys changed")
+let logsReply = try? EngineReply.decode(EngineLogs.self, from: #"{"ok":true,"value":{"currentLogId":"l1","logs":[{"id":"l1","name":"default","headVersion":12,"lastUpdatedAt":null}]}}"#)
+expect(logsReply?.logs.first?.name == "default" && logsReply?.currentLogId == "l1", "the log list decodes")
+
 struct Page: Decodable, Equatable { var total: Int }
 expect((try? EngineReply.decode(Page.self, from: #"{"ok":true,"value":{"total":3}}"#)) == Page(total: 3), "a reply decodes to its value")
 expect((try? EngineReply.decode(NoValue.self, from: #"{"ok":true,"value":null}"#)) == NoValue(), "an empty reply decodes to no value")
