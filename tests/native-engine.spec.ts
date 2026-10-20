@@ -37,7 +37,7 @@ test('the engine route opens the workspace without the shell and reports to the 
     // A cold dev server may reload the page once while it optimizes dependencies.
     await expect.poll(() => page.evaluate(() => (window as unknown as EngineWindow).__engineMessages.map((message) => message.type)).catch(() => []), { timeout: 30_000 })
         .toContain('native:ready');
-    const ready = await page.evaluate(() => (window as unknown as EngineWindow).__engineMessages.find((message) => message.type === 'native:ready')!.body);
+    const ready = await page.evaluate(() => (window as unknown as EngineWindow).__engineMessages.find((message) => message.type === 'native:ready')!.body) as { context: { logId: string } };
     expect(ready).toMatchObject({ bridgeVersion: 2, apis: {}, context: { tenantId: 'st' } });
 
     // Nothing of the shell renders: no navigation, no main area.
