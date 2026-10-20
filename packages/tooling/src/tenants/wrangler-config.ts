@@ -127,7 +127,7 @@ export function moduleBindings(
         if (!server) continue;
         for (const binding of server.bindings ?? []) {
             if (binding.type === "r2") result.r2.push({ binding: binding.binding, bucket_name: lookup(binding.resource) });
-            else result.images = true;
+            else if (binding.type === "images") result.images = true;
         }
         const settings = infrastructure.moduleSettings?.[manifest.id] ?? {};
         const declared = new Set<string>();
@@ -167,6 +167,9 @@ export function buildTenantWranglerConfig(
 ): Record<string, unknown> {
     const modules = moduleBindings(site.features, infrastructure);
     const scheduled = serverDeclarations(site.features).some((server) => server.scheduled);
+    const objects = serverDeclarations(site.features).flatMap((server) =>
+        (server.bindings ?? []).flatMap((binding) => binding.type === 'durable-object'
+            ? [{ name: binding.binding, class_name: binding.className }] : []));
     const base = WRANGLER_BASE;
     const directory = siteConfigDirectory(site.id);
     return {
@@ -202,6 +205,10 @@ export function buildTenantWranglerConfig(
                 service: infrastructure.ledgerWorker,
             },
         ],
+        ...(objects.length ? {
+            durable_objects: { bindings: objects },
+            exports: Object.fromEntries(objects.map((object) => [object.class_name, { type: 'durable-object', storage: 'sqlite' }])),
+        } : {}),
         // Each site's gateway entry bundles only the server code of the modules it enables.
         ...(modules.images ? { images: base.images } : {}),
         ratelimits: base.ratelimits,
