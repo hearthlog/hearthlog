@@ -18,6 +18,8 @@ export interface ShellInfo {
     readonly version: number;
     /** Mac: points the window buttons take, so the sidebar can leave exactly that much room. */
     readonly lights?: number;
+    /** Set by a native app's hidden engine web view (`./engine.svelte.ts`), which shows no page. */
+    readonly role?: 'engine';
 }
 
 export interface ShellMenuEntry {

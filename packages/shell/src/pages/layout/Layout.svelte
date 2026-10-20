@@ -9,10 +9,8 @@
         syncStatus,
         loadStoredLogSnapshot,
         stopRealtime,
-        handleOnline,
-        handleOffline,
-        getSyncPhase,
         runSyncCoordinator,
+        getSyncPhase,
     } from "@hearthlog/runtime/store/sync.svelte.js";
     import { localStoreStatus } from "@hearthlog/runtime/store/local-store.svelte.js";
     import { logs } from "@hearthlog/runtime/store/logs.svelte.js";
@@ -48,6 +46,7 @@
     import { rememberSection } from '@hearthlog/runtime/runtime/start-page.js';
     import { startWorkspaceClock } from '@hearthlog/runtime/runtime/clock.js';
     import { startNativeShell } from '@hearthlog/runtime/native/shell.svelte.js';
+    import { startWorkspaceSync } from './workspace-sync.js';
     import { MODULE_ROUTES } from '#generated/modules';
     import { matchesPattern } from '@hearthlog/contracts/features/route-patterns';
 
@@ -64,7 +63,6 @@
         return () => clearTimeout(timer);
     });
 
-    let logsRefreshTimeout: ReturnType<typeof setTimeout> | null = null;
     let hasRecordedFirstContentfulPaintBaseline = false;
     let hasRecordedShellInteractiveBaseline = false;
     let hasRecordedFirstSyncCompleteBaseline = false;
@@ -210,14 +208,6 @@
         };
     });
 
-    async function refreshLogs(): Promise<void> {
-        try {
-            await logs.refresh();
-        } catch (error) {
-            console.warn("[Layout] Failed to refresh logs:", error);
-        }
-    }
-
     function afterFirstPaint(callback: () => void): () => void {
         if (typeof window === "undefined") {
             callback();
@@ -271,130 +261,20 @@
 
     $effect(() => {
         const workspace = data.workspace;
-        let mounted = true;
-        let cancelInitialNetworkStart: (() => void) | null = null;
-
-        async function startInitialNetworkSync() {
-            let outcome = !navigator.onLine ? 'offline' : document.visibilityState !== 'visible' ? 'skipped' : 'success';
+        return untrack(() => {
             const route = page.url.pathname;
-            const metadata = measurementMetadata();
-            try {
-                await runSyncCoordinator("startup");
-                if (syncStatus.hasError) outcome = 'failed';
-                else if (outcome === 'success' && !syncStatus.hasCompletedSync) outcome = 'skipped';
-            } catch (syncError) {
-                outcome = 'failed';
-                console.warn("[Layout] Initial sync failed:", syncError);
-            } finally {
-                if (!hasRecordedFirstSyncCompleteBaseline) {
+            return startWorkspaceSync(workspace, {
+                defer: afterFirstPaint,
+                onInitialSync: (outcome) => {
+                    if (hasRecordedFirstSyncCompleteBaseline) return;
                     recordTiming("startup", "firstSyncComplete", performance.now(), {
-                        ...metadata, baselineMetric: "firstSyncComplete", route,
+                        ...measurementMetadata(), baselineMetric: "firstSyncComplete", route,
                         logId: eventLogFilename.value, outcome,
                     });
                     hasRecordedFirstSyncCompleteBaseline = true;
-                }
-            }
-        }
-
-        function scheduleInitialNetworkSync() {
-            if (import.meta.env.VITE_E2E === "1") {
-                syncStatus.hasCompletedSync = true;
-                syncStatus.hasError = false;
-                return;
-            }
-            cancelInitialNetworkStart?.();
-            cancelInitialNetworkStart = afterFirstPaint(() => {
-                if (!mounted || !eventLogFilename.value || hasRecordedFirstSyncCompleteBaseline) return;
-                void startInitialNetworkSync();
+                },
             });
-        }
-
-        async function init() {
-            let schemaRebuilt = false;
-
-            if (import.meta.env.DEV && "serviceWorker" in navigator) {
-                const registrations =
-                    await navigator.serviceWorker.getRegistrations();
-                for (const registration of registrations) {
-                    await registration.unregister();
-                }
-            }
-            try {
-                // console.log("[Layout] Starting initialization");
-
-                const bootstrap = await workspace.ready;
-                if (!mounted) return;
-                await logs.loadCached();
-                schemaRebuilt = bootstrap.schemaRebuilt;
-
-                if (schemaRebuilt) {
-                    console.log("[Layout] Schema was rebuilt");
-                }
-
-                void waitForPageUpdates().then(() => window.dispatchEvent(new CustomEvent("stor:app-ready"))).catch(() => undefined);
-
-                if (eventLogFilename.value) {
-                    scheduleInitialNetworkSync();
-                } else {
-                    syncStatus.hasError = false;
-                    syncStatus.errorMessage = null;
-                    console.log(
-                        "[Layout] No event log selected after initialization; skipping sync",
-                    );
-                }
-
-                console.log("[Layout] Initialization complete");
-            } catch (error) {
-                console.error("[Layout] Initialization failed:", error);
-            }
-        }
-
-        if (mounted && import.meta.env.DEV && "serviceWorker" in navigator) {
-            // ... (SW cleanup) ...
-        }
-
-        async function loopLogsRefresh() {
-            if (!mounted) return;
-            if (
-                document.visibilityState === "visible" &&
-                (typeof navigator === "undefined" || navigator.onLine)
-            ) {
-                await refreshLogs();
-            }
-            if (mounted) {
-                logsRefreshTimeout = setTimeout(loopLogsRefresh, 10000);
-            }
-        }
-
-        // Only call init once
-        untrack(() => init()).then(() => {
-            if (mounted) loopLogsRefresh();
         });
-
-        // Visibility handler
-        async function handleVisibility() {
-            if (document.visibilityState === "visible") {
-                if (eventLogFilename.value && workspaceIsReady()) {
-                    await runSyncCoordinator("visible");
-                }
-                // Trigger refresh immediately on visible
-                await refreshLogs();
-            } else {
-                await stopRealtime();
-            }
-        }
-
-        document.addEventListener("visibilitychange", handleVisibility);
-
-        return () => {
-            mounted = false;
-            cancelInitialNetworkStart?.();
-            document.removeEventListener("visibilitychange", handleVisibility);
-            if (logsRefreshTimeout) {
-                clearTimeout(logsRefreshTimeout);
-            }
-            void stopRealtime();
-        };
     });
 
     async function invalidateAllViews(): Promise<void> {
@@ -491,17 +371,6 @@
         document.documentElement.dataset.sidebarCollapsed = String(sidebarCollapsed);
     });
 
-    function onOnline() {
-        if (!workspaceIsReady()) return;
-        console.log("[Layout] Network online");
-        void handleOnline();
-    }
-
-    async function onOffline() {
-        console.log("[Layout] Network offline");
-        await handleOffline();
-    }
-
     $effect(() => {
         const message = syncStatus.errorMessage;
         if (syncStatus.hasError && message && message !== lastNotifiedSyncError) {
@@ -524,8 +393,6 @@
         if (!syncStatus.hasError) lastNotifiedSyncError = "";
     });
 </script>
-
-<svelte:window ononline={onOnline} onoffline={onOffline}></svelte:window>
 
 <svelte:head>
     <title>{tenant.title}</title>

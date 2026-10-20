@@ -151,5 +151,52 @@ expect(site("alpha").dataStoreIdentifier == site("alpha").dataStoreIdentifier, "
 expect(site("alpha").dataStoreIdentifier != site("delta").dataStoreIdentifier, "sites never share a data store")
 expect(site("alpha").dataStoreIdentifier != site("alpha", development: true).dataStoreIdentifier, "a development build never shares the real data")
 
+// MARK: Engine bridge
+
+let statusBody: [String: Any] = [
+    "phase": "synced", "ready": true, "active": true, "isOnline": true, "isSyncing": false, "hasCompletedSync": true,
+    "pendingUploads": 2, "needsAttention": 0, "errorMessage": NSNull(), "lastSyncedAt": "2026-10-20T06:30:00.123Z",
+    "signedIn": true, "logId": "log-1",
+]
+let statusMessage = EngineMessage(["type": "native:status", "body": statusBody])
+if case .status(let status)? = statusMessage {
+    expect(status.pendingUploads == 2 && status.phase == "synced", "a status message decodes")
+    expect(status.lastSynced != nil, "the last sync time parses with milliseconds")
+} else {
+    expect(false, "a status message decodes")
+}
+
+let readyMessage = EngineMessage([
+    "type": "native:ready",
+    "body": ["bridgeVersion": 2, "apis": ["stash": 1], "context": ["tenantId": "st", "title": "Stor", "origin": "https://st.example", "logId": "log-1", "logName": NSNull()]],
+] as [String: Any])
+expect(readyMessage == .ready(bridgeVersion: 2, context: EngineContext(tenantId: "st", title: "Stor", origin: "https://st.example", logId: "log-1", logName: nil), apis: ["stash": 1]), "a ready message decodes")
+expect(EngineMessage(["type": "native:failed", "body": ["message": "Disk full"]]) == .failed(message: "Disk full"), "a failure decodes")
+expect(EngineMessage(["type": "native:status", "body": ["phase": "synced"]]) == nil, "an incomplete status is dropped")
+expect(EngineMessage(["type": "badge", "body": ["count": 1]]) == nil, "shell messages are not engine messages")
+expect(EngineMessage("text") == nil, "a message that is not an object is dropped")
+
+struct Page: Decodable, Equatable { var total: Int }
+expect((try? EngineReply.decode(Page.self, from: #"{"ok":true,"value":{"total":3}}"#)) == Page(total: 3), "a reply decodes to its value")
+expect((try? EngineReply.decode(NoValue.self, from: #"{"ok":true,"value":null}"#)) == NoValue(), "an empty reply decodes to no value")
+do {
+    _ = try EngineReply.decode(Page.self, from: #"{"ok":false,"error":{"code":"unknown_function","message":"No function"}}"#)
+    expect(false, "a failed reply throws")
+} catch let error as EngineCallError {
+    expect(error.code == "unknown_function", "a failed reply throws its code")
+} catch {
+    expect(false, "a failed reply throws an engine error")
+}
+do {
+    _ = try EngineReply.decode(Page.self, from: #"{"ok":true,"value":{"pages":3}}"#)
+    expect(false, "a reply of the wrong shape throws")
+} catch let error as EngineCallError {
+    expect(error.code == "bad_reply", "a reply of the wrong shape is a bad reply")
+} catch {
+    expect(false, "a reply of the wrong shape throws an engine error")
+}
+struct Flag: Encodable { var active: Bool }
+expect((try? EngineReply.encode(Flag(active: false))) == #"{"active":false}"#, "arguments travel as JSON text")
+
 print(failures == 0 ? "All \(checks) checks passed." : "\(failures) of \(checks) checks failed.")
 exit(failures == 0 ? 0 : 1)

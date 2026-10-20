@@ -62,6 +62,7 @@
     }
   },
   "devDependencies": {
-    "@hearthlog/generated": "workspace:*"
+    "@hearthlog/generated": "workspace:*",
+    "@sinclair/typebox": "0.34.52"
   }
 }

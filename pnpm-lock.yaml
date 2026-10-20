@@ -253,6 +253,9 @@ importers:
       '@hearthlog/ui':
         specifier: workspace:*
         version: link:../ui
+      '@sinclair/typebox':
+        specifier: 0.34.52
+        version: 0.34.52
       '@sveltejs/kit':
         specifier: ^3.0.0
         version: 3.0.0(@sveltejs/vite-plugin-svelte@7.3.1(svelte@5.57.1)(vite@8.3.1(@types/node@26.6.3)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)))(svelte@5.57.1)(typescript@6.0.3)(vite@8.3.1(@types/node@26.6.3)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15))
@@ -293,6 +296,9 @@ importers:
       '@hearthlog/ui':
         specifier: workspace:*
         version: link:../ui
+      '@sinclair/typebox':
+        specifier: 0.34.52
+        version: 0.34.52
     devDependencies:
       '@hearthlog/generated':
         specifier: workspace:*
@@ -410,6 +416,9 @@ importers:
       '@hearthlog/generated':
         specifier: workspace:*
         version: link:../../dev/.generated
+      '@sinclair/typebox':
+        specifier: 0.34.52
+        version: 0.34.52
 
   packages/ui:
     dependencies:

@@ -1,4 +1,5 @@
 import { waitForPageUpdates } from '../runtime/page-data.svelte.js';
+import { pageVisible } from '../runtime/visibility.js';
 import { measurementMetadata } from '../utils/perf.js';
 import { invalidate } from '$app/navigation';
 import { db, requireActiveContext } from '../db/index.js';
@@ -319,7 +320,7 @@ async function handleTabChange(change: TabChange): Promise<void> {
         // The registry of runtime-defined entities lives in memory per tab.
         await loadDynamicEntityTypes();
     }
-    if (typeof document !== 'undefined' && document.visibilityState !== 'visible') {
+    if (!pageVisible()) {
         remoteChangePending = true;
         return;
     }
@@ -404,7 +405,7 @@ async function suspendForAccessSessionExpiry(error: AccessSessionExpiredError): 
 
 function probeAccessAfterRealtimeFailure(): void {
     if (accessProbeInFlight || synchronizationSuspended || !syncStatus.isOnline) return;
-    if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
+    if (!pageVisible()) return;
     accessProbeInFlight = true;
     void getLedgerClient().getSession()
         .catch(async (error) => {
@@ -756,7 +757,7 @@ async function resynchronizeRealtime(
         socket === eventSocket &&
         !realtimeStopRequested &&
         syncStatus.isOnline &&
-        (typeof document === 'undefined' || document.visibilityState === 'visible')
+        pageVisible()
     ) {
         await socket.open();
     }
@@ -913,7 +914,7 @@ export async function sync(trigger: SyncTrigger = 'manual'): Promise<void> {
 export async function runSyncCoordinator(trigger: SyncTrigger): Promise<void> {
     if (synchronizationSuspended) return;
     // Another tab changed the data while this one was hidden.
-    if (remoteChangePending && (typeof document === 'undefined' || document.visibilityState === 'visible')) {
+    if (remoteChangePending && pageVisible()) {
         scheduleRemoteRefresh();
     }
     if (!syncStatus.isOnline) {
@@ -922,8 +923,7 @@ export async function runSyncCoordinator(trigger: SyncTrigger): Promise<void> {
     }
     if (
         trigger !== 'manual' &&
-        typeof document !== 'undefined' &&
-        document.visibilityState !== 'visible'
+        !pageVisible()
     ) {
         await updatePendingCount();
         clearRetryWakeup();
@@ -932,10 +932,7 @@ export async function runSyncCoordinator(trigger: SyncTrigger): Promise<void> {
 
     const beforeCatchUp = catchUpRevision;
     await sync(trigger);
-    if (!synchronizationSuspended && (
-        typeof document === 'undefined' ||
-        document.visibilityState === 'visible'
-    )) {
+    if (!synchronizationSuspended && pageVisible()) {
         await initializeRealtime(catchUpRevision !== beforeCatchUp && !syncStatus.hasError ? caughtUpScope : null);
     }
 }

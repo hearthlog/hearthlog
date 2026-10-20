@@ -123,6 +123,8 @@ function linkGenerated(directory: string, work: string): string {
 export function checkModule(options: CheckModuleOptions): void {
     const work = options.work ? resolve(options.work) : mkdtempSync(join(tmpdir(), "hearthlog-check-module-"));
     try {
+        // The Swift types a native app builds against must match the native contract; a quick check, so it runs first.
+        run(process.execPath, [createRequire(import.meta.url).resolve("tsx/cli"), fileURLToPath(new URL("../native/apple-types.ts", import.meta.url)), resolve(options.directory), "--check"], resolve(options.directory));
         const name = assembleCheckSite({ directory: options.directory, work, overrides: options.overrides });
         console.log(`Checking ${name} in a throwaway site at ${work}`);
         run("pnpm", ["install", "--no-frozen-lockfile"], work);

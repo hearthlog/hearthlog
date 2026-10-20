@@ -31,6 +31,7 @@
     "#generated/module-icons": "@hearthlog/generated/module-icons"
   },
   "dependencies": {
+    "@sinclair/typebox": "0.34.52",
     "kysely": "^0.29.6",
     "date-fns": "^4.4.0",
     "sqlocal": "^0.18.0",

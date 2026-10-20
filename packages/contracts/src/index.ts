@@ -139,6 +139,12 @@ export interface ModuleManifest {
     startup?: string;
     /** A browser file exporting `attention` (an `AttentionContribution`): navigation badges and figures, and native reminders. */
     attention?: string;
+    /**
+     * Functions native apps call over the engine bridge: `contract` (`defineNativeContract`, schemas only, loaded in
+     * Node to write the Swift types) and `api` (`implementNativeApi`, run in the engine page), both in `src/native/`;
+     * `swiftTypes` is where `hearthlog apple:types` writes the Swift for them.
+     */
+    native?: { contract: string; api: string; swiftTypes?: string };
     /** A stylesheet (`./src/styles.css`) with the module's recipes; the host imports it after the shell's, only for tenants that enable the module. */
     styles?: string;
     /** Browser databases the module keeps files in, listed in the storage statistics. */
@@ -412,7 +418,7 @@ function entry(label: string, value: unknown): string {
 
 /** Validate one manifest; returns it typed. Throws ManifestError on the first problem. */
 export function validateManifest(value: unknown, source = 'hearthlog.module.json'): ModuleManifest {
-    const manifest = keys(source, value, ['$schema', 'manifestVersion', 'id', 'package', 'version', 'compatibility', 'features', 'routes', 'layouts', 'calendarIcons', 'section', 'redirects', 'data', 'projectionVersion', 'startup', 'attention', 'styles', 'localStores', 'aiCapabilities', 'integrationKinds', 'server', 'publicWorker', 'refreshKeys']);
+    const manifest = keys(source, value, ['$schema', 'manifestVersion', 'id', 'package', 'version', 'compatibility', 'features', 'routes', 'layouts', 'calendarIcons', 'section', 'redirects', 'data', 'projectionVersion', 'startup', 'attention', 'native', 'styles', 'localStores', 'aiCapabilities', 'integrationKinds', 'server', 'publicWorker', 'refreshKeys']);
     if (manifest.manifestVersion !== 1) fail(source, 'manifestVersion must be 1');
     const id = text(`${source} id`, manifest.id, MODULE_ID);
     text(`${source} package`, manifest.package, /^@[a-z0-9-]+\/[a-z0-9-]+$/);
@@ -504,6 +510,15 @@ export function validateManifest(value: unknown, source = 'hearthlog.module.json
     }
     if (manifest.startup !== undefined) entry(`${id} startup`, manifest.startup);
     if (manifest.attention !== undefined) entry(`${id} attention`, manifest.attention);
+    if (manifest.native !== undefined) {
+        const native = keys(`${id} native`, manifest.native, ['contract', 'api', 'swiftTypes']);
+        for (const key of ['contract', 'api'] as const) {
+            if (!/^\.\/src\/native\/[a-z0-9-]+\.ts$/.test(entry(`${id} native.${key}`, native[key]))) fail(id, `native.${key} must be a file in src/native/`);
+        }
+        if (native.swiftTypes !== undefined && text(`${id} native.swiftTypes`, native.swiftTypes, /^\.\/[A-Za-z0-9_./-]+\.swift$/).split('/').includes('..')) {
+            fail(id, 'native.swiftTypes must stay inside the module');
+        }
+    }
     if (manifest.styles !== undefined) text(`${id} styles`, manifest.styles, /^\.\/src\/[a-z0-9-]+\.css$/);
     for (const [index, raw] of ((manifest.localStores ?? []) as unknown[]).entries()) {
         const store = keys(`${id} localStores[${index}]`, raw, ['database', 'label', 'fileStore', 'kinds']);

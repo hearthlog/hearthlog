@@ -23,6 +23,7 @@ try {
         "-sdk", sdk,
         "-o", binary,
         ...["NavigationPolicy", "ShellMessage", "ReminderScheduler", "SiteConfig"].map((name) => path.join(SWIFT_DIRECTORY, "Shared", `${name}.swift`)),
+        path.join(SWIFT_DIRECTORY, "Engine", "EngineProtocol.swift"),
         path.join(SWIFT_DIRECTORY, "Tests", "main.swift"),
     ]);
     const result = spawnSync(binary, { stdio: "inherit" });
