@@ -51,6 +51,11 @@ test('the engine route opens the workspace without the shell and reports to the 
 
     expect(await call(page, 'engine.context')).toMatchObject({ ok: true, value: { tenantId: 'st', origin: new URL(page.url()).origin } });
     expect(await call(page, 'engine.logs')).toMatchObject({ ok: true, value: { currentLogId: ready.context.logId, logs: [{ id: ready.context.logId }] } });
+    expect(await call(page, 'engine.switchLog', { logId: 'no-such-log' })).toMatchObject({ ok: false, error: { code: 'invalid_arguments' } });
+    // Switching to the open log refreshes every view, and the app hears which keys changed.
+    expect(await call(page, 'engine.switchLog', { logId: ready.context.logId })).toMatchObject({ ok: true, value: { logId: ready.context.logId } });
+    await expect.poll(() => page.evaluate(() => (window as unknown as EngineWindow).__engineMessages.some((message) => message.type === 'native:changed')))
+        .toBe(true);
     expect(await call(page, 'engine.nope')).toMatchObject({ ok: false, error: { code: 'unknown_function' } });
     expect(await call(page, 'engine.setActive', { active: 'no' })).toMatchObject({ ok: false, error: { code: 'invalid_arguments' } });
 

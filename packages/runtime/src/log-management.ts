@@ -19,13 +19,12 @@ import {
     cancelReadTargetTransition,
 } from "./runtime/read-coordinator.js";
 import { validateNewLogName } from "./log-validation.js";
+import { announceInvalidation } from "./runtime/invalidation.js";
 
 async function invalidateAllViews(): Promise<void> {
-    await Promise.all([
-        ...MODULE_REFRESH_KEYS.map((key) => invalidate(key)),
-        invalidate("app:entities"),
-        invalidate("app:entity-types"),
-    ]);
+    const keys = [...MODULE_REFRESH_KEYS, "app:entities", "app:entity-types"];
+    announceInvalidation(keys);
+    await Promise.all(keys.map((key) => invalidate(key)));
 }
 
 /** Resume copying inherited private files; safe to call after an interrupted tab. */

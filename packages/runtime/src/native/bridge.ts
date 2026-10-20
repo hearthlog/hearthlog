@@ -39,6 +39,8 @@ export interface NativeEndpoint {
 export type NativeMessage =
     | { type: 'native:ready'; body: { bridgeVersion: number; context: EngineContext; apis: Readonly<Record<string, number>> } }
     | { type: 'native:status'; body: EngineStatus }
+    /** Refresh keys whose data changed (a sync, a local write, a log switch); the app reads what depends on them again. */
+    | { type: 'native:changed'; body: { keys: string[] } }
     | { type: 'native:failed'; body: { message: string } };
 
 export interface EngineContext {
@@ -101,6 +103,13 @@ function parseArguments(argsJson: unknown): NativeArguments {
 
 function failure(code: NativeErrorCode, message: string): NativeReply {
     return { ok: false, error: { code, message } };
+}
+
+/** Reads one non-empty string argument, or answers `invalid_arguments`. */
+export function stringArgument(args: NativeArguments, key: string): string {
+    const value = args[key];
+    if (typeof value !== 'string' || !value) throw new NativeCallError('invalid_arguments', `${key} must be a non-empty string.`);
+    return value;
 }
 
 /** Reads one boolean argument, or answers `invalid_arguments`. */

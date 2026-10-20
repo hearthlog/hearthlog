@@ -1,5 +1,6 @@
 import { waitForPageUpdates } from '../runtime/page-data.svelte.js';
 import { pageVisible } from '../runtime/visibility.js';
+import { announceInvalidation } from '../runtime/invalidation.js';
 import { measurementMetadata } from '../utils/perf.js';
 import { invalidate } from '$app/navigation';
 import { db, requireActiveContext } from '../db/index.js';
@@ -335,6 +336,7 @@ if (typeof window !== 'undefined') {
 
 async function invalidateViews(): Promise<void> {
     await withTiming('ui', 'invalidateTargets', async () => {
+        announceInvalidation(SYNC_INVALIDATION_TARGETS);
         await Promise.all(SYNC_INVALIDATION_TARGETS.map((target) => invalidate(target)));
         await waitForPageUpdates();
     }, { ...measurementMetadata(), kind: 'refresh', baselineMetric: 'invalidationCost', route: typeof location === 'undefined' ? '' : location.pathname, targetCount: SYNC_INVALIDATION_TARGETS.length });

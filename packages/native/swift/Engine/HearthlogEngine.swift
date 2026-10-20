@@ -1,3 +1,4 @@
+import Combine
 import WebKit
 
 #if os(macOS)
@@ -25,6 +26,9 @@ final class HearthlogEngine: NSObject, ObservableObject {
     @Published private(set) var status: EngineStatus?
     /// Module API versions the site reported (`stash: 1`), for compatibility checks.
     @Published private(set) var apis: [String: Int] = [:]
+
+    /// Refresh keys whose data changed; screens read again what depends on them (`EngineQuery.isAffected(by:)`).
+    let changes = PassthroughSubject<Set<String>, Never>()
 
     let site: SiteConfig
     let policy: NavigationPolicy
@@ -128,6 +132,17 @@ final class HearthlogEngine: NSObject, ObservableObject {
         return status
     }
 
+    func logs() async throws -> EngineLogs {
+        try await call("engine.logs")
+    }
+
+    /// Opens another log; every screen reads again, since all of its data changes.
+    func switchLog(to logId: String) async throws {
+        struct Arguments: Encodable { var logId: String }
+        let context: EngineContext = try await call("engine.switchLog", Arguments(logId: logId))
+        state = .ready(context)
+    }
+
     /// Sync and realtime run only while the app is active, as they do in a visible browser tab.
     func setActive(_ active: Bool) async {
         struct Arguments: Encodable { var active: Bool }
@@ -154,6 +169,8 @@ final class HearthlogEngine: NSObject, ObservableObject {
             state = .ready(context)
         case .status(let status):
             self.status = status
+        case .changed(let keys):
+            changes.send(keys)
         case .failed(let message):
             state = .failed(message)
         }
