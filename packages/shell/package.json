@@ -30,8 +30,8 @@
     "#generated/modules": "@hearthlog/generated/modules"
   },
   "dependencies": {
-    "@tanstack/svelte-table": "^9.2.4",
-    "bits-ui": "^2.19.3",
+    "@tanstack/svelte-table": "^9.3.1",
+    "bits-ui": "^2.19.5",
     "date-fns": "^4.4.0",
     "@hearthlog/contracts": "workspace:*",
     "@hearthlog/czech": "workspace:*",
