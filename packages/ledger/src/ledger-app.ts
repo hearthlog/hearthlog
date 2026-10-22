@@ -1,4 +1,6 @@
 import { DurableObject } from "cloudflare:workers";
+import { LogMaintenanceStore } from './log-maintenance';
+import type { CheckpointChunk, LogMaintenance, CompactionPreview } from '@hearthlog/contracts/history/checkpoint';
 
 import { SOCKET_PROTOCOL } from "./auth";
 import {
@@ -140,11 +142,89 @@ interface SocketSessionRow extends Record<string, SqlStorageValue> {
 }
 
 export class LedgerApp extends DurableObject<Env> {
+    private maintenanceQueue: Promise<unknown> = Promise.resolve();
+
+    private maintenance(assertWritable: () => void = () => undefined): LogMaintenanceStore {
+        const appId = this.ctx.storage.sql.exec<{ app_id: string }>('SELECT app_id FROM app_metadata WHERE singleton = 1').one().app_id;
+        const store = new LogMaintenanceStore(this.ctx.storage, this.env.LEDGER_ARCHIVE, appId,
+            async (logId, after, through, limit, entityId) => {
+                const rows = store.observeSql(this.ctx.storage.sql.exec<EventRow>(`WITH candidates AS (
+                    SELECT *, SUM(COALESCE(payload_bytes, length(CAST(payload AS BLOB)))) OVER (ORDER BY version) AS byte_count,
+                        ROW_NUMBER() OVER (ORDER BY version) AS row_number
+                    FROM (SELECT * FROM log_events WHERE log_id = ? AND version > ? AND version <= ?
+                        ${entityId === undefined ? '' : 'AND entity_id = ?'} ORDER BY version LIMIT ?)
+                ) SELECT * FROM candidates WHERE byte_count <= 1500000 OR row_number = 1`,
+                    logId, after, through, ...(entityId === undefined ? [] : [entityId]), limit)).toArray();
+                return store.hydrate(logId, rows.map(storedEvent));
+            }, assertWritable, Math.max(128, Math.min(100000, Number(this.env.MAINTENANCE_DAILY_WRITES) || 10000)),
+            Math.max(10000, Math.min(1_000_000_000, Number(this.env.MAINTENANCE_DAILY_READS) || 1_000_000)));
+        return store;
+    }
+
+    async logMaintenance(access: AccessClaims, logId: string): Promise<RpcResult<LogMaintenance>> {
+        return rpcCall(() => {
+            this.currentAccess(access);
+            if (!this.log(parseUuid(logId, 'log id'))) throw validationError('Log not found');
+            return rpcSuccess(this.maintenance().state(logId));
+        });
+    }
+
+    async compactionPreview(access: AccessClaims, logId: string): Promise<RpcResult<CompactionPreview>> {
+        return rpcCall(() => {
+            this.currentAccess(access);
+            if (!this.log(parseUuid(logId, 'log id'))) throw validationError('Log not found');
+            return rpcSuccess(this.maintenance().preview(logId));
+        });
+    }
+
+    async startLogMaintenance(access: AccessClaims, logId: string, id: string, kind: 'snapshot' | 'compact', expectedCheckpointId?: string, expectedGeneration?: number): Promise<RpcResult<LogMaintenance>> {
+        return rpcCall(() => {
+            this.writableAccess(access);
+            return rpcSuccess(this.maintenance().start(parseUuid(logId, 'log id'), parseUuid(id, 'request id'), kind, expectedCheckpointId, expectedGeneration));
+        });
+    }
+
+    async stepLogMaintenance(access: AccessClaims, logId: string, id: string): Promise<RpcResult<LogMaintenance>> {
+        return rpcCall(async () => {
+            this.writableAccess(access);
+            const run = this.maintenanceQueue.then(() => this.maintenance(() => { this.writableAccess(access); }).step(parseUuid(logId, 'log id'), parseUuid(id, 'request id')));
+            this.maintenanceQueue = run.then(() => undefined, () => undefined);
+            const result = await run;
+            this.currentAccess(access);
+            return rpcSuccess(result);
+        });
+    }
+
+    async checkpointChunk(access: AccessClaims, logId: string, index: number): Promise<RpcResult<Omit<CheckpointChunk, 'events'> & { events: StoredEvent[] }>> {
+        return rpcCall(async () => {
+            this.currentAccess(access);
+            const result = await this.maintenance().chunk(parseUuid(logId, 'log id'), parseNonnegativeInteger(index, 'page'));
+            this.currentAccess(access);
+            return rpcSuccess({ ...result, events: result.events.map(event => ({ ...event, payload: event.payload as StoredEvent['payload'] })) });
+        });
+    }
     constructor(ctx: DurableObjectState, env: Env) {
         super(ctx, env);
         this.ctx.blockConcurrencyWhile(async () => {
             migrateLedgerApp(this.ctx.storage);
         });
+    }
+
+    /** Delete storage belonging to an explicitly deleted log, in bounded batches. */
+    override async alarm(): Promise<void> {
+        const job = this.ctx.storage.sql.exec<{ log_id: string }>('SELECT log_id FROM log_archive_deletions LIMIT 1').toArray()[0];
+        if (!job) return;
+        try {
+            const app = this.ctx.storage.sql.exec<{ app_id: string }>('SELECT app_id FROM app_metadata WHERE singleton = 1').one();
+            const bucket = this.env.LEDGER_ARCHIVE;
+            const objects = await bucket.list({ prefix: `v1/${app.app_id}/${job.log_id}/`, limit: 128 });
+            if (objects.objects.length) await bucket.delete(objects.objects.map(object => object.key));
+            if (!objects.truncated) this.ctx.storage.sql.exec('DELETE FROM log_archive_deletions WHERE log_id = ?', job.log_id);
+        } finally {
+            if (this.ctx.storage.sql.exec('SELECT 1 FROM log_archive_deletions LIMIT 1').toArray().length) {
+                await this.ctx.storage.setAlarm(Date.now() + 60_000);
+            }
+        }
     }
 
     override async fetch(request: Request): Promise<Response> {
@@ -222,7 +302,7 @@ export class LedgerApp extends DurableObject<Env> {
             return rpcSuccess({
                 appId: claims.appId,
                 principalId: claims.principalId,
-                capabilities: ["action-metadata-v1", "workspace-restore-v1", "event-excision-v1"],
+                capabilities: ["snapshot-baseline-v1", "action-metadata-v1", "workspace-restore-v1", "event-excision-v1"],
                 ...(fence ? { fence } : {}),
             });
         });
@@ -247,9 +327,19 @@ export class LedgerApp extends DurableObject<Env> {
     }
 
     async administratorSetLogLineage(appId: string, logId: string, payload: unknown): Promise<RpcResult<LogSummary>> {
-        return rpcCall(() => {
+        return rpcCall(async () => {
             this.administratorApplication(appId);
             const { sourceLogId, sourceVersion } = decodeRpc(logLineageBody, payload, 'log lineage');
+            // Prefix identity is logical, even when the two logs use different
+            // physical archive layouts. Never compare '{}' payload placeholders.
+            for (let after = 0; after < sourceVersion;) {
+                const child = await this.hydrateEvents(logId, this.eventsThrough(logId, after, sourceVersion, 128));
+                const parent = await this.hydrateEvents(sourceLogId, this.eventsThrough(sourceLogId, after, sourceVersion, 128));
+                if (!child.length || child.length !== parent.length || child.some((event, index) => event.id !== parent[index]!.id
+                    || JSON.stringify(event.payload) !== JSON.stringify(parent[index]!.payload))) throw validationError('Fork prefix does not match its source');
+                after = child[child.length - 1]!.version;
+            }
+
             this.ctx.storage.transactionSync(() => {
                 const target = this.log(logId);
                 const source = this.log(sourceLogId);
@@ -272,7 +362,7 @@ export class LedgerApp extends DurableObject<Env> {
                     `SELECT COUNT(*) AS count FROM log_events AS child
                      LEFT JOIN log_events AS parent ON parent.log_id = ? AND parent.version = child.version
                      WHERE child.log_id = ? AND child.version <= ?
-                       AND (parent.event_id IS NULL OR parent.event_id != child.event_id OR parent.payload != child.payload)`,
+                       AND (parent.event_id IS NULL OR parent.event_id != child.event_id)`,
                     sourceLogId, logId, sourceVersion,
                 ).toArray()[0]?.count ?? 0;
                 if (mismatches) throw validationError('Fork prefix does not match its source');
@@ -342,6 +432,10 @@ export class LedgerApp extends DurableObject<Env> {
 
     async administratorExportSqlite(appId: string): Promise<Response> {
         this.administratorApplication(appId);
+        if (this.ctx.storage.sql.exec('SELECT 1 FROM log_events WHERE archive_key IS NOT NULL LIMIT 1').toArray().length
+            || this.ctx.storage.sql.exec('SELECT 1 FROM log_storage WHERE checkpoint IS NOT NULL LIMIT 1').toArray().length) {
+            return jsonError('archive_bundle_required', 'Use the complete logical export or application transfer; archived payloads are outside SQLite.', 409);
+        }
         return sqliteExport(
             this.ctx.storage,
             `ledger-${appId}-${new Date().toISOString().replaceAll(":", "-")}`,
@@ -456,7 +550,7 @@ export class LedgerApp extends DurableObject<Env> {
         logId: string,
         query: AdminEventsQuery,
     ): Promise<RpcResult<AdminEventsResponse>> {
-        return rpcCall(() => {
+        return rpcCall(async () => {
             this.administratorApplication(appId);
             const id = parseUuid(logId, "log id");
             const parsed = decodeRpc(
@@ -492,7 +586,7 @@ export class LedgerApp extends DurableObject<Env> {
                     limit + 1,
                 )
                 .toArray();
-            const events = rows.slice(0, limit).map(storedEvent);
+            const events = await this.hydrateEvents(id, rows.slice(0, limit).map(storedEvent));
             return rpcSuccess({
                 events,
                 headVersion: log.version,
@@ -610,9 +704,10 @@ export class LedgerApp extends DurableObject<Env> {
         access: AccessClaims,
         logId: string,
     ): Promise<RpcResult<null>> {
-        return rpcCall(() => {
+        return rpcCall(async () => {
             const claims = this.writableAccess(access);
             this.deleteLogValue(parseUuid(logId, "logId"), claims);
+            await this.ctx.storage.setAlarm(Date.now() + 1000);
             return rpcSuccess(null, 204);
         });
     }
@@ -624,11 +719,14 @@ export class LedgerApp extends DurableObject<Env> {
         limit: number | undefined,
         replayVersion = 0,
     ): Promise<RpcResult<EventBatchResponse>> {
-        return rpcCall(() => {
+        return rpcCall(async () => {
             this.currentAccess(access);
             const id = parseUuid(logId, "logId");
             this.assertReplayCompatible(id, replayVersion);
-            return rpcSuccess(this.getEventsValue(id, afterVersion, limit));
+            const batch = this.getEventsValue(id, afterVersion, limit);
+            const events = await this.hydrateEvents(id, batch.events);
+            this.currentAccess(access);
+            return rpcSuccess({ events });
         });
     }
 
@@ -721,7 +819,8 @@ export class LedgerApp extends DurableObject<Env> {
                         log.id, after, TRANSFER_PAGE,
                     ).toArray();
                     if (rows.length === 0) break;
-                    digest = await chainChecksum(digest, rows.map(checksumLine));
+                    const hydrated = await this.hydrateEvents(log.id, rows.map(storedEvent));
+                    digest = await chainChecksum(digest, rows.map((row, index) => checksumLine({ ...row, payload: JSON.stringify(hydrated[index]!.payload) })));
                     count += rows.length;
                     after = rows[rows.length - 1]!.version;
                 }
@@ -758,7 +857,7 @@ export class LedgerApp extends DurableObject<Env> {
                 throw transferError("not_importing", "Only an import in progress can be aborted");
             }
             this.ctx.storage.transactionSync(() => {
-                for (const table of ["gallery_photo_references", "log_fork_requests", "append_requests", "entity_claims", "log_events", "logs", "app_metadata"]) {
+                for (const table of ["log_storage", "log_archive_pages", "log_maintenance_jobs", "gallery_photo_references", "log_fork_requests", "append_requests", "entity_claims", "log_events", "logs", "app_metadata"]) {
                     this.ctx.storage.sql.exec(`DELETE FROM ${table}`);
                 }
             });
@@ -1006,9 +1105,9 @@ export class LedgerApp extends DurableObject<Env> {
             );
             this.ctx.storage.sql.exec(
                 `INSERT INTO log_events (log_id, version, event_id, event_type, entity_id, entity_version,
-                    event_timestamp, payload, action_id, action_index, action_size, actor)
+                    event_timestamp, payload, action_id, action_index, action_size, actor, archive_key, payload_bytes)
                  SELECT ?, version, event_id, event_type, entity_id, entity_version,
-                    event_timestamp, payload, action_id, action_index, action_size, actor
+                    event_timestamp, payload, action_id, action_index, action_size, actor, archive_key, payload_bytes
                  FROM log_events WHERE log_id = ? AND version <= ? ORDER BY version`,
                 id, sourceLogId, targetVersion,
             );
@@ -1058,13 +1157,25 @@ export class LedgerApp extends DurableObject<Env> {
         }
         this.ctx.storage.transactionSync(() => {
             this.currentAccess(access);
+            if (this.ctx.storage.sql.exec("SELECT 1 FROM log_maintenance_jobs WHERE log_id = ? AND status NOT IN ('complete', 'failed') LIMIT 1", logId).toArray().length) {
+                throw new LedgerError(409, { error: 'Conflict', code: 'maintenance_in_progress', message: 'Finish log maintenance before deleting this log.' });
+            }
             if (this.ctx.storage.sql.exec('SELECT 1 FROM logs WHERE source_log_id = ? LIMIT 1', logId).toArray().length) {
                 throw new LedgerError(409, { error: 'Conflict', code: 'log_has_forks',
                     message: 'Remove descendant logs before deleting their source.' });
             }
+            if (this.ctx.storage.sql.exec(`SELECT 1 FROM log_events WHERE log_id != ? AND archive_key IN
+                (SELECT object_key FROM log_archive_pages WHERE log_id = ?) LIMIT 1`, logId, logId).toArray().length) {
+                throw new LedgerError(409, { error: 'Conflict', code: 'log_has_archive_dependents',
+                    message: 'Other logs still depend on this archived history.' });
+            }
             for (const query of [
+                "DELETE FROM log_checkpoint_entities WHERE job_id IN (SELECT id FROM log_maintenance_jobs WHERE log_id = ?)",
                 "DELETE FROM log_fork_requests WHERE fork_log_id = ?",
                 "DELETE FROM append_requests WHERE log_id = ?",
+                "DELETE FROM log_storage WHERE log_id = ?",
+                "DELETE FROM log_archive_pages WHERE log_id = ?",
+                "DELETE FROM log_maintenance_jobs WHERE log_id = ?",
                 "DELETE FROM gallery_photo_references WHERE log_id = ?",
                 "DELETE FROM entity_claims WHERE log_id = ?",
                 "DELETE FROM log_events WHERE log_id = ?",
@@ -1072,6 +1183,7 @@ export class LedgerApp extends DurableObject<Env> {
             ]) {
                 this.ctx.storage.sql.exec(query, logId);
             }
+            this.ctx.storage.sql.exec('INSERT OR IGNORE INTO log_archive_deletions (log_id) VALUES (?)', logId);
         });
         this.closeLogSockets(logId, 1008, "log_deleted");
     }
@@ -1112,6 +1224,18 @@ export class LedgerApp extends DurableObject<Env> {
         }
         validateIncomingEvents(request.events);
         const requestHash = await hashAppendRequest(logId, request);
+
+        // The original response may now live in R2. Resolve it before entering
+        // the synchronous append transaction; accepted requests never append twice.
+        const receipt = this.ctx.storage.sql.exec<{ request_hash: string; first_version: number | null; last_version: number | null }>(
+            'SELECT request_hash, first_version, last_version FROM append_requests WHERE log_id = ? AND request_id = ?', logId, request.requestId).toArray()[0];
+        if (receipt && receipt.first_version !== null && receipt.last_version !== null) {
+            if (receipt.request_hash !== requestHash) throw new LedgerError(409, { error: 'Conflict', code: 'idempotency_mismatch' });
+            const result = this.replayedAppend(logId, receipt.first_version, receipt.last_version);
+            result.events = await this.hydrateEvents(logId, result.events);
+            this.currentAccess(access);
+            return result;
+        }
 
         const response = this.ctx.storage.transactionSync(() => {
             this.currentAccess(access);
@@ -1479,6 +1603,12 @@ export class LedgerApp extends DurableObject<Env> {
             return;
         }
         const head = this.logHead(attachment.logId);
+        const archived = this.ctx.storage.sql.exec<{ version: number | null }>('SELECT MAX(version) AS version FROM log_events WHERE log_id = ? AND archive_key IS NOT NULL', attachment.logId).one().version ?? 0;
+        if (attachment.cursor < archived) {
+            this.sendFrame(ws, { type: 'resync_required', headVersion: head, reason: 'gap_too_large' });
+            ws.close(1008, 'baseline resync required');
+            return;
+        }
         if (attachment.cursor > head) {
             this.sendFrame(ws, {
                 type: "resync_required",
@@ -1756,7 +1886,7 @@ export class LedgerApp extends DurableObject<Env> {
             });
             totals.logs += 1;
             for (let after = 0; after < log.version;) {
-                const events = this.eventsThrough(log.id, after, log.version, TRANSFER_PAGE);
+                const events = await this.hydrateEvents(log.id, this.eventsThrough(log.id, after, log.version, TRANSFER_PAGE));
                 if (events.length === 0) throw new Error(`log ${log.id} export stopped at version ${after}`);
                 yield line({ t: "events", logId: log.id, events });
                 after = events[events.length - 1]!.version;
@@ -1831,6 +1961,14 @@ export class LedgerApp extends DurableObject<Env> {
         return log.version;
     }
 
+    private async hydrateEvents(logId: string, events: StoredEvent[]): Promise<StoredEvent[]> {
+        if (!events.length) return events;
+        const ordered = [...events].sort((a, b) => a.version - b.version);
+        const hydrated = await this.maintenance().hydrate(logId, ordered);
+        const byId = new Map(hydrated.map(event => [event.id, event]));
+        return events.map(event => ({ ...event, payload: byId.get(event.id)!.payload as StoredEvent['payload'] }));
+    }
+
     private eventsAfter(
         logId: string,
         after: number,
@@ -1899,12 +2037,12 @@ export class LedgerApp extends DurableObject<Env> {
             let cursor = 0;
             let firstEvent = true;
             while (cursor < log.headVersion) {
-                const events = this.eventsThrough(
+                const events = await this.hydrateEvents(log.id, this.eventsThrough(
                     log.id,
                     cursor,
                     log.headVersion,
                     MAX_CATCH_UP,
-                );
+                ));
                 if (events.length === 0) {
                     throw new Error(
                         `log ${log.id} export stopped at version ${cursor}`,

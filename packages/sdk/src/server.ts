@@ -14,6 +14,7 @@ export {
 } from '@hearthlog/cloudflare/access-auth.js';
 export { isUuid, LedgerScopeError, verifyLogAppId, type LedgerScopeEnv } from '@hearthlog/cloudflare/ledger-scope.js';
 export { readBodyCapped } from '@hearthlog/cloudflare/request-body.js';
+export { readLedgerCheckpoint } from '@hearthlog/cloudflare/checkpoint-reader.js';
 export type {
     DevServerContext, DevServerModule, FileContributor, ForkFile, ForkHistoryEvent, IntegrationHandler, IntegrationRequest, ServerModule, ServiceAppend,
     ServiceEvent,

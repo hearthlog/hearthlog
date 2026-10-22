@@ -187,6 +187,34 @@ const LEDGER_APP_MIGRATIONS: readonly Migration[] = [
         ALTER TABLE app_metadata ADD COLUMN fence_mode TEXT;
         ALTER TABLE app_metadata ADD COLUMN fence_destination TEXT;
     ` },
+    { id: 14, sql: `
+        ALTER TABLE log_events ADD COLUMN archive_key TEXT;
+        ALTER TABLE log_events ADD COLUMN payload_bytes INTEGER;
+        CREATE INDEX log_events_snapshot_markers ON log_events(log_id, version)
+            WHERE event_type IN ('EVENT_TOMBSTONED', 'WORKSPACE_RESTORED', 'EVENTS_EXCISED');
+        CREATE INDEX log_events_archived_cursor ON log_events(log_id, version) WHERE archive_key IS NOT NULL;
+        CREATE TABLE log_storage (
+            log_id TEXT PRIMARY KEY, compacted_through INTEGER NOT NULL DEFAULT 0,
+            generation INTEGER NOT NULL DEFAULT 0, checkpoint TEXT
+        );
+        CREATE TABLE log_maintenance_jobs (
+            id TEXT PRIMARY KEY, log_id TEXT NOT NULL, kind TEXT NOT NULL,
+            through_version INTEGER NOT NULL, status TEXT NOT NULL, cursor INTEGER NOT NULL,
+            entity_cursor TEXT NOT NULL, pages TEXT NOT NULL, error TEXT,
+            updated_at TEXT NOT NULL, day TEXT NOT NULL, writes INTEGER NOT NULL, reads INTEGER NOT NULL DEFAULT 0
+        );
+        CREATE INDEX log_maintenance_scope ON log_maintenance_jobs(log_id);
+        CREATE TABLE log_checkpoint_entities (
+            job_id TEXT NOT NULL, entity_id TEXT NOT NULL, object_key TEXT NOT NULL,
+            PRIMARY KEY(job_id, entity_id)
+        );
+        CREATE TABLE log_archive_deletions (log_id TEXT PRIMARY KEY);
+        CREATE TABLE log_archive_pages (
+            log_id TEXT NOT NULL, first_version INTEGER NOT NULL, last_version INTEGER NOT NULL,
+            object_key TEXT NOT NULL, sha256 TEXT NOT NULL, PRIMARY KEY(log_id, first_version)
+        );
+        CREATE INDEX log_archive_object ON log_archive_pages(object_key);
+    ` },
 ];
 
 const APP_REGISTRY_MIGRATIONS: readonly Migration[] = [

@@ -128,6 +128,13 @@ export const logParams = t.Object(
     strictObject,
 );
 
+export const maintenanceBody = t.Object({
+    requestId: uuid('request id'), kind: t.Union([t.Literal('snapshot'), t.Literal('compact')]),
+    expectedCheckpointId: t.Optional(uuid('checkpoint id')), expectedGeneration: t.Optional(t.Integer(queryInteger)),
+}, strictObject);
+export const maintenanceStepBody = t.Object({ requestId: uuid('request id') }, strictObject);
+export const checkpointPageQuery = t.Object({ page: t.Numeric(queryInteger) }, strictObject);
+
 export const galleryPhotoReferenceParams = t.Object(
     {
         logId: uuid('log id'),

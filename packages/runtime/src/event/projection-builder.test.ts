@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { createProjectionTestDatabase, type ProjectionTestDatabase } from '../testing/projection-database.js';
+import { buildCheckpointEvents, type CheckpointEvent } from '@hearthlog/contracts/history/checkpoint';
 
 const open: ProjectionTestDatabase[] = [];
 afterEach(async () => {
@@ -13,6 +14,30 @@ function fixture(history = false): ProjectionTestDatabase {
 }
 
 describe('canonical projection boundaries', () => {
+    it('replays 10,000 edits from the same compact witnesses with identical SQLite field and timestamp semantics', async () => {
+        const source: CheckpointEvent[] = Array.from({ length: 10_000 }, (_, index) => {
+            const version = index + 1;
+            return { id: `edit-${version}`, entityId: 'calendar_event:one', entityVersion: version, version, timestamp: version * 1000,
+                type: version === 1 ? 'CALENDAR_EVENT_ADDED' : 'CALENDAR_EVENT_UPDATED',
+                payload: { id: 'one', title: `Title ${version}`,
+                    ...(version === 1 ? { eventDate: '2026-10-22', notes: 'Initial' } : {}),
+                    ...(version === 2000 ? { futureField: ['preserved'] } : {}),
+                    ...(version === 5000 ? { notes: 'Middle' } : {}), ...(version === 9999 ? { notes: null } : {}) } };
+        });
+        const witnesses = buildCheckpointEvents(source, 10_000);
+        const replay = async (events: CheckpointEvent[]) => {
+            const database = fixture();
+            for (const event of events) database.addEvent({ ...event, logVersion: event.version });
+            const started = performance.now();
+            await database.rebuild('calendar_event');
+            return { records: database.sqlite.prepare('SELECT * FROM calendar_events').all(), milliseconds: performance.now() - started };
+        };
+        const full = await replay(source), baseline = await replay(witnesses);
+        expect(baseline.records).toEqual(full.records);
+        expect(witnesses).toHaveLength(4);
+        process.stdout.write(`${JSON.stringify({ sourceEvents: source.length, baselineEvents: witnesses.length,
+            fullReplayMs: full.milliseconds, baselineReplayMs: baseline.milliseconds })}\n`);
+    });
     it('uses temporal tombstones in history and includes pending local events only in Now', async () => {
         const db = fixture(true);
         const entityId = 'calendar_event:event-1';

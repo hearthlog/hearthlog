@@ -1,4 +1,5 @@
 import { sql, type Kysely } from 'kysely';
+import { baselineVersion, loadArchivedHistory } from './baseline.js';
 import { db, type Database } from '../db/index.js';
 import { generateDynamicTableDDL } from '../db/dynamic-ddl.js';
 import { getAllEntityDDL, getAllEntityIndexDDL } from '#generated/schema';
@@ -95,6 +96,7 @@ export async function readActionChanges(previousVersion: number, version: number
 async function withPointSnapshot<T>(version: number, scope: ReadScope,
     read: (schema: string, configs: Awaited<ReturnType<typeof buildPointSnapshot>>['projectionConfigs']) => Promise<T>): Promise<T> {
     if (!Number.isSafeInteger(version) || version < 0) throw new Error('Invalid history version');
+    if (await baselineVersion(scope) > 0) await loadArchivedHistory();
     const head = await downloadedHead(scope);
     if (version > (head ?? 0)) throw new Error('Download this log before inspecting its history');
     if (version > 0) {

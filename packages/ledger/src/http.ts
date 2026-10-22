@@ -32,6 +32,7 @@ import {
     importFinishBody,
     importRecordsBody,
     forkLogBody,
+    maintenanceBody, maintenanceStepBody, checkpointPageQuery,
     logVisibilityBody,
     galleryPhotoReferenceParams,
     logLineageBody,
@@ -444,6 +445,21 @@ const app = new Elysia({
                     response: { 200: "LogResponse" },
                 },
             )
+            .get('/logs/:logId/maintenance', async ({ access, params, request }) =>
+                rpcResponse(await ledger(access).logMaintenance(access, params.logId), requestOrigin(request)),
+                { params: logParams })
+            .get('/logs/:logId/maintenance-preview', async ({ access, params, request }) =>
+                rpcResponse(await ledger(access).compactionPreview(access, params.logId), requestOrigin(request)),
+                { params: logParams })
+            .post('/logs/:logId/maintenance', async ({ access, params, body, request }) =>
+                rpcResponse(await ledger(access).startLogMaintenance(access, params.logId, body.requestId, body.kind, body.expectedCheckpointId, body.expectedGeneration), requestOrigin(request)),
+                { params: logParams, body: maintenanceBody })
+            .post('/logs/:logId/maintenance/step', async ({ access, params, body, request }) =>
+                rpcResponse(await ledger(access).stepLogMaintenance(access, params.logId, body.requestId), requestOrigin(request)),
+                { params: logParams, body: maintenanceStepBody })
+            .get('/logs/:logId/checkpoint', async ({ access, params, query, request }) =>
+                rpcResponse(await ledger(access).checkpointChunk(access, params.logId, query.page), requestOrigin(request)),
+                { params: logParams, query: checkpointPageQuery })
             .get(
                 "/logs/:logId/gallery-photos/:photoId/files/:fileVersionId/reference",
                 async ({ access, params, request }) =>

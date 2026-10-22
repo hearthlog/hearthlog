@@ -44,7 +44,9 @@ export async function repairStoredProgress(database: Kysely<Database>): Promise<
             const rows = await tx.selectFrom('raw_events').select('log_version').distinct()
                 .where('tenant_id', '=', scope.tenant_id).where('log_id', '=', scope.log_id)
                 .where('log_version', 'is not', null).orderBy('log_version').execute();
-            const complete = contiguousThrough(0, rows.map(row => row.log_version!));
+            const baseline = await tx.selectFrom('log_baselines').select('through_version')
+                .where('tenant_id', '=', scope.tenant_id).where('log_id', '=', scope.log_id).executeTakeFirst();
+            const complete = contiguousThrough(baseline?.through_version ?? 0, rows.map(row => row.log_version!));
             await tx.updateTable('log_sync_state').set({
                 downloaded_head_version: Math.min(scope.downloaded_head_version, complete),
                 projected_head_version: Math.min(scope.projected_head_version, complete),

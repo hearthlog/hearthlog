@@ -1,3 +1,4 @@
+import { rebuildCheckpointVersions } from '../history/baseline.js';
 /**
  * Entity Version Tracker
  * 
@@ -148,77 +149,7 @@ export class EntityVersionTracker {
         .execute();
       console.log('[VersionTracker] Cleared existing version cache');
 
-      // Query all events with entity information, ordered by entity and version
-      const events = await this.db
-        .selectFrom('raw_events')
-        .select(['entity_id', 'entity_version', 'log_version', 'timestamp'])
-        .where('tenant_id', '=', context.tenantId)
-        .where('log_id', '=', context.logId)
-        .where('sync_state', '=', 'synced')
-        .where('entity_id', 'is not', null)
-        .where('entity_version', 'is not', null)
-        .where('log_version', 'is not', null)
-        .orderBy('entity_id', 'asc')
-        .orderBy('entity_version', 'asc')
-        .execute();
-
-      console.log('[VersionTracker] Found', events.length, 'events with entity version data');
-
-      if (events.length === 0) {
-        console.log('[VersionTracker] No events to rebuild from');
-        return;
-      }
-
-      // Group by entity and find the maximum version for each
-      const entityVersions = new Map<
-        string,
-        { currentVersion: number; logVersion: number; updatedAt: number }
-      >();
-
-      for (const event of events) {
-        if (event.entity_id && event.entity_version !== null) {
-          const existing = entityVersions.get(event.entity_id);
-          if (event.log_version === null) {
-            continue;
-          }
-
-          if (!existing || event.entity_version > existing.currentVersion) {
-            entityVersions.set(event.entity_id, {
-              currentVersion: event.entity_version,
-              logVersion: event.log_version,
-              updatedAt: event.timestamp
-            });
-          }
-        }
-      }
-
-      console.log('[VersionTracker] Rebuilding cache for', entityVersions.size, 'entities');
-
-      // Insert all entity versions in a transaction
-      if (entityVersions.size > 0) {
-        await this.db.transaction().execute(async (trx) => {
-          const values = Array.from(entityVersions.entries()).map(
-            ([entityId, { currentVersion, logVersion, updatedAt }]) => ({
-              tenant_id: context.tenantId,
-              log_id: context.logId,
-              entity_id: entityId,
-              current_version: currentVersion,
-              log_version: logVersion,
-              updated_at: updatedAt
-            })
-          );
-
-          // Insert in batches to avoid hitting SQLite limits
-          const batchSize = 100;
-          for (let i = 0; i < values.length; i += batchSize) {
-            const batch = values.slice(i, i + batchSize);
-            await trx.insertInto('entity_versions').values(batch).execute();
-            console.log('[VersionTracker] Inserted batch of', batch.length, 'entity versions');
-          }
-        });
-        
-        console.log('[VersionTracker] Version cache rebuild completed successfully');
-      }
+      await rebuildCheckpointVersions(this.db, context);
     } catch (error) {
       console.error('[VersionTracker] Failed to rebuild version cache:', error);
       if (error instanceof Error) {

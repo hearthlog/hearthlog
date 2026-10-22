@@ -1,3 +1,4 @@
+import { installBaseline } from '../history/baseline.js';
 import { waitForPageUpdates } from '../runtime/page-data.svelte.js';
 import { pageVisible } from '../runtime/visibility.js';
 import { announceInvalidation } from '../runtime/invalidation.js';
@@ -474,6 +475,16 @@ async function download(): Promise<number> {
         const logId = await ensureSelectedContext();
         const context = await requireActiveContext();
         let cursor = await getLocalHeadVersion();
+        const maintenance = await getLedgerClient().getLogMaintenance(logId);
+        let installedBaseline = false;
+        const existingDirective = await db.selectFrom('raw_events').select('id')
+            .where('tenant_id', '=', context.tenantId).where('log_id', '=', logId)
+            .where('type', 'in', ['WORKSPACE_RESTORED', 'EVENTS_EXCISED', 'EVENT_TOMBSTONED']).executeTakeFirst();
+        if (!existingDirective && maintenance?.checkpoint && cursor < maintenance.checkpoint.throughVersion) {
+            await installBaseline(maintenance.checkpoint, context);
+            installedBaseline = true;
+            cursor = await getLocalHeadVersion();
+        }
         let downloaded = 0;
         while (true) {
             const storedEvents = await getLedgerClient().getEventPage(logId, cursor, 512);
@@ -488,8 +499,8 @@ async function download(): Promise<number> {
         }
         catchUpRevision += 1;
         caughtUpScope = scopeKey({ tenantId: context.tenantId, logId });
-        if (downloaded === 0) return 0;
-        await addSyncLogEntry('download', `Downloaded ${downloaded} events`, `Through version ${cursor}`);
+        if (downloaded === 0 && !installedBaseline) return 0;
+        await addSyncLogEntry('download', installedBaseline ? `Loaded snapshot and ${downloaded} events` : `Downloaded ${downloaded} events`, `Through version ${cursor}`);
         await syncRefreshQueue.flush();
         announceChange('ingest');
         return downloaded;

@@ -28,6 +28,8 @@ export const LEDGER_BASE = {
         // "report" logs payloads that "enforce" would reject with 422; flip to "enforce" once the logs show only
         // intended rejections.
         EVENT_VALIDATION: "report",
+        MAINTENANCE_DAILY_WRITES: "10000",
+        MAINTENANCE_DAILY_READS: "1000000",
     },
     observability: {
         enabled: true,
@@ -49,6 +51,7 @@ export function buildLedgerConfig(
         preview_urls: LEDGER_BASE.preview_urls,
         durable_objects: LEDGER_BASE.durable_objects,
         exports: LEDGER_BASE.exports,
+        r2_buckets: [{ binding: 'LEDGER_ARCHIVE', bucket_name: `${infrastructure.ledgerWorker}-archive` }],
         vars: LEDGER_BASE.vars,
         observability: LEDGER_BASE.observability,
         // Pinning the account makes Wrangler refuse to deploy into any other one.
