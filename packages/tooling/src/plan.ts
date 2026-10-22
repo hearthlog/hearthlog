@@ -74,6 +74,7 @@ export interface DeploymentPlan {
 function owned(resources: TenantResources): Map<string, string> {
     const names = new Map<string, string>();
     names.set(resources.ledgerWorker, 'ledger Worker');
+    names.set(`${resources.ledgerWorker}-archive`, 'bucket');
     for (const { bucket } of resources.buckets) names.set(bucket, 'bucket');
     names.set(resources.calendarFeedsBucket, 'bucket');
     names.set(resources.calendarPublicWorker, 'Worker');
@@ -118,6 +119,7 @@ export function planDeployment(input: PlanInput): DeploymentPlan {
         { kind: 'ledger-app', name: site.ledgerAppName, stateful: true, billable: 'durable-objects' },
         { kind: 'calendar-feed-worker', name: resources.calendarPublicWorker, stateful: false, billable: 'workers' },
         { kind: 'r2-bucket', name: resources.calendarFeedsBucket, stateful: true, billable: 'r2' },
+        { kind: 'r2-bucket', name: `${resources.ledgerWorker}-archive`, stateful: true, billable: 'r2' },
         ...resources.buckets.map(({ bucket }): PlannedResource => ({ kind: 'r2-bucket', name: bucket, stateful: true, billable: 'r2' })),
         ...resources.publicWorkers.map((name): PlannedResource => ({ kind: 'public-worker', name, stateful: false, billable: 'workers' })),
     ];

@@ -47,6 +47,8 @@ test('a tenant with its own names plans cleanly and in order', () => {
     assert.equal(plan.topology, 'dedicated');
     assert.deepEqual(plan.steps.map((step) => step.id), ['resources', 'ledger', 'ledger-app', 'frontend', 'verify']);
     assert.ok(plan.resources.some((resource) => resource.kind === 'ledger-worker' && resource.name === 'owned-prod-ledger' && resource.stateful));
+    assert.ok(plan.resources.some((resource) => resource.kind === 'r2-bucket' && resource.name === 'owned-prod-ledger-archive' && resource.stateful));
+    assert.ok(newReceipt(plan).resources.includes('r2-bucket:owned-prod-ledger-archive'));
     assert.match(renderPlan(plan), /never deleted/);
 });
 
@@ -66,6 +68,9 @@ test('a dedicated tenant is refused when a bucket or Worker is another tenant\'s
     assert.ok(takesNeighbourBucket.problems.some((problem) => /jst-prod-gallery-files.*site "jst"/.test(problem)));
     const takesSharedLedger = planDeployment(input({ resources: { ...resources('owned-prod'), ledgerWorker: 'st-ledger' } }));
     assert.ok(takesSharedLedger.problems.some((problem) => /st-ledger.*shared stack/.test(problem)));
+    const takesArchive = planDeployment(input({ resources: { ...resources('owned-prod'),
+        buckets: [{ binding: 'GALLERY_FILES', bucket: 'jst-prod-ledger-archive' }] } }));
+    assert.ok(takesArchive.problems.some((problem) => /jst-prod-ledger-archive.*site "jst"/.test(problem)));
     const strayName = planDeployment(input({ resources: { ...resources('owned-prod'), calendarFeedsBucket: 'feeds' } }));
     assert.ok(strayName.problems.some((problem) => /resource prefix/.test(problem)));
 });
