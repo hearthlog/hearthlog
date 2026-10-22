@@ -1,3 +1,4 @@
+import type { LogMaintenance, CheckpointChunk, CompactionPreview } from '@hearthlog/contracts/history/checkpoint';
 /**
  * HTTP Client for the Ledger Service API
  *
@@ -82,6 +83,24 @@ export class LedgerClient {
         return this.config.authToken;
     }
 
+    private supportsSnapshots = false;
+    async getLogMaintenance(logId: string): Promise<LogMaintenance | null> {
+        if (!this.capabilitiesChecked) await this.getSession();
+        if (!this.supportsSnapshots) return null;
+        return this.request({ method: 'GET', path: `/logs/${encodeURIComponent(logId)}/maintenance` });
+    }
+    async getCompactionPreview(logId: string): Promise<CompactionPreview> {
+        return this.request({ method: 'GET', path: `/logs/${encodeURIComponent(logId)}/maintenance-preview` });
+    }
+    async startLogMaintenance(logId: string, kind: 'snapshot' | 'compact', requestId: string, expectedCheckpointId?: string, expectedGeneration?: number): Promise<LogMaintenance> {
+        return this.request({ method: 'POST', path: `/logs/${encodeURIComponent(logId)}/maintenance`, body: { kind, requestId, expectedCheckpointId, expectedGeneration } });
+    }
+    async stepLogMaintenance(logId: string, requestId: string): Promise<LogMaintenance> {
+        return this.request({ method: 'POST', path: `/logs/${encodeURIComponent(logId)}/maintenance/step`, body: { requestId } });
+    }
+    async getCheckpointChunk(logId: string, page: number): Promise<CheckpointChunk> {
+        return this.request({ method: 'GET', path: `/logs/${encodeURIComponent(logId)}/checkpoint`, queryParams: { page } });
+    }
     private supportsActionMetadata = false;
     private capabilitiesChecked = false;
     private supportsWorkspaceRestore = false;
@@ -112,6 +131,7 @@ export class LedgerClient {
     async getSession(): Promise<SessionResponse> {
         this.sessionRequest ??= this.request<SessionResponse>({ method: "GET", path: "/session" })
             .then((session) => {
+                this.supportsSnapshots = session.capabilities?.includes('snapshot-baseline-v1') ?? false;
                 this.supportsActionMetadata = session.capabilities?.includes('action-metadata-v1') ?? false;
                 this.supportsWorkspaceRestore = session.capabilities?.includes('workspace-restore-v1') ?? false;
                 this.supportsEventExcision = session.capabilities?.includes('event-excision-v1') ?? false;

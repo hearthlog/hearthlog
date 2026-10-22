@@ -1,8 +1,26 @@
 # Snapshot baselines and log compaction
 
-Status: implementation plan only. No runtime, infrastructure, or production data changes are authorized by this document.
+Status: implemented locally after explicit approval. Publication, deployment, and production maintenance remain separate actions.
 
 Date: 2026-10-22.
+
+Implementation notes (2026-10-22): the first delivery builds canonical replay witnesses inside Ledger, using its generated standard-event registry and lossless pass-through for unavailable/nonstandard codecs. Existing SQLite event rows become the compact identity/action registry while payloads move to R2. This avoids duplicating every event identity in a second registry and keeps old HTTP readers compatible through transparent hydration. Source scanning is resumable in small batches; it does not require building a full-history entity index during migration. The browser uses a separate baseline source and pending overlay. Archived history is loaded explicitly or when a comparison/directive requires it. Portable exports expand original history into their existing complete format. Permanent archive deletion remains the separate follow-on described below.
+
+The first format uses `format: 1` for the shared witness/replay contract rather than per-module codecs. Checkpoint publication is atomic; each archive page is verified and its payload-reference swap is separately atomic, so an interrupted job remains readable before its final summary generation advances. Compaction requires a verified snapshot and a matching reviewed preview. No compaction runs automatically; production readiness and a full logical backup must be established before an operator invokes it. SQLite metadata remains proportional to event count, while payload storage and baseline replay shrink. SQL-only exports explicitly refuse incomplete standalone backups after snapshots/archiving.
+
+Local verification includes SQLite projection equivalence (10,000 edits reduced to four source witnesses), atomic installation/rollback, pending/outbox preservation, old acknowledgements excluded by restores, archive recovery, appends during snapshot creation, repeated compaction, original receipt/export/fork replay, archive corruption and whole-log cleanup, Stash cold index/revocation, and browser maintenance controls. This synthetic reduction is not a production performance guarantee; budget logs and production-like measurements remain an operational release gate.
+
+Validation on 2026-10-22:
+
+- `pnpm test:integration`: 246 runtime tests and 51 Ledger tests pass with published modules; script/type/binding checks pass.
+- `pnpm test --reporter=line`: all four browser journeys pass, including snapshot creation, pause/resume, compaction cancellation/confirmation, and receipt persistence.
+- `pnpm -C dev build`, `pnpm check:scripts`, `pnpm -C dev check:modules`, `pnpm check:examples`, and `pnpm -C dev hearthlog lock --check` pass.
+- `pnpm -C dev ledger:dry-run` and `pnpm -C dev frontend:worker:dry-run` bundle successfully without deploying.
+- `pnpm check:packages`: ten packages pack cleanly. `pnpm check:tarballs examples/empty`: the standalone site builds from tarballs.
+- `check-module.ts` against an isolated Stash source copy and the packed platform overrides: production build and 358 tests pass (one existing skip). Concurrent Insights work is excluded from that source copy.
+
+These are local results. No packages were published, no tenant was deployed, and no production log was compacted.
+
 
 ## Agreed behavior
 

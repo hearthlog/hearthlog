@@ -103,6 +103,13 @@ export function createLocalDatabase(tables: readonly string[] = ["calendar_event
 
     CREATE TABLE sync_logs (id TEXT PRIMARY KEY, timestamp INTEGER, type TEXT, message TEXT, details TEXT);
     `);
+    sqlite.exec(`
+        CREATE TABLE checkpoint_events AS SELECT * FROM raw_events WHERE 0;
+        CREATE VIEW projection_events AS SELECT * FROM raw_events UNION ALL SELECT seed.* FROM checkpoint_events seed
+            WHERE NOT EXISTS (SELECT 1 FROM raw_events raw WHERE raw.tenant_id = seed.tenant_id AND raw.log_id = seed.log_id AND raw.id = seed.id AND raw.projection_state = 'effective');
+        CREATE TABLE log_baselines (tenant_id TEXT, log_id TEXT, through_version INTEGER, manifest TEXT, PRIMARY KEY(tenant_id, log_id));
+        CREATE TABLE checkpoint_claims AS SELECT * FROM entity_versions WHERE 0;
+    `);
     for (const ddl of getEntityDDLForTables(new Set(tables))) sqlite.exec(ddl);
     const database = new Kysely<Database>({ dialect: new SqliteDialect({ database: {
         close: () => sqlite.close(),

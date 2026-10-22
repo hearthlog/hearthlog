@@ -4,6 +4,7 @@
   "main": "rpc-worker.ts",
   "compatibility_date": "2026-07-21",
   "compatibility_flags": ["nodejs_compat"],
+  "r2_buckets": [{ "binding": "LEDGER_ARCHIVE", "bucket_name": "ledger-test-archive" }],
   "durable_objects": {
     "bindings": [
       { "name": "LEDGER_APP", "class_name": "LedgerApp" },
@@ -21,6 +22,8 @@
     }
   },
   "vars": {
+        "MAINTENANCE_DAILY_WRITES": "10000",
+        "MAINTENANCE_DAILY_READS": "1000000",
     "TOKEN_SIGNING_KEY_ID": "v1",
     "TOKEN_SIGNING_PREVIOUS_KEY_ID": "",
     "ALLOWED_ORIGINS": ""

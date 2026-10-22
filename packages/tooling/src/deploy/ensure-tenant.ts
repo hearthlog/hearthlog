@@ -769,7 +769,7 @@ export function requiredBuckets(
 	infrastructure: InfrastructureDefinition,
 	sites: readonly Pick<ResolvedSite, "features">[],
 ): string[] {
-	const names = new Set([infrastructure.calendarFeedsBucket]);
+	const names = new Set([infrastructure.calendarFeedsBucket, `${infrastructure.ledgerWorker}-archive`]);
 	for (const site of sites) {
 		for (const { bucket_name } of moduleBindings(site.features, infrastructure).r2) names.add(bucket_name);
 	}

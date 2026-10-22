@@ -382,7 +382,7 @@ export async function getAcceptedEntityEdits(
     afterEntityVersion: number,
 ): Promise<EntityEdit[]> {
     const context = await requireActiveContext();
-    const rows = await db.selectFrom('raw_events')
+    const rows = await db.selectFrom('projection_events')
         .select(['type', 'payload'])
         .where('tenant_id', '=', context.tenantId)
         .where('log_id', '=', context.logId)

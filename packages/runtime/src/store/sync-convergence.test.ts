@@ -1,3 +1,4 @@
+import type { LogMaintenance } from '@hearthlog/contracts/history/checkpoint';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createLocalDatabase } from '../testing/local-database.js';
 import type { StoredEvent, AppendEventsRequest } from '../ledger/types.js';
@@ -12,6 +13,8 @@ const state = vi.hoisted(() => ({
     /** Runs as a conflict is raised: the other device's edit lands first. */
     onConflict: null as null | (() => void),
     rebuilds: 0,
+    maintenance: null as LogMaintenance | null,
+    notifications: 0,
     realtimeEnabled: false,
     readCursors: [] as number[],
     sockets: [] as Array<{ logId: string; cursor: number; opens: number; handlers: Map<string, (...args: unknown[]) => void> }>,
@@ -24,7 +27,7 @@ vi.mock('../db/index.js', () => ({
 vi.mock('$app/navigation', () => ({ invalidate: async () => {} }));
 vi.mock('../runtime/page-data.svelte.js', () => ({ waitForPageUpdates: async () => {} }));
 vi.mock('../runtime/read-coordinator.js', () => ({ activateCurrentReadTarget: async () => {} }));
-vi.mock('./events.svelte.js', () => ({ notifyEventsChanged() {} }));
+vi.mock('./events.svelte.js', () => ({ notifyEventsChanged() { state.notifications++; } }));
 vi.mock('../commands/index.js', () => ({ onLocalCommandCommitted() {} }));
 vi.mock('../db/kv.js', () => ({ get: async () => null, del: async () => {} }));
 vi.mock('./local-context.js', () => ({
@@ -65,6 +68,7 @@ vi.mock('../event/index.js', async () => ({
 vi.mock('../ledger/index.js', async () => {
     const errors = await import('../ledger/errors.js');
     class TestLedgerClient {
+        async getLogMaintenance() { return state.maintenance; }
         async getActionMetadataSupport() { return false; }
         async getWorkspaceRestoreSupport() { return false; }
         async getEventPage(_log: string, after: number) {
@@ -120,6 +124,27 @@ function event(version: number): StoredEvent {
 }
 
 describe('real local persistence and sync convergence', () => {
+    it('refreshes the current page when catch-up installs only a baseline with no suffix events', async () => {
+        const c = client(); state.database = c.database; state.events = []; state.notifications = 0; state.readCursors = [];
+        const baseline = await import('../history/baseline.js');
+        const install = vi.spyOn(baseline, 'installBaseline').mockImplementation(async () => {
+            await c.database.insertInto('log_sync_state').values({ tenant_id: 'person', log_id: 'personal',
+                downloaded_head_version: 100, projected_head_version: 100, last_synced_at: null }).execute();
+        });
+        state.maintenance = { compactedThroughVersion: 100, storageGeneration: 1, job: null, available: true,
+            checkpoint: { format: 1, id: 'checkpoint', appId: 'app', logId: 'personal', throughVersion: 100,
+                createdAt: '2026-10-22T00:00:00Z', pages: [], eventCount: 0, sourceEventCount: 100, sha256: '' } };
+        try {
+            const { sync, syncStatus } = await import('./sync.svelte.js');
+            syncStatus.isOnline = true;
+            await sync();
+            expect(install).toHaveBeenCalledOnce();
+            expect(state.readCursors).toEqual([100]);
+            expect(state.notifications).toBeGreaterThan(0);
+            expect(syncStatus.hasError).toBe(false);
+        } finally { state.maintenance = null; install.mockRestore(); }
+    });
+
     it('retains complete action metadata across split pages and duplicate ingestion', async () => {
         const { handleIncomingStoredEvents } = await import('../event/handlers.js');
         const c = client(); state.database = c.database;

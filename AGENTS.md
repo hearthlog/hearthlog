@@ -113,6 +113,7 @@ Notes:
   bodies. Use `executeLocalCommand(events, { submissionId })` for multi-event
   actions: reuse the submission ID when retrying the same save, use a new one
   for a distinct action. Keep forms disabled while a save runs.
+- **Checkpoint storage maintenance.** Logical events remain immutable. The authenticated Ledger maintenance path may move accepted payloads to checksum-verified private R2 pages while retaining their SQLite identity/action metadata. Never bypass that path to edit events. Baselines are separate projection inputs; installing one preserves pending events and immutable outbox bodies. Archived reads, retries, forks, and portable exports must resolve original payloads.
 - **STRICT: filter and aggregate in SQLite, never in memory JavaScript.** All
   client-side filtering, sorting, searching, joining, grouping, counting, and
   aggregation must run as SQL against the read model through `queryDatabase`

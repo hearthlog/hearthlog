@@ -37,6 +37,7 @@
     "ledger:check": "hearthlog build && pnpm ledger:types:check && tsc --noEmit -p ledger/tsconfig.json && tsc --noEmit -p ../packages/ledger/tsconfig.node.json",
     "ledger:test": "hearthlog build && vitest run --config ../packages/ledger/vitest.config.ts",
     "ledger:dry-run": "hearthlog build && wrangler deploy --config .generated/shared/ledger/wrangler.jsonc --dry-run",
+    "ledger:maintain": "hearthlog build && tsx ../packages/ledger/scripts/maintenance.ts",
     "ledger:export": "hearthlog build && tsx ../packages/ledger/scripts/logical-backup.ts export",
     "ledger:restore": "hearthlog build && tsx ../packages/ledger/scripts/logical-backup.ts restore",
     "provision:tenants": "hearthlog build && tsx ../packages/tooling/src/deploy/ensure-tenant.ts",

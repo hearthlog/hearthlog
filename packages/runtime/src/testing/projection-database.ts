@@ -40,6 +40,8 @@ export function createProjectionTestDatabase(options: { tables: readonly string[
             PRIMARY KEY (tenant_id, log_id, id)
         );
     `);
+    sqlite.exec(`CREATE TABLE checkpoint_events AS SELECT * FROM raw_events WHERE 0;
+        CREATE VIEW projection_events AS SELECT * FROM raw_events UNION ALL SELECT * FROM checkpoint_events;`);
     for (const ddl of getEntityDDLForTables(new Set(options.tables))) sqlite.exec(ddl);
     if (options.history) {
         sqlite.exec(`ATTACH DATABASE ':memory:' AS history;`);

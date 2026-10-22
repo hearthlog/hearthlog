@@ -10,6 +10,7 @@ import type {
 } from '../event/types.js';
 import { commitLocalEventBatch, SubmissionMismatchError, submissionContent } from './local-commit.js';
 import { validateCommandEvents } from './validation.js';
+import { loadArchivedHistory } from '../history/baseline.js';
 
 export { CommandValidationError, validateCommandEvents } from './validation.js';
 export { commitLocalEventBatch, localBatchId, SubmissionMismatchError } from './local-commit.js';
@@ -91,6 +92,9 @@ async function execute(
     submissionId: string,
     context: Awaited<ReturnType<typeof requireActiveContext>>,
 ): Promise<LocalCommandResult> {
+    if (events.some(event => ['EVENT_TOMBSTONED', 'WORKSPACE_RESTORED', 'EVENTS_EXCISED'].includes(event.type))) {
+        await loadArchivedHistory();
+    }
     const committed = await withBusyRetry(() => commitLocalEventBatch({
         database: db,
         context,

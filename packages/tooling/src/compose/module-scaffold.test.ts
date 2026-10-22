@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { cpSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, relative, sep } from 'node:path';
 import { test } from 'node:test';
 
 import { validateManifest } from '@hearthlog/contracts';
@@ -19,7 +19,13 @@ function workspace() {
     const root = mkdtempSync(join(tmpdir(), 'stor-scaffold-'));
     mkdirSync(join(root, 'modules'), { recursive: true });
     for (const { manifest, directory } of REAL_MODULES) {
-        cpSync(realpathSync(directory), join(root, 'modules', manifest.package.replace('@hearthlog/module-', '')), { recursive: true, dereference: true });
+        const source = realpathSync(directory);
+        cpSync(source, join(root, 'modules', manifest.package.replace('@hearthlog/module-', '')), {
+            recursive: true, dereference: true,
+            // Integration links dependencies into installed modules. These
+            // source/manifest fixtures must not recursively copy that graph.
+            filter: path => !relative(source, path).split(sep).includes('node_modules'),
+        });
     }
     return { root, modules: join(root, 'modules'), cleanup: () => rmSync(root, { recursive: true, force: true }) };
 }

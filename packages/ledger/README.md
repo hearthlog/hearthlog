@@ -172,3 +172,63 @@ Restore validates the complete export before provisioning, creates an empty
 target application, replays and verifies every page, rotates the bootstrap
 credential, and prints the new token. A failed restore revokes the partial
 target.
+
+
+## Snapshot baselines and compaction
+
+The existing log history panel has manual **Create snapshot** and **Compact log** controls.
+A snapshot captures a complete accepted boundary. Compaction moves its prefix payloads into a private archive;
+application/log identities, monotonically increasing event versions, entity claims, action boundaries and retry
+receipts stay intact. SQLite retains the compact event identity registry. Historical reads and retries resolve
+original payloads from the archive; compaction does not expire history or delete domain records/media.
+
+The generated Ledger configuration binds `LEDGER_ARCHIVE` to `<ledgerWorker>-archive`. Tenant provisioning
+ensures that private R2 bucket. Keep it private, without an expiry lifecycle. Deploy compatible code and ensure
+this binding before starting maintenance. No namespace or deployed Durable Object identity changes.
+
+Authenticated endpoints under `/logs/:logId`:
+
+- `GET /maintenance`: availability, verified snapshot manifest, storage generation, and current job.
+- `GET /maintenance-preview`: the current snapshot/generation and prefix payload counts/bytes for review.
+- `POST /maintenance`: `{ requestId, kind: "snapshot" | "compact", expectedCheckpointId?, expectedGeneration? }`.
+  Compaction requires the checkpoint ID and generation from the reviewed preview; stale previews fail with 409.
+- `POST /maintenance/step`: `{ requestId }`, resumable work using the same request identity.
+- `GET /checkpoint?page=N`: one checksum-verified canonical replay chunk and its entity claims.
+
+From the development site, the same operation can run without an open browser:
+
+```bash
+pnpm -C dev ledger:maintain --log <log-id> --kind snapshot
+pnpm -C dev ledger:maintain --log <log-id> --kind compact
+pnpm -C dev ledger:maintain --log <log-id> --resume
+```
+
+Set `LEDGER_BASE_URL` and `LEDGER_AUTH_TOKEN` in the process environment; the CLI never prints credentials.
+Use `--request-id` to retry an explicit operation and `--once` for one bounded work step.
+
+Jobs persist every source batch and publish only verified snapshots. Canonical snapshots keep original source
+witnesses for raw field values, explicit nulls, timestamps and lifecycle transitions; dynamic/nonstandard facts
+are retained losslessly. Browser projection uses a separate baseline table plus accepted suffix and pending
+overlay. Fresh/behind devices can install a baseline atomically; historical comparisons or directives that
+reach into the baseline recover original history on demand. Existing HTTP event readers remain compatible
+through transparent archive hydration, and old socket cursors recover through HTTP rather than receiving
+payload placeholders. The SDK's server checkpoint reader lets Stash seed a cold media index from the same base.
+
+`MAINTENANCE_DAILY_WRITES` defaults to `10000` per job (bounded to 128–100000), and
+`MAINTENANCE_DAILY_READS` defaults to `1000000` (bounded to 10000–1000000000). Jobs pause at either budget. Budgets use consumed SQL cursor
+counts and can overrun by one bounded step. Structured step logs include SQL rows, R2 operations/bytes, elapsed
+time and replay counts, without payloads or credentials. Resume with the same ID on a later UTC quota day;
+other applications consume account quota too. The browser
+can be closed safely and the operation resumed from the panel. No automatic snapshots or archive expiry run.
+Deleting a whole log uses bounded background cleanup of that log's private archive objects, after normal
+fork/deletion checks. Individual archived-history deletion is a separate future feature.
+
+Use the full logical export or identity-preserving application transfer for backup/moves: they expand archived
+payloads into the existing portable format. A SQLite-only export returns `409 archive_bundle_required` when
+external checkpoint/archive objects are required, avoiding a misleading incomplete backup. Rollback after
+compaction needs a compatible reader or a full logical restore first.
+
+The first format bounds a single entity's replay witnesses to 8 MB and stores page descriptors in SQLite.
+Exceeding a snapshot work/metadata bound fails the job while source history stays readable. Measure maintenance
+work and storage on representative data; retained identity metadata still grows, and physical SQLite file size
+need not shrink immediately when payload space becomes reusable.

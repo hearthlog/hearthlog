@@ -162,7 +162,7 @@ function buildCommonCTEs(
     logId: string,
     options: ProjectionBuildOptions,
 ): RawBuilder<unknown> {
-    const source = options.source ?? { schema: 'main', table: 'raw_events' };
+    const source = options.source ?? { schema: 'main', table: 'projection_events' };
     const sourceTable = sql.raw(qualifiedIdentifier(source.schema, source.table));
 
     if (source.staged) {

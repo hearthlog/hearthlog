@@ -4,6 +4,7 @@
     import { historyRouteUrl, navigateHistory } from '@hearthlog/runtime/history/navigation.js';
     import Button from '@hearthlog/ui/components/ui/Button.svelte';
     import ChangeRecord from './ChangeRecord.svelte';
+    import LogMaintenance from './LogMaintenance.svelte';
     import { queryDatabase } from '@hearthlog/runtime/db/read-repositories.js';
     import { historyUrlState } from '@hearthlog/runtime/history/url.js';
     import type { HistoryEntry, HistoryItem, HistoryRecord } from '@hearthlog/runtime/history/contracts.js';
@@ -61,6 +62,7 @@
     let items = $state<HistoryItem[]>([]);
     let limit = $state(PAGE);
     let loading = $state(true);
+    let archivedHistory = $state(false);
     let error = $state('');
     let retry = $state(0);
     let entry = $state<HistoryEntry | null>(null);
@@ -229,10 +231,11 @@
 {/snippet}
 
 <div bind:this={root}>
+    {#if currentLogId}{#key currentLogId}<LogMaintenance logId={currentLogId} onHistoryLoaded={() => retry++} onArchivePresence={(present) => archivedHistory = present} />{/key}{/if}
     {#if loading && items.length === 0}
         <p role="status" class="py-2 text-sm text-[var(--stor-muted-text)] motion-safe:animate-pulse">Loading history…</p>
     {:else if !error && !items.some(item => item.kind === 'action')}
-        <p class="py-4 text-sm text-[var(--stor-muted-text)]">{view.search || view.feature ? 'No actions match your search.' : 'No activity in this log yet. Your next saved action will show here.'}</p>
+        <p class="py-4 text-sm text-[var(--stor-muted-text)]">{view.search || view.feature ? 'No actions match your search.' : archivedHistory ? 'Load the archive to inspect earlier actions.' : 'No activity in this log yet. Your next saved action will show here.'}</p>
     {/if}
     {#if items.length > 0}
         <ol aria-label="Activity in this log" aria-busy={loading}>

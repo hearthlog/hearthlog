@@ -185,6 +185,10 @@ export type ModuleMigrationTable = {
 export interface Database extends EntityDatabaseTables {
     module_migrations: ModuleMigrationTable;
     raw_events: RawEventTable;
+    checkpoint_events: RawEventTable;
+    projection_events: RawEventTable;
+    log_baselines: { tenant_id: string; log_id: string; through_version: number; manifest: string };
+    checkpoint_claims: EntityVersionTable;
     entity_versions: EntityVersionTable;
     active_context: ActiveContextTable;
     local_batches: LocalBatchTable;
@@ -670,9 +674,30 @@ async function migrateCoreSchema(
         GROUP BY tenant_id, log_id, local_batch_id
     `.execute(database);
 
+    await createCheckpointTables(database);
     await validateCoreSchema(database, approvedTables);
     await repairStoredProgress(database);
     await sql.raw(`PRAGMA user_version = ${SCHEMA_VERSION}`).execute(database);
+}
+
+async function createCheckpointTables(database: Kysely<Database>): Promise<void> {
+    await sql`CREATE TABLE IF NOT EXISTS log_baselines (
+        tenant_id TEXT NOT NULL, log_id TEXT NOT NULL, through_version INTEGER NOT NULL,
+        manifest TEXT NOT NULL, PRIMARY KEY(tenant_id, log_id)
+    )`.execute(database);
+    await sql`CREATE TABLE IF NOT EXISTS checkpoint_events AS SELECT * FROM raw_events WHERE 0`.execute(database);
+    await sql`CREATE UNIQUE INDEX IF NOT EXISTS checkpoint_event_identity ON checkpoint_events(tenant_id, log_id, id)`.execute(database);
+    await sql`CREATE INDEX IF NOT EXISTS checkpoint_event_entity ON checkpoint_events(tenant_id, log_id, entity_id, entity_version)`.execute(database);
+    await sql`CREATE INDEX IF NOT EXISTS checkpoint_event_type ON checkpoint_events(tenant_id, log_id, type)`.execute(database);
+    await sql`CREATE TABLE IF NOT EXISTS checkpoint_claims (
+        tenant_id TEXT NOT NULL, log_id TEXT NOT NULL, entity_id TEXT NOT NULL, current_version INTEGER NOT NULL,
+        log_version INTEGER NOT NULL, updated_at INTEGER NOT NULL, PRIMARY KEY(tenant_id, log_id, entity_id)
+    )`.execute(database);
+    await sql`DROP VIEW IF EXISTS projection_events`.execute(database);
+    await sql`CREATE VIEW projection_events AS
+        SELECT * FROM raw_events UNION ALL SELECT seed.* FROM checkpoint_events seed
+        WHERE NOT EXISTS (SELECT 1 FROM raw_events raw WHERE raw.tenant_id = seed.tenant_id AND raw.log_id = seed.log_id AND raw.id = seed.id AND raw.projection_state = 'effective')
+    `.execute(database);
 }
 
 async function createScopedSupportTables(
@@ -912,6 +937,7 @@ async function migrateRawEventsTable(
                    is_tombstoned, created_at
             FROM raw_events
         `.execute(tx);
+        await sql`DROP VIEW IF EXISTS projection_events`.execute(tx);
         await sql`DROP TABLE raw_events`.execute(tx);
         await sql`ALTER TABLE raw_events_scoped RENAME TO raw_events`.execute(
             tx,

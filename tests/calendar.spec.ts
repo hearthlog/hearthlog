@@ -94,3 +94,45 @@ test('creates, pins, edits, and deletes a calendar event', async ({ page }) => {
     await expect(day.getByText(editedTitle, { exact: true })).toHaveCount(0);
 
 });
+
+
+test('creates a snapshot, confirms compaction, and retains the receipt after reload', async ({ page }) => {
+    let state = { compactedThroughVersion: 0, storageGeneration: 0, checkpoint: null, job: null, available: true };
+    const calls = [];
+    let pauseOnce = true;
+    await page.route('**/api/ledger/session', route => route.fulfill({ json: { appId: 'e2e', principalId: 'owner',
+        capabilities: ['action-metadata-v1', 'workspace-restore-v1', 'event-excision-v1', 'snapshot-baseline-v1'] } }));
+    await page.route('**/api/ledger/logs/*/maintenance**', async route => {
+        const request = route.request(), path = new URL(request.url()).pathname;
+        if (path.endsWith('/maintenance-preview')) return route.fulfill({ json: { checkpointId: state.checkpoint.id, storageGeneration: state.storageGeneration, throughVersion: 10, activePayloadEvents: 10, activePayloadBytes: 10000, snapshotBytes: 1000 } });
+        if (request.method() === 'POST' && !path.endsWith('/step')) {
+            const body = request.postDataJSON(); calls.push(body.kind);
+            state.job = { id: body.requestId, kind: body.kind, logId: 'e2e00000-0000-4000-8000-000000000000',
+                throughVersion: 10, status: body.kind === 'snapshot' ? 'building' : 'archiving', cursor: 0, error: null, updatedAt: new Date().toISOString() };
+        } else if (path.endsWith('/step') && pauseOnce) {
+            state.job.status = 'paused'; pauseOnce = false;
+        } else if (path.endsWith('/step')) {
+            state.job.status = 'complete'; state.job.cursor = 10;
+            if (state.job.kind === 'snapshot') state.checkpoint = { id: state.job.id, throughVersion: 10, eventCount: 2 };
+            else { state.compactedThroughVersion = 10; state.storageGeneration++; }
+        }
+        await route.fulfill({ json: state });
+    });
+    await page.goto('/calendar?logPanel=activity');
+    await page.getByText('Log maintenance', { exact: true }).click();
+    await page.getByRole('button', { name: 'Create snapshot', exact: true }).click();
+    await expect(page.getByText('Snapshot: paused', { exact: false })).toBeVisible();
+    await page.getByRole('button', { name: 'Resume operation', exact: true }).click();
+    await expect(page.getByText('Snapshot: complete', { exact: false })).toBeVisible();
+    await page.getByRole('button', { name: 'Compact log…', exact: true }).click();
+    const confirmation = page.getByRole('alertdialog', { name: 'Compact this log?' });
+    await confirmation.getByRole('button', { name: 'Cancel', exact: true }).click();
+    expect(calls).toEqual(['snapshot']);
+    await page.getByRole('button', { name: 'Compact log…', exact: true }).click();
+    await confirmation.getByRole('button', { name: 'Archive and compact', exact: true }).click();
+    await expect(page.getByText('Compaction: complete', { exact: false })).toBeVisible();
+    expect(calls).toEqual(['snapshot', 'compact']);
+    await page.reload();
+    await page.getByText('Log maintenance', { exact: true }).click();
+    await expect(page.getByText('Archived through version 10.', { exact: false })).toBeVisible();
+});

@@ -199,6 +199,11 @@ opens downstream dependency PRs, and resumes across publishing and deployment st
 Report vulnerabilities as described in [`SECURITY.md`](SECURITY.md). Modules run with the same
 privileges as application code, so install only modules you trust.
 
+Snapshot baselines and archive-backed log compaction are available through Log history → Log maintenance.
+They preserve the log identity and pending offline work. See [Ledger maintenance](packages/ledger/README.md#snapshot-baselines-and-compaction)
+for private archive provisioning, resumable jobs, compatibility and complete backups. The design and delivery
+scope are recorded in [the implementation plan](docs/snapshots-and-compaction-plan.md).
+
 ## License
 
 [AGPL-3.0-only](LICENSE).

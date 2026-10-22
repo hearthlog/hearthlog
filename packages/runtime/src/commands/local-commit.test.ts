@@ -81,6 +81,7 @@ function createDatabase(): { database: Kysely<Database>; sqlite: DatabaseSync } 
             PRIMARY KEY (tenant_id, log_id, id)
         );
     `);
+    sqlite.exec('CREATE VIEW projection_events AS SELECT * FROM raw_events');
     const adapter = {
         close: () => sqlite.close(),
         prepare: (query: string) => wrapStatement(sqlite.prepare(query), query),

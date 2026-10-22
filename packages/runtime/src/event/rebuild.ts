@@ -86,34 +86,9 @@ export async function rebuildReadModel(options: { includePendingDdl?: boolean } 
         console.log('[Event] Starting read model rebuild');
         const context = await requireActiveContext();
 
-        const staticConfigs = Object.values(entityRegistry).filter(entry => !entry.isDynamic).map(entry => entry.projection);
-        const previousTables = getAllEntityTables();
         // Definitions, DDL, restore membership, and all entity rows publish together.
         // Keep the tab-local registry unchanged until the database commit succeeds.
-        await readModelDB.transaction().execute(async (tx) => {
-            await reconcileRestoredEvents(tx, context, options.includePendingDdl);
-            const dynamicConfigs = await rebuildDynamicDefinitions(tx, context, options.includePendingDdl);
-            const configs = [...staticConfigs, ...dynamicConfigs];
-            console.log('[Event] Clearing existing read model tables for active log');
-
-            // Clear only this log's projection rows — leave other logs intact
-            for (const table of new Set([...previousTables, ...configs.map(config => config.tableName)])) {
-                await tx.deleteFrom(table as keyof Database)
-                    .where('tenant_id', '=', context.tenantId)
-                    .where('log_id', '=', context.logId)
-                    .execute();
-            }
-            await tx.deleteFrom('entity_versions')
-                .where('tenant_id', '=', context.tenantId)
-                .where('log_id', '=', context.logId)
-                .execute();
-            console.log('[Event] Read model tables cleared for scope');
-
-            // Rebuild each entity from events using the registry
-            for (const config of configs) {
-                await buildBulkProjectionSQL(config, context).execute(tx);
-            }
-        });
+        await readModelDB.transaction().execute(tx => rebuildProjectionState(tx, context, options.includePendingDdl));
         await loadDynamicEntityTypes();
 
         // Rebuild entity version cache
@@ -124,6 +99,35 @@ export async function rebuildReadModel(options: { includePendingDdl?: boolean } 
         postTabChange({ kind: 'rebuild', tenantId: context.tenantId, logId: context.logId });
         console.log('[Event] Read model rebuild completed successfully');
     }, { entityCount: Object.keys(entityRegistry).length });
+}
+
+/** Rebuild within the caller's publication transaction (checkpoint installation). */
+export async function rebuildProjectionState(tx: Transaction<Database>, context: ActiveContext, includePendingDdl = false): Promise<void> {
+    const staticConfigs = Object.values(entityRegistry).filter(entry => !entry.isDynamic).map(entry => entry.projection);
+    const previousTables = getAllEntityTables();
+    await reconcileRestoredEvents(tx, context, includePendingDdl);
+    const dynamicConfigs = await rebuildDynamicDefinitions(tx, context, includePendingDdl);
+    const configs = [...staticConfigs, ...dynamicConfigs];
+    console.log('[Event] Clearing existing read model tables for active log');
+
+    // Clear only this log's projection rows — leave other logs intact
+    for (const table of new Set([...previousTables, ...configs.map(config => config.tableName)])) {
+        await tx.deleteFrom(table as keyof Database)
+            .where('tenant_id', '=', context.tenantId)
+            .where('log_id', '=', context.logId)
+            .execute();
+    }
+    await tx.deleteFrom('entity_versions')
+        .where('tenant_id', '=', context.tenantId)
+        .where('log_id', '=', context.logId)
+        .execute();
+    console.log('[Event] Read model tables cleared for scope');
+
+    // Rebuild each entity from events using the registry
+    for (const config of configs) {
+        await buildBulkProjectionSQL(config, context).execute(tx);
+    }
+
 }
 
 /**
@@ -152,7 +156,7 @@ async function rebuildDynamicDefinitions(tx: Transaction<Database>, context: Act
             await sql.raw(`DROP TABLE IF EXISTS temp."${stagedTable}"`).execute(tx);
             await sql`
                 CREATE TEMP TABLE ${sql.raw(`"${stagedTable}"`)} AS
-                SELECT * FROM main.raw_events
+                SELECT * FROM main.projection_events
                 WHERE tenant_id = ${context.tenantId}
                   AND log_id = ${context.logId}
                   AND (projection_state = 'effective' OR (${includePendingDdl ? 1 : 0} = 1 AND projection_state = 'pending_ddl'))

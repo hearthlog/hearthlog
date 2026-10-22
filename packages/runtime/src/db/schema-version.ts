@@ -6,6 +6,7 @@
 export const MIN_IN_PLACE_SCHEMA_VERSION = 42;
 
 /**
+ * v43: persistent checkpoint replay inputs, entity claims, and prefix coverage.
  * v42: `module_migrations` records each module's projection version (baseline 1).
  * v41: Books, Vacations, and Web Archive are deleted; their projection tables
  *      are dropped.
@@ -73,4 +74,4 @@ export const MIN_IN_PLACE_SCHEMA_VERSION = 42;
  * rebuild drops projection tables of non-approved entities (raw_events keeps
  * the full history, so re-enabling a feature re-projects cleanly).
  */
-export const SCHEMA_VERSION = 42;
+export const SCHEMA_VERSION = 43;

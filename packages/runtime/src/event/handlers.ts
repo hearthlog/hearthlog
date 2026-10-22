@@ -1,3 +1,4 @@
+import { baselineVersion, loadArchivedHistory } from '../history/baseline.js';
 import { hasReplayDirectives } from '../history/legacy-replay.js';
 import { EVENTS_EXCISED, WORKSPACE_RESTORED } from '@hearthlog/contracts/history/replay-selection';
 import { recordIngestedProgress } from '../store/sync-progress.js';
@@ -338,6 +339,9 @@ async function deleteActiveLogData(): Promise<void> {
             .where('tenant_id', '=', context.tenantId)
             .where('log_id', '=', context.logId)
             .execute();
+        for (const table of ['checkpoint_events', 'checkpoint_claims', 'log_baselines'] as const) {
+            await tx.deleteFrom(table).where('tenant_id', '=', context.tenantId).where('log_id', '=', context.logId).execute();
+        }
         await tx.deleteFrom('log_sync_state')
             .where('tenant_id', '=', context.tenantId)
             .where('log_id', '=', context.logId)
@@ -417,6 +421,25 @@ export async function handleIncomingStoredEvents(
     return withTiming('projection', 'handleIncomingStoredEvents', async () => {
         storedEvents.sort(compareStoredEvents);
         const context = await requireActiveContext();
+        if (storedEvents.some(event => ['WORKSPACE_RESTORED', 'EVENTS_EXCISED', 'EVENT_TOMBSTONED'].includes(event.type))) {
+            await loadArchivedHistory();
+        }
+
+        const coveredThrough = await baselineVersion(context);
+        const covered = coveredThrough ? storedEvents.filter(event => event.version <= coveredThrough) : [];
+        if (covered.length) {
+            await readModelDB.transaction().execute(async tx => {
+                for (let offset = 0; offset < covered.length; offset += EVENT_WRITE_BATCH_SIZE) {
+                    const batch = covered.slice(offset, offset + EVENT_WRITE_BATCH_SIZE);
+                    await storeIncomingBatch(batch, tx, context);
+                    await tx.updateTable('raw_events').set({ projection_state: 'baseline_covered' })
+                        .where('tenant_id', '=', context.tenantId).where('log_id', '=', context.logId).where('id', 'in', batch.map(event => event.id)).execute();
+                }
+                await projectAffectedEntities(new Set(covered.map(event => event.entityId)), tx, context);
+            });
+            storedEvents = storedEvents.filter(event => event.version > coveredThrough);
+            if (!storedEvents.length) return { hasNewEvents: true, newCount: 0 };
+        }
 
         const existingRows = await readModelDB.selectFrom('raw_events')
             .select('id')

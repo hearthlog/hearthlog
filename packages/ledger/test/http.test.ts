@@ -21,6 +21,135 @@ interface ProvisionedApplication {
 const fileEvent = Object.entries(FILE_REFERENCES).find(([type]) => type.endsWith('_ADDED'));
 
 describe("Ledger Durable Object RPC", () => {
+    it('keeps appends above a snapshot boundary and advances compaction without rewriting the existing archive', async () => {
+        const app = await provision('checkpoint-suffix');
+        const stub = env.LEDGER_APP.getByName(app.appId);
+        const created = await stub.createLog(app.claims, { name: 'Suffix' });
+        expectSuccess(created);
+        const logId = created.body.id, recordId = crypto.randomUUID();
+        const append = (title: string, version: number) => stub.appendEvents(app.claims, logId, {
+            requestId: crypto.randomUUID(), events: [{ id: crypto.randomUUID(), entityId: `calendar_event:${recordId}`,
+                type: version ? 'CALENDAR_EVENT_UPDATED' : 'CALENDAR_EVENT_ADDED', ...(version ? { baseEntityVersion: version } : {}),
+                payload: { id: recordId, title, eventDate: '2026-10-22' } }],
+        }, 2);
+        const first = await append('First', 0); expectSuccess(first);
+        const snapshotId = crypto.randomUUID();
+        expectSuccess(await stub.startLogMaintenance(app.claims, logId, snapshotId, 'snapshot'));
+        expectSuccess(await stub.stepLogMaintenance(app.claims, logId, snapshotId));
+        const second = await append('While snapshot builds', 1); expectSuccess(second);
+        const finish = async (id: string) => {
+            for (let step = 0; step < 30; step++) {
+                const result = await stub.stepLogMaintenance(app.claims, logId, id); expectSuccess(result);
+                if (result.body.job?.status === 'complete') return result.body;
+                expect(result.body.job?.status).not.toBe('failed');
+            }
+            throw new Error('Maintenance failed to complete');
+        };
+        expect((await finish(snapshotId)).checkpoint?.throughVersion).toBe(1);
+        const compactId = crypto.randomUUID();
+        expectSuccess(await stub.startLogMaintenance(app.claims, logId, compactId, 'compact', snapshotId, 0));
+        expect(await stub.startLogMaintenance(app.claims, logId, crypto.randomUUID(), 'snapshot')).toMatchObject({ ok: false, status: 409 });
+        expect((await finish(compactId)).compactedThroughVersion).toBe(1);
+        const originalKey = await runInDurableObject(stub, (_instance, state) => state.storage.sql.exec<{ archive_key: string }>(
+            'SELECT archive_key FROM log_events WHERE log_id = ? AND version = 1', logId).one().archive_key);
+        const nextSnapshot = crypto.randomUUID(), nextCompact = crypto.randomUUID();
+        expectSuccess(await stub.startLogMaintenance(app.claims, logId, nextSnapshot, 'snapshot'));
+        expect((await finish(nextSnapshot)).checkpoint?.throughVersion).toBe(2);
+        expectSuccess(await stub.startLogMaintenance(app.claims, logId, nextCompact, 'compact', nextSnapshot, 1));
+        expect(await finish(nextCompact)).toMatchObject({ compactedThroughVersion: 2, storageGeneration: 2 });
+        expect(await finish(nextCompact)).toMatchObject({ storageGeneration: 2 });
+        expect(await stub.listEvents(app.claims, logId, 0, 512, 2)).toMatchObject({ ok: true,
+            body: { events: [...first.body.events, ...second.body.events] } });
+        await runInDurableObject(stub, (_instance, state) => expect(state.storage.sql.exec<{ archive_key: string }>(
+            'SELECT archive_key FROM log_events WHERE log_id = ? AND version = 1', logId).one().archive_key).toBe(originalKey));
+    });
+
+    it('snapshots, resumes compaction, preserves receipt replay and exports original events after archiving', async () => {
+        const app = await provision('checkpoint');
+        const stub = env.LEDGER_APP.getByName(app.appId);
+        const created = await stub.createLog(app.claims, { name: 'Snapshot source' });
+        expectSuccess(created);
+        const logId = created.body.id, recordId = crypto.randomUUID();
+        const request = { requestId: crypto.randomUUID(), actionId: crypto.randomUUID(), events: Array.from({ length: 300 }, (_, index) => ({
+            id: crypto.randomUUID(), type: index === 0 ? 'CALENDAR_EVENT_ADDED' : 'CALENDAR_EVENT_UPDATED', entityId: `calendar_event:${recordId}`,
+            ...(index ? { baseEntityVersion: index } : {}), payload: { id: recordId, eventDate: '2026-10-22', title: `Title ${index}`, optional: index === 299 ? null : 'value' },
+        })) };
+        const accepted = await stub.appendEvents(app.claims, logId, request, 2);
+        expectSuccess(accepted);
+        const before = await stub.administratorChecksums(app.appId);
+        expectSuccess(before);
+        const snapshotId = crypto.randomUUID();
+        expectSuccess(await stub.startLogMaintenance(app.claims, logId, snapshotId, 'snapshot'));
+        let snapshot = await stub.stepLogMaintenance(app.claims, logId, snapshotId);
+        expectSuccess(snapshot);
+        expect(snapshot.body.job?.cursor).toBe(16);
+        await runInDurableObject(stub, (_instance, state) => {
+            state.storage.sql.exec('UPDATE log_maintenance_jobs SET writes = 10000 WHERE id = ?', snapshotId);
+        });
+        const paused = await stub.stepLogMaintenance(app.claims, logId, snapshotId);
+        expectSuccess(paused);
+        expect(paused.body.job?.status).toBe('paused');
+        await runInDurableObject(stub, (_instance, state) => {
+            state.storage.sql.exec("UPDATE log_maintenance_jobs SET day = '2000-01-01' WHERE id = ?", snapshotId);
+        });
+        for (let attempts = 0; snapshot.body.job?.status !== 'complete' && attempts < 40; attempts++) {
+            snapshot = await stub.stepLogMaintenance(app.claims, logId, snapshotId);
+            expectSuccess(snapshot);
+        }
+        expect(snapshot.body.job?.status).toBe('complete');
+        expect(snapshot.body.checkpoint?.throughVersion).toBe(300);
+        expect(snapshot.body.checkpoint!.eventCount).toBeLessThan(10);
+        const page = await stub.checkpointChunk(app.claims, logId, 0);
+        expectSuccess(page);
+        expect(page.body.claims).toEqual([{ entityId: `calendar_event:${recordId}`, currentVersion: 300, logVersion: 300 }]);
+        const preview = await stub.compactionPreview(app.claims, logId);
+        expectSuccess(preview);
+        expect(preview.body.activePayloadEvents).toBe(300);
+        expect(preview.body.activePayloadBytes).toBeGreaterThan(preview.body.snapshotBytes);
+        const compactId = crypto.randomUUID();
+        expect(await stub.startLogMaintenance(app.claims, logId, crypto.randomUUID(), 'compact', snapshotId, 99)).toMatchObject({ ok: false, status: 409, body: { code: 'stale_maintenance_preview' } });
+        expectSuccess(await stub.startLogMaintenance(app.claims, logId, compactId, 'compact', snapshotId, 0));
+        expectSuccess(await stub.stepLogMaintenance(app.claims, logId, compactId));
+        let compacted = await stub.stepLogMaintenance(app.claims, logId, compactId);
+        expectSuccess(compacted);
+        for (let attempts = 0; compacted.body.job?.status !== 'complete' && attempts < 40; attempts++) {
+            compacted = await stub.stepLogMaintenance(app.claims, logId, compactId);
+            expectSuccess(compacted);
+        }
+        expect(compacted.body.compactedThroughVersion).toBe(300);
+        expect(await stub.listEvents(app.claims, logId, 0, 512, 2)).toMatchObject({ ok: true, body: { events: accepted.body.events } });
+        expect(await stub.appendEvents(app.claims, logId, request, 2)).toEqual(accepted);
+        expect(await stub.administratorChecksums(app.appId)).toEqual(before);
+        expect((await stub.administratorExportSqlite(app.appId)).status).toBe(409);
+        const exported = (await (await stub.administratorTransferExport(app.appId)).text()).trim().split('\n').map(line => JSON.parse(line));
+        expect(exported.filter(line => line.t === 'events').flatMap(line => line.events)).toEqual(accepted.body.events);
+        await runInDurableObject(stub, (_instance, state) => {
+            const row = state.storage.sql.exec<{ payload: string; archive_key: string }>('SELECT payload, archive_key FROM log_events WHERE log_id = ? AND version = 1', logId).one();
+            expect(row.payload).toBe('{}');
+            expect(row.archive_key).toContain(`/archive/${compactId}/`);
+        });
+        const fork = await stub.forkLog(app.claims, logId, { name: 'Archived point', targetVersion: 300, expectedSourceHeadVersion: 300, requestId: crypto.randomUUID() });
+        expectSuccess(fork);
+        expectSuccess(await stub.finalizeFork(app.claims, fork.body.id));
+        expect(await stub.listEvents(app.claims, fork.body.id, 0, 512, 2)).toMatchObject({ ok: true, body: { events: accepted.body.events } });
+        const archiveKey = await runInDurableObject(stub, (_instance, state) => state.storage.sql.exec<{ archive_key: string }>(
+            'SELECT archive_key FROM log_events WHERE log_id = ? AND version = 1', logId).one().archive_key);
+        const originalObject = await env.LEDGER_ARCHIVE.get(archiveKey);
+        const originalText = await originalObject!.text();
+        // Even replacing the object's own digest cannot replace the SQL-published checksum.
+        await env.LEDGER_ARCHIVE.put(archiveKey, '[]', { customMetadata: { sha256: 'untrusted' } });
+        expect(await stub.listEvents(app.claims, logId, 0, 512, 2)).toMatchObject({ ok: false, status: 503,
+            body: { code: 'archive_unavailable' } });
+        await env.LEDGER_ARCHIVE.put(archiveKey, originalText, { customMetadata: originalObject!.customMetadata });
+        expectSuccess(await stub.listEvents(app.claims, logId, 0, 512, 2));
+        expect(await stub.deleteLog(app.claims, logId)).toMatchObject({ ok: false, status: 409 });
+        expectSuccess(await stub.deleteLog(app.claims, fork.body.id));
+        expectSuccess(await stub.deleteLog(app.claims, logId));
+        await runInDurableObject(stub, instance => instance.alarm());
+        await runInDurableObject(stub, instance => instance.alarm());
+        expect((await env.LEDGER_ARCHIVE.list({ prefix: `v1/${app.appId}/${logId}/` })).objects).toHaveLength(0);
+    });
+
     it.skipIf(!fileEvent)('indexes only accepted file versions and copies eligible references into forks', async () => {
         const [addedType, { entity, versionKey }] = fileEvent!;
         const updatedType = addedType.replace(/_ADDED$/, '_UPDATED');
@@ -604,7 +733,7 @@ describe("Ledger Durable Object RPC", () => {
         expect(session.body).toEqual({
             appId: application.appId,
             principalId: application.claims.principalId,
-            capabilities: ["action-metadata-v1", "workspace-restore-v1", "event-excision-v1"],
+            capabilities: ["snapshot-baseline-v1", "action-metadata-v1", "workspace-restore-v1", "event-excision-v1"],
         });
 
         const createdLog = await stub.createLog(application.claims, {
