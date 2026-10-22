@@ -14,11 +14,13 @@ Date: 2026-10-22.
 
 Initial defaults: manual operations, per-log scope, no automatic archive expiry, no automatic snapshot schedule, and no automatic paid-plan upgrade. Snapshot creation and compaction are separate controls. Compaction can offer to create the prerequisite snapshot as part of its job.
 
+This plan does not add an app-wide historical browsing mode. Existing Log history inspection compares actions; opening the app at an earlier state continues to require creating and switching to a fork.
+
 ## Current implementation and affected areas
 
 | Area | Current behavior | Required change |
 | --- | --- | --- |
-| `packages/runtime/src/history/point-snapshot.ts` | Builds temporary in-memory history views from raw events. | Keep history inspection; add a separate persistent checkpoint format and baseline-aware history reads. |
+| `packages/runtime/src/history/point-snapshot.ts` | Builds temporary in-memory states to calculate action before/after differences. | Keep action inspection; add a separate persistent checkpoint format and baseline-aware comparison reads. |
 | `packages/runtime/src/event/projection-builder.ts`, `rebuild.ts` | Reconstruct entities and rebuild projections from raw events. | Project from baseline state plus accepted suffix plus pending local overlay. |
 | `packages/runtime/src/store/sync-progress.ts` | Requires contiguous event positions starting at zero. | Treat an atomically installed, verified baseline as covering the prefix through its version. |
 | `packages/ledger/src/ledger-app.ts`, `schema.ts` | Stores complete event payloads, claims, append receipts, forks, and socket cursors. | Add checkpoint metadata, archive manifests, maintenance jobs, compatibility checks, and archive-aware reads. |
@@ -111,7 +113,7 @@ Provide a shared logical history reader that stitches immutable archive segments
 
 Update these consumers before enabling compaction:
 
-- History list, before/after comparisons, time travel, restore validation, tombstones, and legacy excision interpretation. Fetch historical ranges on demand into isolated scoped staging tables; keep ordinary offline work independent of archive downloads. Older history requires connectivity unless its needed data is already cached.
+- History list, action before/after comparisons, fork-point inspection, restore validation, tombstones, and legacy excision interpretation. Fetch historical ranges on demand into isolated scoped staging tables; keep ordinary offline work independent of archive downloads. Older history requires connectivity unless its needed data is already cached. Do not introduce an app-wide historical read target or historical feature-page navigation.
 - Restore/fork at an archived point. Resolve the exact original accepted history and existing action boundaries; preserve entity claims and fork/file lineage. Avoid direct `INSERT ... SELECT` assumptions that all source events remain in SQLite. A fork at the current state can use a baseline; historical forks must retain the original point semantics.
 - Stash media index and its fallback event reader. Seed its ownership state/cursor from a baseline, preserve current session/app/log checks, and rebuild correctly after cross-boundary directives. Its ability to start from an empty Durable Object is a required test.
 - Calendar feed folding and rendering, including cache invalidation when storage layout changes but the domain head does not.
