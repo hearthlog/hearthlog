@@ -36,6 +36,10 @@
             if (kind) state = await getLedgerClient().startLogMaintenance(logId, kind, crypto.randomUUID(), kind === 'compact' ? preview?.checkpointId ?? undefined : state?.checkpoint?.id, kind === 'compact' ? preview?.storageGeneration : state?.storageGeneration);
             else if (state?.job) state = await getLedgerClient().stepLogMaintenance(logId, state.job.id);
             while (alive && state?.job && !['complete', 'paused'].includes(state.job.status)) {
+                // The server keeps slow archive work alive and returns progress.
+                // Pace polls instead of piling up requests while that step runs.
+                await new Promise(resolve => setTimeout(resolve, 500));
+                if (!alive) break;
                 state = await getLedgerClient().stepLogMaintenance(logId, state.job.id);
                 if (state.job?.status === 'failed') throw new Error(state.job.error ?? 'Maintenance failed');
             }

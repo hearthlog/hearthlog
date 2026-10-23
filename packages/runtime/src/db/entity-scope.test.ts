@@ -261,6 +261,24 @@ describe('entity scope reconciliation', () => {
         expect(sqlite.prepare('SELECT id FROM custom_records').get()).toEqual({ id: 'keep' });
     });
 
+    it('repairs missing snapshot support at the current schema version without changing local events', async () => {
+        const { database, sqlite } = createFullLegacyFixture();
+        const context = { tenantId: 't-1', logId: 'log-1' };
+        const scope = new Set(['calorie_entries']);
+        await ensureCoreSchema(context, database, scope);
+        const history = sqlite.prepare('SELECT * FROM raw_events ORDER BY id').all();
+        sqlite.exec('DROP VIEW projection_events; DROP TABLE log_baselines; DROP TABLE checkpoint_claims; DROP TABLE checkpoint_events;');
+
+        await ensureCoreSchema(context, database, scope);
+
+        expect(tableExists(sqlite, 'log_baselines')).toBe(true);
+        expect(tableExists(sqlite, 'checkpoint_claims')).toBe(true);
+        expect(tableExists(sqlite, 'checkpoint_events')).toBe(true);
+        expect(sqlite.prepare('SELECT * FROM projection_events ORDER BY id').all()).toEqual(history);
+        expect(sqlite.prepare('SELECT * FROM raw_events ORDER BY id').all()).toEqual(history);
+        expect(await getLocalSchemaVersion(database)).toBe(SCHEMA_VERSION);
+    });
+
     it.each(['missing', 'malformed'] as const)('rejects a %s core table despite a current version', async (damage) => {
         const { database, sqlite } = createFullLegacyFixture();
         const context = { tenantId: 't-1', logId: 'log-1' };
