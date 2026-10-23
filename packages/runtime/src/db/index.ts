@@ -552,6 +552,8 @@ async function migrateCoreSchema(
 ): Promise<void> {
     const schema = await inspectCoreSchema(database, approvedTables);
     if (schema.user_version === SCHEMA_VERSION) {
+        // A current version alone does not prove snapshot support was initialized.
+        await createCheckpointTables(database);
         if (schema.healthy) return;
         // Feature sets can change between builds without a schema version
         // bump: reconcile when the actual schema differs. Dropping is safe —

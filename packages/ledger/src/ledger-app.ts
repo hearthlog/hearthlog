@@ -1,3 +1,4 @@
+import { MaintenanceSteps } from './maintenance-steps';
 import { DurableObject } from "cloudflare:workers";
 import { LogMaintenanceStore } from './log-maintenance';
 import type { CheckpointChunk, LogMaintenance, CompactionPreview } from '@hearthlog/contracts/history/checkpoint';
@@ -142,7 +143,7 @@ interface SocketSessionRow extends Record<string, SqlStorageValue> {
 }
 
 export class LedgerApp extends DurableObject<Env> {
-    private maintenanceQueue: Promise<unknown> = Promise.resolve();
+    private readonly maintenanceSteps = new MaintenanceSteps<LogMaintenance>(work => this.ctx.waitUntil(work));
 
     private maintenance(assertWritable: () => void = () => undefined): LogMaintenanceStore {
         const appId = this.ctx.storage.sql.exec<{ app_id: string }>('SELECT app_id FROM app_metadata WHERE singleton = 1').one().app_id;
@@ -187,9 +188,11 @@ export class LedgerApp extends DurableObject<Env> {
     async stepLogMaintenance(access: AccessClaims, logId: string, id: string): Promise<RpcResult<LogMaintenance>> {
         return rpcCall(async () => {
             this.writableAccess(access);
-            const run = this.maintenanceQueue.then(() => this.maintenance(() => { this.writableAccess(access); }).step(parseUuid(logId, 'log id'), parseUuid(id, 'request id')));
-            this.maintenanceQueue = run.then(() => undefined, () => undefined);
-            const result = await run;
+            const parsedLog = parseUuid(logId, 'log id');
+            const parsedId = parseUuid(id, 'request id');
+            const result = await this.maintenanceSteps.advance(`${parsedLog}:${parsedId}`,
+                () => this.maintenance(() => { this.writableAccess(access); }).step(parsedLog, parsedId),
+                () => this.maintenance().state(parsedLog, parsedId));
             this.currentAccess(access);
             return rpcSuccess(result);
         });

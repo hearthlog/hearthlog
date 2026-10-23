@@ -41,6 +41,9 @@ async function main(): Promise<void> {
         if (state.job?.status === 'complete') break;
         state = await request('/step', { requestId });
         console.log(JSON.stringify(state.job));
+        if (!values.once && state.job && !['complete', 'failed', 'paused'].includes(state.job.status)) {
+            await new Promise(resolve => setTimeout(resolve, 500));
+        }
         if (state.job?.status === 'failed') throw new Error(state.job.error ?? 'Maintenance failed');
     } while (!values.once && state.job?.status !== 'complete' && state.job?.status !== 'paused');
     console.log(JSON.stringify({ logId: values.log, requestId, status: state.job?.status,
