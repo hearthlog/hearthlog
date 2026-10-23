@@ -1,6 +1,6 @@
 {
   "name": "@hearthlog/cloudflare",
-  "version": "0.10.1",
+  "version": "0.10.2",
   "description": "Hearthlog's Cloudflare Worker code: the same-origin gateway (Access sessions, the Ledger and admin proxies, assets, fences, log forks), AI decisions, service integrations, and the calendar feed Workers",
   "license": "AGPL-3.0-only",
   "repository": {
