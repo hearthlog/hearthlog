@@ -48,7 +48,14 @@ describe("Ledger Durable Object RPC", () => {
         expect((await finish(snapshotId)).checkpoint?.throughVersion).toBe(1);
         const compactId = crypto.randomUUID();
         expectSuccess(await stub.startLogMaintenance(app.claims, logId, compactId, 'compact', snapshotId, 0));
+        // An unfinished job holds the log. The alarm can finish a one-event compaction before this line runs, so hold the
+        // log with a paused job (never due) instead of racing the real one.
+        await runInDurableObject(stub, (_instance, state) => state.storage.sql.exec(`INSERT INTO log_maintenance_jobs
+            (id, log_id, kind, through_version, status, cursor, entity_cursor, pages, updated_at, day, writes, paused_status, pause_reason, resume_at)
+            VALUES ('hold', ?, 'snapshot', 0, 'paused', 0, '', '[]', ?, '2999-01-01', 0, 'building', 'writes', '2999-01-01T00:00:00.000Z')`,
+            logId, new Date().toISOString()));
         expect(await stub.startLogMaintenance(app.claims, logId, crypto.randomUUID(), 'snapshot')).toMatchObject({ ok: false, status: 409 });
+        await runInDurableObject(stub, (_instance, state) => state.storage.sql.exec("DELETE FROM log_maintenance_jobs WHERE id = 'hold'"));
         expect((await finish(compactId)).compactedThroughVersion).toBe(1);
         const originalKey = await runInDurableObject(stub, (_instance, state) => state.storage.sql.exec<{ archive_key: string }>(
             'SELECT archive_key FROM log_events WHERE log_id = ? AND version = 1', logId).one().archive_key);

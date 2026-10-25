@@ -18,7 +18,7 @@ export interface LastChange {
 
 async function actionLabel(eventIds: readonly string[]): Promise<string> {
     try {
-        const [latest] = await queryDatabase((repositories) => repositories.history.list({ limit: 1 }));
+        const [latest] = await queryDatabase((repositories) => repositories.history.list({ limit: 1, eventIds }));
         if (latest?.kind === 'action' && eventIds.includes(latest.id)) return latest.label;
     } catch {
         // The label is a courtesy; the change itself is saved.
