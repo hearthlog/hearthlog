@@ -485,7 +485,7 @@ export class LedgerApp extends DurableObject<Env> {
 
     async administratorExportSqlite(appId: string): Promise<Response> {
         this.administratorApplication(appId);
-        if (this.ctx.storage.sql.exec('SELECT 1 FROM log_events WHERE archive_key IS NOT NULL LIMIT 1').toArray().length
+        if (this.ctx.storage.sql.exec('SELECT 1 FROM log_storage WHERE archived_through > 0 LIMIT 1').toArray().length
             || this.ctx.storage.sql.exec('SELECT 1 FROM log_storage WHERE checkpoint IS NOT NULL LIMIT 1').toArray().length) {
             return jsonError('archive_bundle_required', 'Use the complete logical export or application transfer; archived payloads are outside SQLite.', 409);
         }
@@ -910,7 +910,7 @@ export class LedgerApp extends DurableObject<Env> {
                 throw transferError("not_importing", "Only an import in progress can be aborted");
             }
             this.ctx.storage.transactionSync(() => {
-                for (const table of ["log_checkpoint_work", "log_checkpoint_versions", "log_checkpoint_entities", "log_storage", "log_archive_pages", "log_maintenance_jobs", "gallery_photo_references", "log_fork_requests", "append_requests", "entity_claims", "log_events", "logs", "app_metadata"]) {
+                for (const table of ["log_checkpoint_entities", "log_storage", "log_archive_pages", "log_maintenance_jobs", "gallery_photo_references", "log_fork_requests", "append_requests", "entity_claims", "log_events", "logs", "app_metadata"]) {
                     this.ctx.storage.sql.exec(`DELETE FROM ${table}`);
                 }
             });
@@ -1164,6 +1164,12 @@ export class LedgerApp extends DurableObject<Env> {
                  FROM log_events WHERE log_id = ? AND version <= ? ORDER BY version`,
                 id, sourceLogId, targetVersion,
             );
+            // A fork shares its source's archived prefix up to the fork point.
+            this.ctx.storage.sql.exec(
+                `INSERT INTO log_storage (log_id, compacted_through, generation, checkpoint, archived_through)
+                 SELECT ?, 0, 0, NULL, MIN(archived_through, ?) FROM log_storage WHERE log_id = ? AND archived_through > 0`,
+                id, targetVersion, sourceLogId,
+            );
             this.ctx.storage.sql.exec(
                 `INSERT INTO entity_claims (log_id, entity_id, current_version, version_created, created_at, updated_at)
                  SELECT ?, source.entity_id, source.entity_version, first_version.first_version, ?, ?
@@ -1224,8 +1230,6 @@ export class LedgerApp extends DurableObject<Env> {
             }
             for (const query of [
                 "DELETE FROM log_checkpoint_entities WHERE job_id IN (SELECT id FROM log_maintenance_jobs WHERE log_id = ?)",
-                "DELETE FROM log_checkpoint_work WHERE job_id IN (SELECT id FROM log_maintenance_jobs WHERE log_id = ?)",
-                "DELETE FROM log_checkpoint_versions WHERE job_id IN (SELECT id FROM log_maintenance_jobs WHERE log_id = ?)",
                 "DELETE FROM log_fork_requests WHERE fork_log_id = ?",
                 "DELETE FROM append_requests WHERE log_id = ?",
                 "DELETE FROM log_storage WHERE log_id = ?",
@@ -1658,7 +1662,7 @@ export class LedgerApp extends DurableObject<Env> {
             return;
         }
         const head = this.logHead(attachment.logId);
-        const archived = this.ctx.storage.sql.exec<{ version: number | null }>('SELECT MAX(version) AS version FROM log_events WHERE log_id = ? AND archive_key IS NOT NULL', attachment.logId).one().version ?? 0;
+        const archived = this.ctx.storage.sql.exec<{ archived_through: number }>('SELECT archived_through FROM log_storage WHERE log_id = ?', attachment.logId).toArray()[0]?.archived_through ?? 0;
         if (attachment.cursor < archived) {
             this.sendFrame(ws, { type: 'resync_required', headVersion: head, reason: 'gap_too_large' });
             ws.close(1008, 'baseline resync required');
