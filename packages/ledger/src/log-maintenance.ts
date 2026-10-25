@@ -6,11 +6,14 @@ import { LedgerError, validationError } from './errors';
 
 /** Events archived per compaction step. */
 const PAGE = 128;
-/** Source events folded per snapshot step (also bounded by the byte window of the reader). */
+/** Source events per read while folding (also bounded by the byte window of the reader). */
 const FOLD_EVENTS = 512;
-/** Entities indexed into snapshot pages per step. */
-const INDEX_ENTITIES = 256;
-const CLEAN_ROWS = 256;
+/** Retained events read per query while writing snapshot pages. */
+const READ_VERSIONS = 256;
+const CLAIMS_PER_PAGE = 4096;
+/** Wall time one snapshot step keeps working before it saves its state. */
+const STEP_MS = 4000;
+const MAX_WORK_BYTES = 64_000_000;
 const MAX_PAGE_BYTES = 1_500_000;
 const MAX_STATE_BYTES = 1_500_000;
 const MAX_MARKER_BYTES = 1_000_000;
@@ -24,7 +27,7 @@ const SELECTORS: readonly CheckpointSelector[] = [
     event => typeof event.payload.thumbnailRef === 'string' ? 'thumbnail:string' : null,
 ];
 type Row = Record<string, SqlStorageValue>;
-type Phase = 'reset' | 'seed' | 'fold' | 'index' | 'pages';
+type Phase = 'seed' | 'fold' | 'pages';
 interface JobRow extends Row {
     id: string; log_id: string; kind: MaintenanceJob['kind']; through_version: number;
     status: MaintenanceJob['status']; cursor: number; entity_cursor: string; pages: string;
@@ -117,19 +120,11 @@ export class LogMaintenanceStore {
             if (kind === 'compact' && (!checkpoint || checkpoint.throughVersion <= this.layout(logId).compacted_through)) {
                 throw new LedgerError(409, { error: 'Conflict', code: 'snapshot_required', message: 'Create a newer verified snapshot before compacting.' });
             }
-            // A new snapshot can start from the previous one's retained facts
-            // instead of re-reading the whole (archived) history, unless a
-            // replay directive since then could reach back behind it.
-            let phase: Phase = 'fold', cursor = 0;
-            if (kind === 'snapshot' && checkpoint && checkpoint.throughVersion > 0 && checkpoint.throughVersion <= log.version
-                && !this.query(`SELECT 1 FROM log_events WHERE log_id = ? AND version > ? AND event_type IN ('EVENT_TOMBSTONED', 'WORKSPACE_RESTORED', 'EVENTS_EXCISED') LIMIT 1`,
-                    logId, checkpoint.throughVersion).length) {
-                phase = 'seed'; cursor = checkpoint.throughVersion;
-            }
+            const start = kind === 'snapshot' ? this.initialBuild(logId, log.version) : { phase: null, cursor: 0 };
             this.query(`INSERT INTO log_maintenance_jobs (id, log_id, kind, through_version, status, cursor, entity_cursor, pages, updated_at, day, writes, phase)
                 VALUES (?, ?, ?, ?, ?, ?, '', '[]', ?, ?, 0, ?)`, id, logId, kind,
-                kind === 'compact' ? checkpoint!.throughVersion : log.version, kind === 'compact' ? 'archiving' : 'building', cursor,
-                new Date().toISOString(), day(), kind === 'compact' ? null : phase);
+                kind === 'compact' ? checkpoint!.throughVersion : log.version, kind === 'compact' ? 'archiving' : 'building', start.cursor,
+                new Date().toISOString(), day(), start.phase);
         });
         return this.state(logId, id);
     }
@@ -213,7 +208,7 @@ export class LogMaintenanceStore {
         }
         try {
             if (job.status === 'building') await this.build(job);
-            else if (job.status === 'cleaning') this.clean(job);
+            else if (job.status === 'cleaning') await this.clean(job);
             else if (job.status === 'archiving' || job.status === 'reclaiming') await this.archive(job);
             if (job.attempts > 0 || job.error) {
                 this.query('UPDATE log_maintenance_jobs SET attempts = 0, error = NULL, retry_at = NULL WHERE id = ?', id);
@@ -283,26 +278,23 @@ export class LogMaintenanceStore {
     }
 
     private async build(job: JobRow): Promise<void> {
-        switch (job.phase ?? 'reset') {
-            case 'reset': return this.reset(job);
-            case 'seed': return this.seed(job);
-            case 'fold':
-                if (job.cursor < job.through_version) return this.fold(job);
-                this.setPhase(job, 'index');
-                return this.index({ ...job, phase: 'index' });
-            case 'index': return this.index(job);
-            case 'pages': return this.pages(job);
+        if (!job.phase || !['seed', 'fold', 'pages'].includes(job.phase)) return this.reset(job);
+        if (job.phase === 'pages') return this.pages(job);
+        return this.fold(job);
+    }
+
+    /** Where a new snapshot starts: from the previous one's retained facts when no later replay directive can reach behind it. */
+    private initialBuild(logId: string, through: number): { phase: Phase; cursor: number } {
+        const checkpoint = this.state(logId).checkpoint;
+        if (checkpoint && checkpoint.throughVersion > 0 && checkpoint.throughVersion <= through
+            && !this.query(`SELECT 1 FROM log_events WHERE log_id = ? AND version > ? AND event_type IN ('EVENT_TOMBSTONED', 'WORKSPACE_RESTORED', 'EVENTS_EXCISED') LIMIT 1`,
+                logId, checkpoint.throughVersion).length) {
+            return { phase: 'seed', cursor: checkpoint.throughVersion };
         }
+        return { phase: 'fold', cursor: 0 };
     }
 
-    private setPhase(job: JobRow, phase: Phase, extra: { cursor?: number; versionCursor?: number; entityCursor?: string; pages?: CheckpointPage[] } = {}): void {
-        this.assertWritable();
-        this.query('UPDATE log_maintenance_jobs SET phase = ?, cursor = ?, version_cursor = ?, entity_cursor = ?, pages = ?, updated_at = ? WHERE id = ?',
-            phase, extra.cursor ?? job.cursor, extra.versionCursor ?? 0, extra.entityCursor ?? '', JSON.stringify(extra.pages ?? []),
-            new Date().toISOString(), job.id);
-    }
-
-    /** Discard partial work (including work files of the former R2-based builder) and restart from the first event. */
+    /** Discard partial work (including work files of earlier builders) and start the build again. */
     private async reset(job: JobRow): Promise<void> {
         const legacy = this.query<{ entity_id: string; object_key: string }>('SELECT entity_id, object_key FROM log_checkpoint_entities WHERE job_id = ? LIMIT 16', job.id);
         if (legacy.length) {
@@ -313,168 +305,161 @@ export class LogMaintenanceStore {
             }
             return;
         }
-        if (this.deleteWork(job.id)) return;
-        this.setPhase(job, 'fold', { cursor: 0 });
-    }
-
-    /** Delete a bounded batch of work rows; true while any remain. */
-    private deleteWork(jobId: string): boolean {
+        const reference = workReference(job.entity_cursor);
+        if (reference) await this.deleteObject(reference.key);
+        const start = this.initialBuild(job.log_id, job.through_version);
         this.assertWritable();
-        const entities = this.query<{ entity_id: string }>('SELECT entity_id FROM log_checkpoint_work WHERE job_id = ? LIMIT ?', jobId, CLEAN_ROWS);
-        if (entities.length) {
-            this.query('DELETE FROM log_checkpoint_work WHERE job_id = ? AND entity_id IN (SELECT value FROM json_each(?))', jobId, JSON.stringify(entities.map(row => row.entity_id)));
-            return true;
-        }
-        const versions = this.query<{ version: number }>('SELECT version FROM log_checkpoint_versions WHERE job_id = ? LIMIT ?', jobId, CLEAN_ROWS * 2);
-        if (versions.length) {
-            this.query('DELETE FROM log_checkpoint_versions WHERE job_id = ? AND version IN (SELECT value FROM json_each(?))', jobId, JSON.stringify(versions.map(row => row.version)));
-            return true;
-        }
-        return false;
+        this.query(`UPDATE log_maintenance_jobs SET phase = ?, cursor = ?, version_cursor = 0, entity_cursor = '', pages = '[]', markers = NULL, updated_at = ?
+            WHERE id = ?`, start.phase, start.cursor, new Date().toISOString(), job.id);
     }
 
-    private loadWork(jobId: string, entityIds: string[]): Map<string, WorkState> {
-        return new Map(this.query<{ entity_id: string; state: string }>(
-            'SELECT entity_id, state FROM log_checkpoint_work WHERE job_id = ? AND entity_id IN (SELECT value FROM json_each(?))',
-            jobId, JSON.stringify(entityIds)).map(row => [row.entity_id, JSON.parse(row.state) as WorkState]));
+    /**
+     * The whole job's replay slots live in one private object, read and written once per step,
+     * so SQL writes grow with steps rather than with entities. null when it was lost (the build restarts).
+     */
+    private async loadState(job: JobRow): Promise<Map<string, WorkState> | null> {
+        const reference = workReference(job.entity_cursor);
+        if (!reference) return new Map();
+        const object = await this.getObject(reference.key);
+        const value = object ? await object.text() : null;
+        if (value === null || await checkpointDigest(value) !== reference.sha256) {
+            console.warn('ledger_maintenance_state_lost', { appId: this.appId, logId: job.log_id, jobId: job.id });
+            this.assertWritable();
+            this.query("UPDATE log_maintenance_jobs SET entity_cursor = '', phase = NULL WHERE id = ?", job.id);
+            return null;
+        }
+        return new Map(Object.entries(JSON.parse(value) as Record<string, WorkState>));
     }
 
-    /** Persist updated entity states in one statement. */
-    private saveWork(jobId: string, states: Map<string, WorkState>): void {
-        const rows: Array<{ id: string; state: WorkState }> = [];
-        for (const [id, state] of states) {
-            if (JSON.stringify(state).length > MAX_STATE_BYTES) throw new Error('Entity replay state exceeds the snapshot work budget');
-            rows.push({ id, state });
+    private async saveState(job: JobRow, states: Map<string, WorkState>, next: { phase: Phase; cursor: number; versionCursor: number }): Promise<void> {
+        let value = '{';
+        let first = true;
+        for (const [entityId, state] of states) {
+            const encoded = JSON.stringify(state);
+            if (encoded.length > MAX_STATE_BYTES) throw new Error('Entity replay state exceeds the snapshot work budget');
+            value += `${first ? '' : ','}${JSON.stringify(entityId)}:${encoded}`;
+            first = false;
         }
-        this.query(`INSERT INTO log_checkpoint_work (job_id, entity_id, state)
-            SELECT ?, json_extract(value, '$.id'), json_extract(value, '$.state') FROM json_each(?) WHERE true
-            ON CONFLICT(job_id, entity_id) DO UPDATE SET state = excluded.state`, jobId, JSON.stringify(rows));
+        value += '}';
+        if (value.length > MAX_WORK_BYTES) throw new Error('Snapshot work state exceeds the snapshot work budget');
+        const key = `v1/${this.appId}/${job.log_id}/work/${job.id}/${next.phase}-${next.cursor}-${next.versionCursor}.json`;
+        const sha256 = await this.put(key, value);
+        this.assertWritable();
+        this.query('UPDATE log_maintenance_jobs SET phase = ?, cursor = ?, version_cursor = ?, entity_cursor = ?, updated_at = ? WHERE id = ?',
+            next.phase, next.cursor, next.versionCursor, `${key}#${sha256}`, new Date().toISOString(), job.id);
+        const previous = workReference(job.entity_cursor);
+        if (previous && previous.key !== key) await this.deleteObject(previous.key);
     }
 
-    /** Start from the previous snapshot's retained facts: one of its pages per step. */
-    private async seed(job: JobRow): Promise<void> {
-        const checkpoint = this.layout(job.log_id).checkpoint ? JSON.parse(this.layout(job.log_id).checkpoint!) as CheckpointManifest : null;
-        if (!checkpoint || checkpoint.throughVersion !== job.cursor) throw new Error('The previous snapshot changed while seeding');
-        if (job.version_cursor >= checkpoint.pages.length) {
-            this.setPhase(job, 'fold');
-            return;
-        }
-        const chunk = await this.chunk(job.log_id, job.version_cursor);
-        const touched = new Set<string>([...chunk.events.map(event => event.entityId), ...chunk.claims.map(claim => claim.entityId)]);
-        const states = this.loadWork(job.id, [...touched]);
+    /** Seed from the previous snapshot, then fold source events, for as long as one step allows. */
+    private async fold(job: JobRow): Promise<void> {
+        const states = await this.loadState(job);
+        if (!states) return;
+        const started = Date.now();
         const work = (entityId: string): WorkState => {
             let state = states.get(entityId);
             if (!state) { state = { s: newCheckpointEntityState(), c: { currentVersion: 0, logVersion: 0 } }; states.set(entityId, state); }
             return state;
         };
-        for (const event of [...chunk.events].sort((a, b) => a.version - b.version)) foldCheckpointEvent(work(event.entityId).s, event, SELECTORS, standardTypes);
-        for (const claim of chunk.claims) work(claim.entityId).c = { currentVersion: claim.currentVersion, logVersion: claim.logVersion };
-        this.storage.transactionSync(() => {
-            this.assertWritable();
-            this.saveWork(job.id, states);
-            this.query('UPDATE log_maintenance_jobs SET version_cursor = ?, updated_at = ? WHERE id = ?', job.version_cursor + 1, new Date().toISOString(), job.id);
-        });
+        let phase = job.phase as Phase, cursor = job.cursor, versionCursor = job.version_cursor;
+        if (phase === 'seed') {
+            const layout = this.layout(job.log_id);
+            const checkpoint = layout.checkpoint ? JSON.parse(layout.checkpoint) as CheckpointManifest : null;
+            if (!checkpoint || checkpoint.throughVersion !== job.cursor) throw new Error('The previous snapshot changed while seeding');
+            while (versionCursor < checkpoint.pages.length && Date.now() - started < STEP_MS) {
+                const chunk = await this.chunk(job.log_id, versionCursor);
+                for (const event of [...chunk.events].sort((a, b) => a.version - b.version)) foldCheckpointEvent(work(event.entityId).s, event, SELECTORS, standardTypes);
+                for (const claim of chunk.claims) work(claim.entityId).c = { currentVersion: claim.currentVersion, logVersion: claim.logVersion };
+                versionCursor++;
+            }
+            if (versionCursor >= checkpoint.pages.length) { phase = 'fold'; versionCursor = 0; }
+        }
+        if (phase === 'fold') {
+            const selected = cursor < job.through_version ? this.selection(job) : () => true;
+            while (cursor < job.through_version && Date.now() - started < STEP_MS) {
+                const events = await this.readEvents(job.log_id, cursor, job.through_version, FOLD_EVENTS);
+                if (!events.length || events[0]!.version !== cursor + 1 || events[events.length - 1]!.version - events[0]!.version !== events.length - 1) {
+                    throw new Error('Snapshot source contains a gap');
+                }
+                for (const event of events) {
+                    const state = work(event.entityId);
+                    if (selected(event) && !directives.includes(event.type)) foldCheckpointEvent(state.s, event, SELECTORS, standardTypes);
+                    state.c = { currentVersion: event.entityVersion, logVersion: event.version };
+                }
+                cursor = events[events.length - 1]!.version;
+            }
+            if (cursor >= job.through_version) { phase = 'pages'; versionCursor = 0; }
+        }
+        await this.saveState(job, states, { phase, cursor, versionCursor });
     }
 
-    /** Fold the next window of source events into per-entity replay slots. */
-    private async fold(job: JobRow): Promise<void> {
-        const events = await this.readEvents(job.log_id, job.cursor, job.through_version, FOLD_EVENTS);
-        if (!events.length || events[0]!.version !== job.cursor + 1 || events[events.length - 1]!.version - events[0]!.version !== events.length - 1) {
-            throw new Error('Snapshot source contains a gap');
-        }
-        const selected = this.selection(job);
-        const groups = new Map<string, CheckpointEvent[]>();
-        for (const event of events) {
-            const group = groups.get(event.entityId) ?? [];
-            group.push(event); groups.set(event.entityId, group);
-        }
-        const states = this.loadWork(job.id, [...groups.keys()]);
-        for (const [entityId, source] of groups) {
-            const state = states.get(entityId) ?? { s: newCheckpointEntityState(), c: { currentVersion: 0, logVersion: 0 } };
-            for (const event of source) if (selected(event) && !directives.includes(event.type)) foldCheckpointEvent(state.s, event, SELECTORS, standardTypes);
-            const last = source[source.length - 1]!;
-            state.c = { currentVersion: last.entityVersion, logVersion: last.version };
-            states.set(entityId, state);
-        }
-        this.storage.transactionSync(() => {
-            this.assertWritable();
-            this.saveWork(job.id, states);
-            this.query('UPDATE log_maintenance_jobs SET cursor = ?, updated_at = ? WHERE id = ?',
-                events[events.length - 1]!.version, new Date().toISOString(), job.id);
-        });
-    }
-
-    /** Turn entity slots into claim pages and the list of source versions to retain. */
-    private async index(job: JobRow): Promise<void> {
-        const pages = JSON.parse(job.pages) as CheckpointPage[];
-        const rows = this.query<{ entity_id: string; state: string }>(`SELECT entity_id, state FROM log_checkpoint_work
-            WHERE job_id = ? AND entity_id > ? ORDER BY entity_id LIMIT ?`, job.id, job.entity_cursor, INDEX_ENTITIES);
-        if (!rows.length) {
-            this.setPhase(job, 'pages', { pages });
-            return;
-        }
-        const versions = new Set<number>();
-        const claims: CheckpointChunk['claims'] = [];
-        for (const row of rows) {
-            const work = JSON.parse(row.state) as WorkState;
-            for (const version of checkpointStateVersions(work.s)) versions.add(version);
-            if (work.c.logVersion > 0) claims.push({ entityId: row.entity_id, currentVersion: work.c.currentVersion, logVersion: work.c.logVersion });
-        }
-        if (claims.length) {
-            const value = JSON.stringify({ events: [], claims } satisfies CheckpointChunk);
-            const key = `v1/${this.appId}/${job.log_id}/snapshots/${job.id}/${pages.length}.json`;
-            pages.push({ key, sha256: await this.put(key, value), count: 0, bytes: new TextEncoder().encode(value).byteLength });
-        }
-        this.storage.transactionSync(() => {
-            this.assertWritable();
-            if (versions.size) this.query('INSERT OR IGNORE INTO log_checkpoint_versions (job_id, version) SELECT ?, value FROM json_each(?)', job.id, JSON.stringify([...versions]));
-            this.query('UPDATE log_maintenance_jobs SET entity_cursor = ?, pages = ?, updated_at = ? WHERE id = ?',
-                rows[rows.length - 1]!.entity_id, JSON.stringify(pages), new Date().toISOString(), job.id);
-        });
-    }
-
-    /** Write retained source events in version order, then publish the manifest. */
+    /** Write claim pages and the retained source events in version order, then publish the manifest. */
     private async pages(job: JobRow): Promise<void> {
+        const states = await this.loadState(job);
+        if (!states) return;
+        const started = Date.now();
         const pages = JSON.parse(job.pages) as CheckpointPage[];
-        const rows = this.query<{ version: number }>(`SELECT version FROM log_checkpoint_versions WHERE job_id = ? AND version > ?
-            ORDER BY version LIMIT ?`, job.id, job.version_cursor, PAGE);
-        if (!rows.length) {
-            const manifest: CheckpointManifest = { format: 1, appId: this.appId, logId: job.log_id, id: job.id,
-                throughVersion: job.through_version, createdAt: new Date().toISOString(), pages,
-                eventCount: pages.reduce((count, page) => count + page.count, 0), sourceEventCount: job.through_version,
-                sha256: await checkpointDigest(JSON.stringify(pages)) };
-            this.storage.transactionSync(() => {
-                this.assertWritable();
-                this.query(`INSERT INTO log_storage (log_id, compacted_through, generation, checkpoint) VALUES (?, 0, 0, ?)
-                    ON CONFLICT(log_id) DO UPDATE SET checkpoint = excluded.checkpoint`, job.log_id, JSON.stringify(manifest));
-                this.query("UPDATE log_maintenance_jobs SET status = 'cleaning', updated_at = ? WHERE id = ?", new Date().toISOString(), job.id);
-            });
+        const pageKey = () => `v1/${this.appId}/${job.log_id}/snapshots/${job.id}/${pages.length}.json`;
+        const write = async (chunk: CheckpointChunk) => {
+            const value = JSON.stringify(chunk);
+            const key = pageKey();
+            pages.push({ key, sha256: await this.put(key, value), count: chunk.events.length, bytes: new TextEncoder().encode(value).byteLength });
+        };
+        if (!pages.length && job.version_cursor === 0) {
+            const claims = [...states].filter(([, state]) => state.c.logVersion > 0).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0)
+                .map(([entityId, state]) => ({ entityId, currentVersion: state.c.currentVersion, logVersion: state.c.logVersion }));
+            for (let offset = 0; offset < claims.length; offset += CLAIMS_PER_PAGE) await write({ events: [], claims: claims.slice(offset, offset + CLAIMS_PER_PAGE) });
+        }
+        const retained = new Set<number>();
+        for (const state of states.values()) for (const version of checkpointStateVersions(state.s)) retained.add(version);
+        const versions = [...retained].filter(version => version > job.version_cursor).sort((a, b) => a - b);
+        let versionCursor = job.version_cursor;
+        let chunk: CheckpointChunk = { events: [], claims: [] };
+        let bytes = 2;
+        let offset = 0;
+        while (offset < versions.length && Date.now() - started < STEP_MS) {
+            const wanted = versions.slice(offset, offset + READ_VERSIONS);
+            const events = await this.readVersions(job.log_id, wanted);
+            if (events.length !== wanted.length || events.some((event, index) => event.version !== wanted[index])) throw new Error('Snapshot source is missing retained events');
+            for (const event of events) {
+                const size = new TextEncoder().encode(JSON.stringify(event)).byteLength + 1;
+                if (chunk.events.length && bytes + size >= MAX_PAGE_BYTES) {
+                    await write(chunk);
+                    versionCursor = chunk.events[chunk.events.length - 1]!.version;
+                    chunk = { events: [], claims: [] }; bytes = 2;
+                }
+                chunk.events.push(event); bytes += size;
+            }
+            offset += wanted.length;
+        }
+        if (chunk.events.length) {
+            await write(chunk);
+            versionCursor = chunk.events[chunk.events.length - 1]!.version;
+        }
+        this.assertWritable();
+        if (offset < versions.length) {
+            this.query('UPDATE log_maintenance_jobs SET version_cursor = ?, pages = ?, updated_at = ? WHERE id = ?',
+                versionCursor, JSON.stringify(pages), new Date().toISOString(), job.id);
             return;
         }
-        const wanted = rows.map(row => row.version);
-        const events = await this.readVersions(job.log_id, wanted);
-        if (events.length !== wanted.length || events.some((event, index) => event.version !== wanted[index])) throw new Error('Snapshot source is missing retained events');
-        const chunk: CheckpointChunk = { events: [], claims: [] };
-        let bytes = 2;
-        for (const event of events) {
-            const size = new TextEncoder().encode(JSON.stringify(event)).byteLength + 1;
-            if (chunk.events.length && bytes + size >= MAX_PAGE_BYTES) break;
-            chunk.events.push(event); bytes += size;
-        }
-        const value = JSON.stringify(chunk);
-        const key = `v1/${this.appId}/${job.log_id}/snapshots/${job.id}/${pages.length}.json`;
-        pages.push({ key, sha256: await this.put(key, value), count: chunk.events.length, bytes: new TextEncoder().encode(value).byteLength });
-        this.assertWritable();
-        this.query('UPDATE log_maintenance_jobs SET version_cursor = ?, pages = ?, updated_at = ? WHERE id = ?',
-            chunk.events[chunk.events.length - 1]!.version, JSON.stringify(pages), new Date().toISOString(), job.id);
+        const manifest: CheckpointManifest = { format: 1, appId: this.appId, logId: job.log_id, id: job.id,
+            throughVersion: job.through_version, createdAt: new Date().toISOString(), pages,
+            eventCount: pages.reduce((count, page) => count + page.count, 0), sourceEventCount: job.through_version,
+            sha256: await checkpointDigest(JSON.stringify(pages)) };
+        this.storage.transactionSync(() => {
+            this.assertWritable();
+            this.query(`INSERT INTO log_storage (log_id, compacted_through, generation, checkpoint) VALUES (?, 0, 0, ?)
+                ON CONFLICT(log_id) DO UPDATE SET checkpoint = excluded.checkpoint`, job.log_id, JSON.stringify(manifest));
+            this.query("UPDATE log_maintenance_jobs SET status = 'cleaning', version_cursor = ?, pages = ?, updated_at = ? WHERE id = ?",
+                versionCursor, JSON.stringify(pages), new Date().toISOString(), job.id);
+        });
     }
 
-    private clean(job: JobRow): void {
-        if (this.deleteWork(job.id)) {
-            this.query('UPDATE log_maintenance_jobs SET updated_at = ? WHERE id = ?', new Date().toISOString(), job.id);
-            return;
-        }
-        this.query("UPDATE log_maintenance_jobs SET status = 'complete', updated_at = ? WHERE id = ?", new Date().toISOString(), job.id);
+    private async clean(job: JobRow): Promise<void> {
+        const reference = workReference(job.entity_cursor);
+        if (reference) await this.deleteObject(reference.key);
+        this.assertWritable();
+        this.query("UPDATE log_maintenance_jobs SET status = 'complete', entity_cursor = '', updated_at = ? WHERE id = ?", new Date().toISOString(), job.id);
     }
 
     /** R2 rejects an upload whose bytes do not match the digest, so no read-back is needed. */
@@ -511,6 +496,7 @@ export class LogMaintenanceStore {
             this.query(`UPDATE log_events SET archive_key = ?, payload_bytes = COALESCE(payload_bytes, length(CAST(payload AS BLOB))), payload = CASE WHEN event_type IN
                 ('EVENT_TOMBSTONED', 'WORKSPACE_RESTORED', 'EVENTS_EXCISED') THEN payload ELSE '{}' END
                 WHERE log_id = ? AND version >= ? AND version <= ? AND archive_key IS NULL`, key, job.log_id, first, events[events.length - 1]!.version);
+            this.query('UPDATE log_storage SET archived_through = MAX(archived_through, ?) WHERE log_id = ?', events[events.length - 1]!.version, job.log_id);
             this.query("UPDATE log_maintenance_jobs SET status = 'archiving', cursor = ?, updated_at = ? WHERE id = ?",
                 events[events.length - 1]!.version, new Date().toISOString(), job.id);
         });
@@ -536,6 +522,11 @@ export class LogMaintenanceStore {
     }
 }
 
+/** The job's current work-state object, stored as `key#sha256` in the job row. */
+function workReference(value: string): { key: string; sha256: string } | null {
+    const separator = value.lastIndexOf('#');
+    return separator > 0 ? { key: value.slice(0, separator), sha256: value.slice(separator + 1) } : null;
+}
 function day(): string { return new Date().toISOString().slice(0, 10); }
 /** Start of the UTC day after `dayValue` (YYYY-MM-DD). */
 function nextMidnight(dayValue: string): number { return Date.parse(`${dayValue}T00:00:00.000Z`) + 86_400_000; }

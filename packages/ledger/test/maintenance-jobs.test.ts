@@ -77,6 +77,42 @@ describe("server-driven log maintenance", () => {
         expect(compacted.body).toMatchObject({ compactedThroughVersion: 720 });
     });
 
+    it("keeps snapshot writes per step, not per entity, and archives with about one write per event", async () => {
+        // Like an imported catalog: almost every event is its own record, so nearly every event is retained.
+        const { app, stub, logId } = await seedLog("distinct-records", 500, 1);
+        for (let round = 0; round < 5; round++) {
+            const events = Array.from({ length: 500 }, () => {
+                const id = crypto.randomUUID();
+                return { id: crypto.randomUUID(), entityId: `calendar_event:${id}`, type: "CALENDAR_EVENT_ADDED", payload: { id, title: "Imported", eventDate: "2026-10-22" } };
+            });
+            expectSuccess(await stub.appendEvents(app.claims, logId, { requestId: crypto.randomUUID(), events }, 2));
+        }
+        const status = async () => {
+            const state = await stub.logMaintenance(app.claims, logId);
+            expectSuccess(state);
+            return state.body.job;
+        };
+        const counters = (kind: string) => runInDurableObject(stub, (_instance, state) => state.storage.sql.exec<{ writes: number }>(
+            "SELECT writes FROM log_maintenance_jobs WHERE kind = ? ORDER BY rowid DESC LIMIT 1", kind).one().writes);
+        const run = async (kind: "snapshot" | "compact") => {
+            const state = await stub.logMaintenance(app.claims, logId);
+            expectSuccess(state);
+            expectSuccess(await stub.startLogMaintenance(app.claims, logId, crypto.randomUUID(), kind,
+                kind === "compact" ? state.body.checkpoint!.id : undefined, kind === "compact" ? state.body.storageGeneration : undefined));
+            expect(await alarmsUntilDone(stub, status)).toBe("complete");
+        };
+        await run("snapshot");
+        const snapshot = await stub.logMaintenance(app.claims, logId);
+        expectSuccess(snapshot);
+        expect(snapshot.body.checkpoint).toMatchObject({ throughVersion: 3000, eventCount: 3000 });
+        expect(await counters("snapshot")).toBeLessThan(50);
+        await run("compact");
+        expect(await counters("compact")).toBeLessThan(3000 * 1.2);
+        // A later snapshot seeded from the first one stays cheap too.
+        await run("snapshot");
+        expect(await counters("snapshot")).toBeLessThan(50);
+    });
+
     it("keeps a failing step visible, retries with backoff, stops after repeated failures and resumes on an explicit retry", async () => {
         const { app, stub, logId } = await seedLog("failing", 4, 20);
         const job = async () => {

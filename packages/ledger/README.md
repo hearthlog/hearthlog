@@ -208,8 +208,10 @@ Set `LEDGER_BASE_URL` and `LEDGER_AUTH_TOKEN` in the process environment; the CL
 Use `--request-id` to retry an explicit operation and `--once` for one bounded work step.
 
 A started job is carried to completion by the application object's alarm, with no caller or open browser. Each step
-folds up to 512 source events into small per-entity replay slots (source versions only, in SQLite), then writes the
-retained events as checksummed pages. A later snapshot starts from the previous one's retained facts instead of re-reading
+works for a few seconds, folding source events into small per-entity replay slots (source versions only). The whole job's
+slots live in one private R2 object that is read and written once per step, so a snapshot costs a handful of SQL writes
+however many records the log holds. The retained events are then written as checksummed pages. Archiving rewrites each
+archived event row once (its payload moves to R2); the archived prefix is tracked per log rather than indexed per event. A later snapshot starts from the previous one's retained facts instead of re-reading
 archived history, unless a restore/removal marker has been added since. A failing step is retried with backoff; the
 error and attempt count stay visible, and after five attempts the job stops as `failed` until it is explicitly retried
 (the maintenance panel's Retry, `POST /maintenance/step`, or the CLI). A job that uses its daily budget is `paused`
@@ -237,7 +239,7 @@ payloads into the existing portable format. A SQLite-only export returns `409 ar
 external checkpoint/archive objects are required, avoiding a misleading incomplete backup. Rollback after
 compaction needs a compatible reader or a full logical restore first.
 
-The first format bounds a single entity's replay state to about 1.5 MB and stores page descriptors in SQLite.
+The first format bounds a single entity's replay state to about 1.5 MB and a job's work state to 64 MB and stores page descriptors in SQLite.
 Exceeding a snapshot work/metadata bound fails the job while source history stays readable. Measure maintenance
 work and storage on representative data; retained identity metadata still grows, and physical SQLite file size
 need not shrink immediately when payload space becomes reusable.

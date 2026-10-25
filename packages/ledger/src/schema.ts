@@ -234,6 +234,27 @@ const LEDGER_APP_MIGRATIONS: readonly Migration[] = [
         ALTER TABLE log_maintenance_jobs ADD COLUMN paused_status TEXT;
         ALTER TABLE log_maintenance_jobs ADD COLUMN markers TEXT;
     ` },
+    // Snapshot work state moves to one R2 object per job (SQL writes per step, not per entity), and
+    // archiving no longer writes an index entry per event: the archived prefix is tracked per log.
+    { id: 16, sql: `
+        ALTER TABLE log_storage ADD COLUMN archived_through INTEGER NOT NULL DEFAULT 0;
+        UPDATE log_storage SET archived_through = COALESCE((SELECT MAX(version) FROM log_events
+            WHERE log_events.log_id = log_storage.log_id AND archive_key IS NOT NULL), 0);
+        INSERT INTO log_storage (log_id, compacted_through, generation, checkpoint, archived_through)
+            SELECT log_id, 0, 0, NULL, MAX(version) FROM log_events
+            WHERE archive_key IS NOT NULL AND log_id NOT IN (SELECT log_id FROM log_storage) GROUP BY log_id;
+        DROP INDEX log_events_archived_cursor;
+        DROP TABLE log_checkpoint_work;
+        DROP TABLE log_checkpoint_versions;
+        -- Builds in progress restart with the new builder. Their counters measured the old one, so a
+        -- build that paused on them may continue today.
+        UPDATE log_maintenance_jobs SET phase = NULL, entity_cursor = '', version_cursor = 0, pages = '[]', markers = NULL,
+            writes = 0, reads = 0, attempts = 0, error = NULL, retry_at = NULL, status = 'building',
+            pause_reason = NULL, resume_at = NULL, paused_status = NULL
+            WHERE kind = 'snapshot' AND (status = 'building' OR (status = 'paused' AND COALESCE(paused_status, 'building') = 'building'));
+        UPDATE log_maintenance_jobs SET entity_cursor = '', status = 'cleaning', pause_reason = NULL, resume_at = NULL, paused_status = NULL
+            WHERE kind = 'snapshot' AND (status = 'cleaning' OR (status = 'paused' AND paused_status = 'cleaning'));
+    ` },
 ];
 
 const APP_REGISTRY_MIGRATIONS: readonly Migration[] = [
