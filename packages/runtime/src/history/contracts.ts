@@ -39,6 +39,8 @@ export interface HistoryListOptions {
     sourceVersion?: number | null;
     /** Fork points to place between actions; left out while searching or filtering. */
     markers?: { key: string; version: number }[];
+    /** Name only the actions made of these events, so a save can label itself without ranking the whole log. */
+    eventIds?: readonly string[];
 }
 
 export interface HistoryField {

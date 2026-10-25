@@ -1,4 +1,4 @@
-import { sql } from 'kysely';
+import { sql, type RawBuilder } from 'kysely';
 import type { ReadModelSession } from './read-session.js';
 import { ENTITY_DEFINITIONS, getEventPrefix } from '@hearthlog/contracts/event/entity-definitions';
 import { FEATURES } from '@hearthlog/contracts/features/registry';
@@ -20,8 +20,28 @@ const summaries = summarized.length
     : sql`SELECT NULL, NULL, NULL, NULL WHERE 0`;
 const order = sql`(version IS NULL) DESC, COALESCE(version, local_sequence) DESC, id DESC`;
 
+/**
+ * The newest name a record had at this event, read from its earlier events. Events carry their record as
+ * `entity_id`, so matching on it plainly lets SQLite look the record's events up instead of scanning the whole log
+ * once per event; only an event without one falls back to the payload's `id`.
+ */
+function recordLabel(sameRecord: RawBuilder<unknown>): RawBuilder<unknown> {
+    return sql`(SELECT CAST(value AS TEXT) FROM raw_events AS prior, json_each(prior.payload)
+                    WHERE ${sameRecord}
+                      AND key IN ('title', 'name', 'invoiceNumber', 'number', 'description', 'label', 'filename', 'fileName')
+                      AND json_each.type = 'text' AND trim(CAST(value AS TEXT)) != ''
+                      AND (prior.id = raw_events.id OR (prior.projection_state IN ('effective', 'restored_out')
+                        AND prior.is_tombstoned = 0 AND (
+                            (raw_events.log_version IS NOT NULL AND prior.log_version <= raw_events.log_version)
+                            OR (raw_events.log_version IS NULL AND prior.local_sequence <= raw_events.local_sequence))))
+                    ORDER BY (prior.id = raw_events.id) DESC, prior.log_version DESC, prior.local_sequence DESC,
+                        CASE key WHEN 'title' THEN 0 WHEN 'name' THEN 1 WHEN 'invoiceNumber' THEN 2 WHEN 'number' THEN 3
+                            WHEN 'description' THEN 4 ELSE 5 END
+                    LIMIT 1)`;
+}
+
 export function createHistoryRepository(session: ReadModelSession) {
-    const base = sql`
+    const baseFor = (eventIds?: readonly string[]) => sql`
         WITH raw_events AS (SELECT * FROM ${session.table('raw_events')}),
         metadata(prefix, feature, entity_label, plural_label) AS (VALUES ${metadata}),
         feature_labels(feature, label) AS (VALUES ${featureLabels}),
@@ -32,19 +52,10 @@ export function createHistoryRepository(session: ReadModelSession) {
                 CASE WHEN ${visibleEventCondition()} THEN 1 ELSE 0 END AS visible,
                 CASE WHEN log_version IS NOT NULL AND projection_state IN ('effective', 'restored_out')
                     AND ${completeActionBoundary} THEN 1 ELSE 0 END AS complete,
-                (SELECT CAST(value AS TEXT) FROM raw_events AS prior, json_each(prior.payload)
-                    WHERE COALESCE(prior.entity_id, json_extract(prior.payload, '$.id'), prior.id)
-                        = COALESCE(raw_events.entity_id, json_extract(raw_events.payload, '$.id'), raw_events.id)
-                      AND key IN ('title', 'name', 'invoiceNumber', 'number', 'description', 'label', 'filename', 'fileName')
-                      AND json_each.type = 'text' AND trim(CAST(value AS TEXT)) != ''
-                      AND (prior.id = raw_events.id OR (prior.projection_state IN ('effective', 'restored_out')
-                        AND prior.is_tombstoned = 0 AND (
-                            (raw_events.log_version IS NOT NULL AND prior.log_version <= raw_events.log_version)
-                            OR (raw_events.log_version IS NULL AND prior.local_sequence <= raw_events.local_sequence))))
-                    ORDER BY (prior.id = raw_events.id) DESC, prior.log_version DESC, prior.local_sequence DESC,
-                        CASE key WHEN 'title' THEN 0 WHEN 'name' THEN 1 WHEN 'invoiceNumber' THEN 2 WHEN 'number' THEN 3
-                            WHEN 'description' THEN 4 ELSE 5 END
-                    LIMIT 1) AS record_label,
+                CASE WHEN raw_events.entity_id IS NOT NULL
+                    THEN ${recordLabel(sql`prior.entity_id = raw_events.entity_id`)}
+                    ELSE ${recordLabel(sql`COALESCE(prior.entity_id, json_extract(prior.payload, '$.id'), prior.id)
+                        = COALESCE(raw_events.entity_id, json_extract(raw_events.payload, '$.id'), raw_events.id)`)} END AS record_label,
                 (SELECT noun || ' ' || printf('%g', json_extract(raw_events.payload, '$.' || key)) || unit FROM summaries
                     WHERE substr(raw_events.type, 1, length(prefix)) = prefix
                       AND json_type(raw_events.payload, '$.' || key) IN ('integer', 'real')) AS summary_label,
@@ -54,6 +65,7 @@ export function createHistoryRepository(session: ReadModelSession) {
                     WHERE item.event_id = raw_events.id AND operation.status = 'needs_attention'
                     ORDER BY operation.updated_at DESC LIMIT 1) AS sync_error
             FROM raw_events LEFT JOIN metadata ON substr(raw_events.type, 1, length(prefix)) = prefix
+            ${eventIds ? sql`WHERE raw_events.id IN (SELECT value FROM json_each(${JSON.stringify(eventIds)}))` : sql``}
         ), ranked AS (
             SELECT *, ROW_NUMBER() OVER (PARTITION BY group_id
                     ORDER BY log_version DESC, action_index DESC, local_sequence DESC, id DESC) AS rank,
@@ -91,6 +103,7 @@ export function createHistoryRepository(session: ReadModelSession) {
                     ELSE 'Changed ' END || COALESCE(record_label, summary_label, summary_noun, entity_label, lower(replace(type, '_', ' '))) END AS label
             FROM ranked WHERE rank = 1 AND has_visible = 1
         )`;
+    const base = baseFor();
 
     function execute<T>(query: import('kysely').RawBuilder<T>) {
         return withTimeout(session.execute(query), 15_000, 'History could not be loaded. Try again.');
@@ -110,7 +123,7 @@ export function createHistoryRepository(session: ReadModelSession) {
                 ? sql`VALUES ${sql.join(markers.map(marker => sql`(${marker.key}, ${marker.version})`))}`
                 : sql`SELECT NULL, NULL WHERE 0`;
             const { rows } = await execute<(Omit<HistoryEntry, 'copied'> & { kind: 'action'; copied: number })
-                | Extract<HistoryItem, { kind: 'marker' }>>(sql`${base}, filtered AS (
+                | Extract<HistoryItem, { kind: 'marker' }>>(sql`${baseFor(options.eventIds)}, filtered AS (
                 SELECT *, CASE WHEN date(timestamp / 1000, 'unixepoch', 'localtime') IS
                         LAG(date(timestamp / 1000, 'unixepoch', 'localtime')) OVER (ORDER BY ${order})
                         THEN 0 ELSE 1 END AS startsDay

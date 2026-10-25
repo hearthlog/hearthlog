@@ -357,6 +357,13 @@ export const sqlocalDb =
             ON "raw_events" ("entity_id");
         `;
 
+            // One record's events within a log. Projections, history labels and undo all start from an entity id;
+            // without the scope in front SQLite reads the whole log to find them.
+            const rawEventsScopeEntityIdx = sql`
+            CREATE INDEX IF NOT EXISTS "idx_raw_events_scope_entity"
+            ON "raw_events" ("tenant_id", "log_id", "entity_id", "log_version");
+        `;
+
             const rawEventsTypeTsIdx = sql`
             CREATE INDEX IF NOT EXISTS "idx_raw_events_type_ts"
             ON "raw_events" ("type", "timestamp");
@@ -423,6 +430,7 @@ export const sqlocalDb =
                 rawEventsTimestampIdx,
                 rawEventsTypeIdx,
                 rawEventsEntityIdx,
+                rawEventsScopeEntityIdx,
                 rawEventsTypeTsIdx,
                 rawEventsEntityVersionIdx,
                 rawEventsLogVersionIdx,
