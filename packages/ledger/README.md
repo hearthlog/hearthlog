@@ -192,7 +192,8 @@ Authenticated endpoints under `/logs/:logId`:
 - `GET /maintenance-preview`: the current snapshot/generation and prefix payload counts/bytes for review.
 - `POST /maintenance`: `{ requestId, kind: "snapshot" | "compact", expectedCheckpointId?, expectedGeneration? }`.
   Compaction requires the checkpoint ID and generation from the reviewed preview; stale previews fail with 409.
-- `POST /maintenance/step`: `{ requestId }`, resumable work using the same request identity.
+- `POST /maintenance/step`: `{ requestId }`; runs one bounded step now (sharing any step already in flight) and restarts a
+  job that stopped after repeated failures. Normally unnecessary: the Ledger advances jobs by itself (see below).
 - `GET /checkpoint?page=N`: one checksum-verified canonical replay chunk and its entity claims.
 
 From the development site, the same operation can run without an open browser:
@@ -206,6 +207,15 @@ pnpm -C dev ledger:maintain --log <log-id> --resume
 Set `LEDGER_BASE_URL` and `LEDGER_AUTH_TOKEN` in the process environment; the CLI never prints credentials.
 Use `--request-id` to retry an explicit operation and `--once` for one bounded work step.
 
+A started job is carried to completion by the application object's alarm, with no caller or open browser. Each step
+folds up to 512 source events into small per-entity replay slots (source versions only, in SQLite), then writes the
+retained events as checksummed pages. A later snapshot starts from the previous one's retained facts instead of re-reading
+archived history, unless a restore/removal marker has been added since. A failing step is retried with backoff; the
+error and attempt count stay visible, and after five attempts the job stops as `failed` until it is explicitly retried
+(the maintenance panel's Retry, `POST /maintenance/step`, or the CLI). A job that uses its daily budget is `paused`
+with `pauseReason` and `resumeAt`, and resumes by itself at the next UTC day. Opening the panel re-arms a job whose
+alarm was lost.
+
 Jobs persist every source batch and publish only verified snapshots. Canonical snapshots keep original source
 witnesses for raw field values, explicit nulls, timestamps and lifecycle transitions; dynamic/nonstandard facts
 are retained losslessly. Browser projection uses a separate baseline table plus accepted suffix and pending
@@ -217,9 +227,8 @@ payload placeholders. The SDK's server checkpoint reader lets Stash seed a cold 
 `MAINTENANCE_DAILY_WRITES` defaults to `10000` per job (bounded to 128–100000), and
 `MAINTENANCE_DAILY_READS` defaults to `1000000` (bounded to 10000–1000000000). Jobs pause at either budget. Budgets use consumed SQL cursor
 counts and can overrun by one bounded step. Structured step logs include SQL rows, R2 operations/bytes, elapsed
-time and replay counts, without payloads or credentials. Resume with the same ID on a later UTC quota day;
-other applications consume account quota too. The browser
-can be closed safely and the operation resumed from the panel. No automatic snapshots or archive expiry run.
+time and replay counts, without payloads or credentials. Other applications consume account quota too. The browser
+can be closed safely; the job continues on the server. No automatic snapshots or archive expiry run.
 Deleting a whole log uses bounded background cleanup of that log's private archive objects, after normal
 fork/deletion checks. Individual archived-history deletion is a separate future feature.
 
@@ -228,7 +237,7 @@ payloads into the existing portable format. A SQLite-only export returns `409 ar
 external checkpoint/archive objects are required, avoiding a misleading incomplete backup. Rollback after
 compaction needs a compatible reader or a full logical restore first.
 
-The first format bounds a single entity's replay witnesses to 8 MB and stores page descriptors in SQLite.
+The first format bounds a single entity's replay state to about 1.5 MB and stores page descriptors in SQLite.
 Exceeding a snapshot work/metadata bound fails the job while source history stays readable. Measure maintenance
 work and storage on representative data; retained identity metadata still grows, and physical SQLite file size
 need not shrink immediately when payload space becomes reusable.

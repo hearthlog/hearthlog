@@ -59,6 +59,12 @@ export interface MaintenanceJob {
     cursor: number;
     error: string | null;
     updatedAt: string;
+    /** Consecutive failed attempts of the current step; the server retries automatically until it gives up. */
+    attempts?: number;
+    retryAt?: string | null;
+    /** Why the job is paused and when the server resumes it. */
+    pauseReason?: 'writes' | 'reads' | null;
+    resumeAt?: string | null;
 }
 
 export async function checkpointDigest(value: string): Promise<string> {
@@ -94,6 +100,61 @@ export function checkpointSelection(markers: ReadonlyArray<Pick<CheckpointEvent,
     return event => !excluded.has(event.id) && ranges.some(([from, to]) => event.version >= from && event.version <= to);
 }
 
+export type CheckpointSelector = (event: CheckpointEvent) => string | null;
+
+/**
+ * Replay slots for one entity, stored as source log versions only. Folding
+ * events in version order keeps the state bounded (distinct payload keys plus
+ * lossless nonstandard facts) so a snapshot can be built incrementally without
+ * copying payloads.
+ */
+export interface CheckpointEntityState {
+    earliest?: { v: number; t: number };
+    latest?: { v: number; ev: number };
+    keep: number[];
+    slots: Record<string, { v: number; ev: number }>;
+}
+
+export function newCheckpointEntityState(): CheckpointEntityState {
+    return { keep: [], slots: {} };
+}
+
+/** Fold one selected source event (in ascending log-version order) into an entity's slots. */
+export function foldCheckpointEvent(
+    state: CheckpointEntityState,
+    event: CheckpointEvent,
+    selectors: readonly CheckpointSelector[] = [],
+    standardTypes?: ReadonlySet<string>,
+): void {
+    if (!state.earliest || event.timestamp < state.earliest.t) state.earliest = { v: event.version, t: event.timestamp };
+    if (!state.latest || event.entityVersion > state.latest.ev) state.latest = { v: event.version, ev: event.entityVersion };
+    if ((standardTypes && !standardTypes.has(event.type)) || event.type.startsWith('ENTITY_TYPE_') || !/_(ADDED|UPDATED|REMOVED)$/.test(event.type)) {
+        // Dynamic definitions and nonstandard codecs retain their source
+        // facts. This is a lossless fallback, never silently dropped data.
+        state.keep.push(event.version);
+        return;
+    }
+    if (!event.type.endsWith('_UPDATED')) state.keep.push(event.version);
+    const claim = (key: string): void => {
+        const previous = state.slots[key];
+        if (!previous || event.entityVersion > previous.ev) state.slots[key] = { v: event.version, ev: event.entityVersion };
+    };
+    for (const key of Object.keys(event.payload)) claim(`field:${key}`);
+    for (const selector of selectors) {
+        const key = selector(event);
+        if (key !== null) claim(`selector:${key}`);
+    }
+}
+
+/** The distinct source versions an entity's snapshot must retain, ascending. */
+export function checkpointStateVersions(state: CheckpointEntityState): number[] {
+    const versions = new Set<number>(state.keep);
+    for (const slot of Object.values(state.slots)) versions.add(slot.v);
+    if (state.earliest) versions.add(state.earliest.v);
+    if (state.latest) versions.add(state.latest.v);
+    return [...versions].sort((a, b) => a - b);
+}
+
 /**
  * Retain original witnesses for every raw payload key, creation timestamp,
  * lifecycle transition, and last accepted version. SQL can therefore replay
@@ -103,39 +164,16 @@ export function checkpointSelection(markers: ReadonlyArray<Pick<CheckpointEvent,
  */
 export function checkpointEntityEvents(
     events: readonly CheckpointEvent[],
-    selectors: readonly ((event: CheckpointEvent) => string | null)[] = [],
+    selectors: readonly CheckpointSelector[] = [],
     standardTypes?: ReadonlySet<string>,
 ): CheckpointEvent[] {
-    const keep = new Map<string, CheckpointEvent>();
-    const fields = new Map<string, CheckpointEvent>();
-    let earliest: CheckpointEvent | undefined;
-    let latest: CheckpointEvent | undefined;
+    const state = newCheckpointEntityState();
+    const byVersion = new Map<number, CheckpointEvent>();
     for (const event of events) {
-        if (!earliest || event.timestamp < earliest.timestamp) earliest = event;
-        if (!latest || event.entityVersion > latest.entityVersion) latest = event;
-        if ((standardTypes && !standardTypes.has(event.type)) || event.type.startsWith('ENTITY_TYPE_') || !/_(ADDED|UPDATED|REMOVED)$/.test(event.type)) {
-            // Dynamic definitions and nonstandard codecs retain their source
-            // facts. This is a lossless fallback, never silently dropped data.
-            keep.set(event.id, event);
-            continue;
-        }
-        if (!event.type.endsWith('_UPDATED')) keep.set(event.id, event);
-        for (const key of Object.keys(event.payload)) {
-            const previous = fields.get(`field:${key}`);
-            if (!previous || event.entityVersion > previous.entityVersion) fields.set(`field:${key}`, event);
-        }
-        for (const selector of selectors) {
-            const key = selector(event);
-            if (key !== null) {
-                const previous = fields.get(`selector:${key}`);
-                if (!previous || event.entityVersion > previous.entityVersion) fields.set(`selector:${key}`, event);
-            }
-        }
+        foldCheckpointEvent(state, event, selectors, standardTypes);
+        byVersion.set(event.version, event);
     }
-    for (const event of fields.values()) keep.set(event.id, event);
-    if (earliest) keep.set(earliest.id, earliest);
-    if (latest) keep.set(latest.id, latest);
-    return [...keep.values()].sort((a, b) => a.version - b.version);
+    return checkpointStateVersions(state).map(version => byVersion.get(version)!);
 }
 
 /** Resolve directives before reducing the selected source facts. */

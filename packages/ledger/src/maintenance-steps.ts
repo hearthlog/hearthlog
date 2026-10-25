@@ -1,4 +1,4 @@
-/** One in-flight step per operation, with a bounded wait for HTTP/RPC callers.
+/** One in-flight step per operation (alarm and callers share it), with a bounded wait for HTTP/RPC callers.
  * Losing a response must not enqueue another copy of the same running step.
  */
 export class MaintenanceSteps<T> {
@@ -7,7 +7,8 @@ export class MaintenanceSteps<T> {
 
     constructor(private readonly keepAlive: (work: Promise<unknown>) => void, private readonly responseWaitMs = 1000) {}
 
-    async advance(key: string, work: () => Promise<T>, current: () => T): Promise<T> {
+    /** Queue one step behind earlier ones (or join the identical step already in flight) and resolve with its real result. */
+    run(key: string, work: () => Promise<T>): Promise<T> {
         let run = this.running.get(key);
         if (!run) {
             run = this.queue.then(work);
@@ -18,6 +19,11 @@ export class MaintenanceSteps<T> {
             this.queue = settled;
             this.keepAlive(settled);
         }
+        return run;
+    }
+
+    async advance(key: string, work: () => Promise<T>, current: () => T): Promise<T> {
+        const run = this.run(key, work);
         let timer: ReturnType<typeof setTimeout> | undefined;
         try {
             return await Promise.race([run, new Promise<T>((resolve, reject) => {

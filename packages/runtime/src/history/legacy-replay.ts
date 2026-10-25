@@ -27,7 +27,10 @@ export async function reconcileRestoredEvents(database: ReplayDatabase, scope: S
             .where('tenant_id', '=', scope.tenantId).where('log_id', '=', scope.logId)
             .where('projection_state', 'in', includePendingDdl ? ['effective', 'restored_out', 'pending_ddl'] : ['effective', 'restored_out'])
             .orderBy('local_sequence').execute();
-        const through = contiguousThrough(0, rows.flatMap(row => row.log_version === null ? [] : [row.log_version]));
+        // An installed baseline covers the positions up to its version; only the suffix is present here.
+        const baseline = await tx.selectFrom('log_baselines').select('through_version')
+            .where('tenant_id', '=', scope.tenantId).where('log_id', '=', scope.logId).executeTakeFirst();
+        const through = contiguousThrough(baseline?.through_version ?? 0, rows.flatMap(row => row.log_version === null ? [] : [row.log_version]));
         let pendingPosition = through;
         const replay: ReplayEvent[] = rows.filter(row => row.log_version === null || row.log_version <= through)
             .map(row => ({ id: row.id, type: row.type, payload: JSON.parse(row.payload),

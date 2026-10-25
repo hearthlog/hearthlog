@@ -22,6 +22,51 @@ export async function baselineVersion(context: Pick<ActiveContext, 'tenantId' | 
     return result?.through_version ?? 0;
 }
 
+export const REPLAY_DIRECTIVES = ['WORKSPACE_RESTORED', 'EVENTS_EXCISED', 'EVENT_TOMBSTONED'] as const;
+
+/**
+ * Whether replay directives accepted after the baseline need history the baseline has folded away: a restore to a
+ * version before it, or a removal/undo whose target is not a pending or later event. Anything unreadable counts as
+ * reaching behind, so the caller falls back to the complete history.
+ */
+export async function directivesReachBehind(
+    context: Pick<ActiveContext, 'tenantId' | 'logId'>,
+    through: number,
+    directives: ReadonlyArray<{ type: string; payload: unknown }>,
+    laterIds: ReadonlySet<string> = new Set(),
+): Promise<boolean> {
+    const targets = new Set<string>();
+    for (const directive of directives) {
+        let payload: unknown = directive.payload;
+        if (typeof payload === 'string') {
+            try { payload = JSON.parse(payload); } catch { return true; }
+        }
+        if (typeof payload !== 'object' || payload === null) return true;
+        const body = payload as Record<string, unknown>;
+        if (directive.type === 'WORKSPACE_RESTORED') {
+            // The target's position must be present in the suffix, so even a restore to the baseline version itself needs history.
+            if (typeof body.targetVersion !== 'number' || body.targetVersion <= through) return true;
+        } else if (directive.type === 'EVENT_TOMBSTONED') {
+            if (typeof body.eventId !== 'string' || !body.eventId) return true;
+            targets.add(body.eventId);
+        } else if (directive.type === 'EVENTS_EXCISED') {
+            if (!Array.isArray(body.eventIds) || body.eventIds.some(id => typeof id !== 'string' || !id)) return true;
+            for (const id of body.eventIds as string[]) targets.add(id);
+        } else {
+            return true;
+        }
+    }
+    const missing = [...targets].filter(id => !laterIds.has(id));
+    for (let offset = 0; offset < missing.length; offset += 400) {
+        const chunk = missing.slice(offset, offset + 400);
+        const present = await db.selectFrom('raw_events').select('id')
+            .where('tenant_id', '=', context.tenantId).where('log_id', '=', context.logId).where('id', 'in', chunk)
+            .where(eb => eb.or([eb('log_version', 'is', null), eb('log_version', '>', through)])).execute();
+        if (present.length < chunk.length) return true;
+    }
+    return false;
+}
+
 /** Install only verified chunks; publish base, projections, claims and coverage together. */
 export async function installBaseline(manifest: CheckpointManifest, context: ActiveContext): Promise<void> {
     const client = getLedgerClient();

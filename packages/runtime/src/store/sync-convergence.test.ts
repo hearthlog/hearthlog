@@ -145,6 +145,100 @@ describe('real local persistence and sync convergence', () => {
         } finally { state.maintenance = null; install.mockRestore(); }
     });
 
+    describe('adopting a snapshot on a device that is already caught up', () => {
+        const checkpoint = (throughVersion: number): LogMaintenance => ({ compactedThroughVersion: throughVersion, storageGeneration: 1, job: null, available: true,
+            checkpoint: { format: 1, id: 'checkpoint', appId: 'app', logId: 'personal', throughVersion,
+                createdAt: '2026-10-22T00:00:00Z', pages: [], eventCount: 4, sourceEventCount: throughVersion, sha256: '' } });
+        async function caughtUp(count: number) {
+            const { handleIncomingStoredEvents } = await import('../event/handlers.js');
+            const c = client(); state.database = c.database; state.readCursors = [];
+            state.events = Array.from({ length: count }, (_, index) => event(index + 1));
+            await handleIncomingStoredEvents([...state.events]);
+            state.maintenance = checkpoint(count);
+            return c;
+        }
+        async function syncOnce() {
+            const baseline = await import('../history/baseline.js');
+            const install = vi.spyOn(baseline, 'installBaseline').mockImplementation(async () => {});
+            try {
+                const { sync, syncStatus } = await import('./sync.svelte.js');
+                syncStatus.isOnline = true;
+                await sync();
+                return install.mock.calls.length;
+            } finally { install.mockRestore(); }
+        }
+        afterEach(() => { state.maintenance = null; });
+
+        it('installs the snapshot when it removes enough local history', async () => {
+            await caughtUp(400);
+            expect(await syncOnce()).toBe(1);
+        });
+        it('leaves a small log alone', async () => {
+            await caughtUp(100);
+            expect(await syncOnce()).toBe(0);
+        });
+        it('waits while a restore or removal is still pending upload', async () => {
+            const c = await caughtUp(400);
+            c.sqlite.prepare("UPDATE raw_events SET type='WORKSPACE_RESTORED', payload='{\"targetVersion\":2}', log_version=NULL, sync_state='pending' WHERE id='event-400'").run();
+            expect(await syncOnce()).toBe(0);
+        });
+        it('waits when an accepted restore after the snapshot reaches back behind it', async () => {
+            const c = await caughtUp(400);
+            state.maintenance = checkpoint(300);
+            c.sqlite.prepare("UPDATE raw_events SET type='WORKSPACE_RESTORED', payload='{\"targetVersion\":10}' WHERE id='event-350'").run();
+            expect(await syncOnce()).toBe(0);
+        });
+        it('installs when the only restore is already part of the snapshot or stays within the suffix', async () => {
+            const c = await caughtUp(400);
+            state.maintenance = checkpoint(300);
+            c.sqlite.prepare("UPDATE raw_events SET type='WORKSPACE_RESTORED', payload='{\"targetVersion\":10}' WHERE id='event-100'").run();
+            c.sqlite.prepare("UPDATE raw_events SET type='WORKSPACE_RESTORED', payload='{\"targetVersion\":320}' WHERE id='event-350'").run();
+            expect(await syncOnce()).toBe(1);
+        });
+    });
+
+    describe('directives after an installed baseline', () => {
+        async function withBaseline(through: number) {
+            const c = client(); state.database = c.database; state.rebuilds = 0;
+            c.sqlite.prepare("INSERT INTO log_baselines (tenant_id, log_id, through_version, manifest) VALUES ('person', 'personal', ?, '{}')").run(through);
+            const baseline = await import('../history/baseline.js');
+            return { c, load: vi.spyOn(baseline, 'loadArchivedHistory').mockResolvedValue() };
+        }
+        it('replays a restore to a version inside the suffix on top of the baseline', async () => {
+            const { handleIncomingStoredEvents } = await import('../event/handlers.js');
+            const { c, load } = await withBaseline(10);
+            try {
+                const updated = { ...event(12), id: 'updated', type: 'CALENDAR_EVENT_UPDATED', entityId: 'calendar_event:ce-11', entityVersion: 2, payload: { id: 'ce-11', notes: 'later' } };
+                const restore = { ...event(13), id: 'restore', type: 'WORKSPACE_RESTORED', entityId: 'workspace:restore', payload: { targetVersion: 11 } };
+                await handleIncomingStoredEvents([event(11), updated, restore]);
+                expect(load).not.toHaveBeenCalled();
+                expect(c.sqlite.prepare("SELECT id, projection_state FROM raw_events WHERE id IN ('event-11','updated') ORDER BY log_version").all())
+                    .toEqual([{ id: 'event-11', projection_state: 'effective' }, { id: 'updated', projection_state: 'restored_out' }]);
+            } finally { load.mockRestore(); }
+        });
+        it('needs the original history only when a directive reaches behind the baseline', async () => {
+            const { handleIncomingStoredEvents } = await import('../event/handlers.js');
+            const { directivesReachBehind } = await import('../history/baseline.js');
+            const { load } = await withBaseline(10);
+            try {
+                await handleIncomingStoredEvents([event(11)]);
+                const scope = { tenantId: 'person', logId: 'personal' };
+                const restore = (targetVersion: unknown) => [{ type: 'WORKSPACE_RESTORED', payload: { targetVersion } }];
+                expect(await directivesReachBehind(scope, 10, restore(5))).toBe(true);
+                expect(await directivesReachBehind(scope, 10, restore(10))).toBe(true);
+                expect(await directivesReachBehind(scope, 10, restore(11))).toBe(false);
+                expect(await directivesReachBehind(scope, 10, restore('11'))).toBe(true);
+                const excise = (...eventIds: string[]) => [{ type: 'EVENTS_EXCISED', payload: JSON.stringify({ eventIds }) }];
+                expect(await directivesReachBehind(scope, 10, excise('event-3'))).toBe(true);
+                expect(await directivesReachBehind(scope, 10, excise('event-11'))).toBe(false);
+                expect(await directivesReachBehind(scope, 10, excise('event-11', 'event-3'))).toBe(true);
+                expect(await directivesReachBehind(scope, 10, excise('event-12'), new Set(['event-12']))).toBe(false);
+                expect(await directivesReachBehind(scope, 10, [{ type: 'EVENT_TOMBSTONED', payload: { eventId: 'event-3' } }])).toBe(true);
+                expect(await directivesReachBehind(scope, 10, [{ type: 'EVENT_TOMBSTONED', payload: '{' }])).toBe(true);
+            } finally { load.mockRestore(); }
+        });
+    });
+
     it('retains complete action metadata across split pages and duplicate ingestion', async () => {
         const { handleIncomingStoredEvents } = await import('../event/handlers.js');
         const c = client(); state.database = c.database;

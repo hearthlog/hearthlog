@@ -1,4 +1,4 @@
-import { baselineVersion, loadArchivedHistory } from '../history/baseline.js';
+import { baselineVersion, directivesReachBehind, loadArchivedHistory, REPLAY_DIRECTIVES } from '../history/baseline.js';
 import { hasReplayDirectives } from '../history/legacy-replay.js';
 import { EVENTS_EXCISED, WORKSPACE_RESTORED } from '@hearthlog/contracts/history/replay-selection';
 import { recordIngestedProgress } from '../store/sync-progress.js';
@@ -421,8 +421,17 @@ export async function handleIncomingStoredEvents(
     return withTiming('projection', 'handleIncomingStoredEvents', async () => {
         storedEvents.sort(compareStoredEvents);
         const context = await requireActiveContext();
-        if (storedEvents.some(event => ['WORKSPACE_RESTORED', 'EVENTS_EXCISED', 'EVENT_TOMBSTONED'].includes(event.type))) {
-            await loadArchivedHistory();
+        // The baseline already holds everything it covers. Only a directive that reaches behind it needs the
+        // original history; one that targets pending or later events replays on top of the baseline.
+        const installed = await baselineVersion(context);
+        const directives = installed ? storedEvents.filter(event => (REPLAY_DIRECTIVES as readonly string[]).includes(event.type)) : [];
+        if (directives.length) {
+            const later = directives.filter(event => event.version > installed);
+            // A directive the baseline already covers is replayed from full history, as before.
+            if (later.length < directives.length || await directivesReachBehind(context, installed, later,
+                new Set(storedEvents.filter(event => event.version > installed).map(event => event.id)))) {
+                await loadArchivedHistory();
+            }
         }
 
         const coveredThrough = await baselineVersion(context);
