@@ -82,13 +82,14 @@ describe("Ledger Durable Object RPC", () => {
         expectSuccess(await stub.startLogMaintenance(app.claims, logId, snapshotId, 'snapshot'));
         let snapshot = await stub.stepLogMaintenance(app.claims, logId, snapshotId);
         expectSuccess(snapshot);
-        expect(snapshot.body.job?.cursor).toBe(16);
+        expect(snapshot.body.job?.cursor).toBe(300);
         await runInDurableObject(stub, (_instance, state) => {
             state.storage.sql.exec('UPDATE log_maintenance_jobs SET writes = 10000 WHERE id = ?', snapshotId);
         });
         const paused = await stub.stepLogMaintenance(app.claims, logId, snapshotId);
         expectSuccess(paused);
-        expect(paused.body.job?.status).toBe('paused');
+        expect(paused.body.job).toMatchObject({ status: 'paused', pauseReason: 'writes' });
+        expect(Date.parse(paused.body.job!.resumeAt!)).toBeGreaterThan(Date.now());
         await runInDurableObject(stub, (_instance, state) => {
             state.storage.sql.exec("UPDATE log_maintenance_jobs SET day = '2000-01-01' WHERE id = ?", snapshotId);
         });

@@ -45,6 +45,7 @@ async function main(): Promise<void> {
             await new Promise(resolve => setTimeout(resolve, 500));
         }
         if (state.job?.status === 'failed') throw new Error(state.job.error ?? 'Maintenance failed');
+        if (state.job?.status === 'paused') console.error(`Paused (${state.job.pauseReason ?? 'budget'}); the Ledger resumes at ${state.job.resumeAt ?? 'the next UTC day'}.`);
     } while (!values.once && state.job?.status !== 'complete' && state.job?.status !== 'paused');
     console.log(JSON.stringify({ logId: values.log, requestId, status: state.job?.status,
         checkpointId: state.checkpoint?.id ?? null, throughVersion: state.checkpoint?.throughVersion ?? 0,

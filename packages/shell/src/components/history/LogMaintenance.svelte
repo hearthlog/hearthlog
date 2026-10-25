@@ -17,16 +17,27 @@
     let preview = $state<CompactionPreview | null>(null);
     let archived = $state(false);
     let alive = true;
+    let timer: ReturnType<typeof setTimeout> | undefined;
     onMount(() => {
         void refresh();
-        return () => { alive = false; };
+        return () => { alive = false; clearTimeout(timer); };
     });
+    // The Ledger carries a job to completion on its own; this view only reads its progress.
+    const active = (job: LogMaintenance['job']) => Boolean(job) && !['complete', 'failed'].includes(job!.status);
+    function watch() {
+        clearTimeout(timer);
+        if (!alive || !active(state?.job ?? null)) return;
+        // A paused job waits for its daily budget; check back rarely.
+        timer = setTimeout(() => { void refresh(); }, state?.job?.status === 'paused' ? 60_000 : 1000);
+    }
     async function refresh() {
         try {
             state = await getLedgerClient().getLogMaintenance(logId);
             archived = await baselineVersion(await requireActiveContext()) > 0;
             onArchivePresence(archived);
+            error = '';
         } catch (cause) { error = message(cause); }
+        watch();
     }
     async function run(kind?: 'snapshot' | 'compact') {
         confirm = false;
@@ -34,17 +45,11 @@
         error = '';
         try {
             if (kind) state = await getLedgerClient().startLogMaintenance(logId, kind, crypto.randomUUID(), kind === 'compact' ? preview?.checkpointId ?? undefined : state?.checkpoint?.id, kind === 'compact' ? preview?.storageGeneration : state?.storageGeneration);
+            // Retry after repeated failures restarts the stopped step.
             else if (state?.job) state = await getLedgerClient().stepLogMaintenance(logId, state.job.id);
-            while (alive && state?.job && !['complete', 'paused'].includes(state.job.status)) {
-                // The server keeps slow archive work alive and returns progress.
-                // Pace polls instead of piling up requests while that step runs.
-                await new Promise(resolve => setTimeout(resolve, 500));
-                if (!alive) break;
-                state = await getLedgerClient().stepLogMaintenance(logId, state.job.id);
-                if (state.job?.status === 'failed') throw new Error(state.job.error ?? 'Maintenance failed');
-            }
         } catch (cause) { error = message(cause); }
         finally { busy = false; }
+        watch();
     }
     async function reviewCompaction() {
         busy = true;
@@ -61,7 +66,19 @@
         finally { busy = false; }
     }
     function message(cause: unknown) { return cause instanceof Error ? cause.message : 'Log maintenance failed'; }
-    const resumable = $derived(state?.job && state.job.status !== 'complete');
+    const running = $derived(active(state?.job ?? null));
+    const retry = $derived(state?.job?.status === 'failed');
+    const statusLine = $derived.by(() => {
+        const job = state?.job;
+        if (!job) return '';
+        const name = job.kind === 'snapshot' ? 'Snapshot' : 'Compaction';
+        if (job.status === 'paused') {
+            const budget = job.pauseReason === 'reads' ? 'read' : 'write';
+            return `${name}: paused, the daily ${budget} budget is used up${job.resumeAt ? ` · resumes ${new Date(job.resumeAt).toLocaleString()}` : ''} · ${formatNumber(job.cursor)} processed`;
+        }
+        if (job.status === 'failed') return `${name} stopped after ${job.attempts ?? 0} attempts · ${formatNumber(job.cursor)} processed`;
+        return `${name}: ${job.status} · ${formatNumber(job.cursor)} processed`;
+    });
 </script>
 
 {#if archived}
@@ -74,15 +91,16 @@
         <summary class="min-h-11 cursor-pointer py-2 text-sm text-[var(--stor-muted-text)]">Log maintenance</summary>
         <div class="flex flex-wrap items-center gap-2 py-2">
             <CommandOnly>
-                <Button size="sm" variant="secondary" disabled={busy || Boolean(resumable)} onclick={() => run('snapshot')}>Create snapshot</Button>
-                <Button size="sm" variant="secondary" disabled={busy || Boolean(resumable) || !state.checkpoint || state.checkpoint.throughVersion <= state.compactedThroughVersion}
+                <Button size="sm" variant="secondary" disabled={busy || running || retry} onclick={() => run('snapshot')}>Create snapshot</Button>
+                <Button size="sm" variant="secondary" disabled={busy || running || retry || !state.checkpoint || state.checkpoint.throughVersion <= state.compactedThroughVersion}
                     onclick={reviewCompaction}>Compact log…</Button>
-                {#if resumable}<Button size="sm" disabled={busy} onclick={() => run()}>Resume operation</Button>{/if}
+                {#if retry}<Button size="sm" disabled={busy} onclick={() => run()}>Retry</Button>{/if}
             </CommandOnly>
         </div>
         {#if state.checkpoint}<p class="text-xs text-[var(--stor-muted-text)]">Snapshot through version {formatNumber(state.checkpoint.throughVersion)} · {formatNumber(state.checkpoint.eventCount)} replay facts</p>{/if}
         {#if state.compactedThroughVersion}<p class="text-xs text-[var(--stor-muted-text)]">Archived through version {formatNumber(state.compactedThroughVersion)}. Older history remains available online.</p>{/if}
-        {#if state.job}<p role="status" class="mt-1 text-xs text-[var(--stor-muted-text)]">{state.job.kind === 'snapshot' ? 'Snapshot' : 'Compaction'}: {state.job.status} · {formatNumber(state.job.cursor)} processed</p>{/if}
+        {#if state.job}<p role="status" class="mt-1 text-xs text-[var(--stor-muted-text)]">{statusLine}</p>{/if}
+        {#if state.job?.error}<p role="alert" class="mt-1 text-xs text-[var(--stor-negative)]">{state.job.error}{#if state.job.status !== 'failed' && state.job.retryAt} · retrying {new Date(state.job.retryAt).toLocaleTimeString()}{/if}</p>{/if}
         {#if error}<p role="alert" class="mt-2 text-sm text-[var(--stor-negative)]">{error}</p>{/if}
     </details>
 {/if}

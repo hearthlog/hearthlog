@@ -148,14 +148,18 @@ export class LedgerApp extends DurableObject<Env> {
     private maintenance(assertWritable: () => void = () => undefined): LogMaintenanceStore {
         const appId = this.ctx.storage.sql.exec<{ app_id: string }>('SELECT app_id FROM app_metadata WHERE singleton = 1').one().app_id;
         const store = new LogMaintenanceStore(this.ctx.storage, this.env.LEDGER_ARCHIVE, appId,
-            async (logId, after, through, limit, entityId) => {
+            async (logId, after, through, limit) => {
                 const rows = store.observeSql(this.ctx.storage.sql.exec<EventRow>(`WITH candidates AS (
                     SELECT *, SUM(COALESCE(payload_bytes, length(CAST(payload AS BLOB)))) OVER (ORDER BY version) AS byte_count,
                         ROW_NUMBER() OVER (ORDER BY version) AS row_number
-                    FROM (SELECT * FROM log_events WHERE log_id = ? AND version > ? AND version <= ?
-                        ${entityId === undefined ? '' : 'AND entity_id = ?'} ORDER BY version LIMIT ?)
+                    FROM (SELECT * FROM log_events WHERE log_id = ? AND version > ? AND version <= ? ORDER BY version LIMIT ?)
                 ) SELECT * FROM candidates WHERE byte_count <= 1500000 OR row_number = 1`,
-                    logId, after, through, ...(entityId === undefined ? [] : [entityId]), limit)).toArray();
+                    logId, after, through, limit)).toArray();
+                return store.hydrate(logId, rows.map(storedEvent));
+            }, async (logId, versions) => {
+                const rows = store.observeSql(this.ctx.storage.sql.exec<EventRow>(
+                    'SELECT * FROM log_events WHERE log_id = ? AND version IN (SELECT value FROM json_each(?)) ORDER BY version',
+                    logId, JSON.stringify(versions))).toArray();
                 return store.hydrate(logId, rows.map(storedEvent));
             }, assertWritable, Math.max(128, Math.min(100000, Number(this.env.MAINTENANCE_DAILY_WRITES) || 10000)),
             Math.max(10000, Math.min(1_000_000_000, Number(this.env.MAINTENANCE_DAILY_READS) || 1_000_000)));
@@ -163,10 +167,13 @@ export class LedgerApp extends DurableObject<Env> {
     }
 
     async logMaintenance(access: AccessClaims, logId: string): Promise<RpcResult<LogMaintenance>> {
-        return rpcCall(() => {
+        return rpcCall(async () => {
             this.currentAccess(access);
             if (!this.log(parseUuid(logId, 'log id'))) throw validationError('Log not found');
-            return rpcSuccess(this.maintenance().state(logId));
+            const store = this.maintenance();
+            // A job begun before alarms existed (or whose alarm was lost) is picked up again here.
+            if (store.hasActiveJob() && await this.ctx.storage.getAlarm() === null) await this.scheduleAlarm();
+            return rpcSuccess(store.state(logId));
         });
     }
 
@@ -179,9 +186,12 @@ export class LedgerApp extends DurableObject<Env> {
     }
 
     async startLogMaintenance(access: AccessClaims, logId: string, id: string, kind: 'snapshot' | 'compact', expectedCheckpointId?: string, expectedGeneration?: number): Promise<RpcResult<LogMaintenance>> {
-        return rpcCall(() => {
+        return rpcCall(async () => {
             this.writableAccess(access);
-            return rpcSuccess(this.maintenance().start(parseUuid(logId, 'log id'), parseUuid(id, 'request id'), kind, expectedCheckpointId, expectedGeneration));
+            const state = this.maintenance().start(parseUuid(logId, 'log id'), parseUuid(id, 'request id'), kind, expectedCheckpointId, expectedGeneration);
+            // The server carries the job to completion; the caller only needs to watch.
+            await this.scheduleAlarm();
+            return rpcSuccess(state);
         });
     }
 
@@ -194,6 +204,8 @@ export class LedgerApp extends DurableObject<Env> {
                 () => this.maintenance(() => { this.writableAccess(access); }).step(parsedLog, parsedId),
                 () => this.maintenance().state(parsedLog, parsedId));
             this.currentAccess(access);
+            // An explicit step also restarts a job that stopped after repeated failures.
+            await this.scheduleAlarm();
             return rpcSuccess(result);
         });
     }
@@ -213,21 +225,59 @@ export class LedgerApp extends DurableObject<Env> {
         });
     }
 
-    /** Delete storage belonging to an explicitly deleted log, in bounded batches. */
+    /** Advance log maintenance and delete storage of deleted logs, each in bounded batches. */
     override async alarm(): Promise<void> {
+        let failed = false;
+        try { await this.deleteArchivedLogs(); }
+        catch (cause) { failed = true; console.error('ledger_archive_deletion_failed', normalizeError(cause).message); }
+        try { await this.advanceMaintenance(); }
+        catch (cause) { failed = true; console.error('ledger_maintenance_alarm_failed', normalizeError(cause).message); }
+        await this.scheduleAlarm({ deletionDelayMs: 60_000, failureDelayMs: failed ? 30_000 : undefined });
+    }
+
+    private async deleteArchivedLogs(): Promise<void> {
         const job = this.ctx.storage.sql.exec<{ log_id: string }>('SELECT log_id FROM log_archive_deletions LIMIT 1').toArray()[0];
         if (!job) return;
-        try {
-            const app = this.ctx.storage.sql.exec<{ app_id: string }>('SELECT app_id FROM app_metadata WHERE singleton = 1').one();
-            const bucket = this.env.LEDGER_ARCHIVE;
-            const objects = await bucket.list({ prefix: `v1/${app.app_id}/${job.log_id}/`, limit: 128 });
-            if (objects.objects.length) await bucket.delete(objects.objects.map(object => object.key));
-            if (!objects.truncated) this.ctx.storage.sql.exec('DELETE FROM log_archive_deletions WHERE log_id = ?', job.log_id);
-        } finally {
-            if (this.ctx.storage.sql.exec('SELECT 1 FROM log_archive_deletions LIMIT 1').toArray().length) {
-                await this.ctx.storage.setAlarm(Date.now() + 60_000);
-            }
+        const app = this.ctx.storage.sql.exec<{ app_id: string }>('SELECT app_id FROM app_metadata WHERE singleton = 1').one();
+        const bucket = this.env.LEDGER_ARCHIVE;
+        const objects = await bucket.list({ prefix: `v1/${app.app_id}/${job.log_id}/`, limit: 128 });
+        if (objects.objects.length) await bucket.delete(objects.objects.map(object => object.key));
+        if (!objects.truncated) this.ctx.storage.sql.exec('DELETE FROM log_archive_deletions WHERE log_id = ?', job.log_id);
+    }
+
+    /** Run due maintenance steps for a few seconds, so a job finishes without any caller. */
+    private async advanceMaintenance(): Promise<void> {
+        if (this.metadataOptional() === undefined) return;
+        const started = Date.now();
+        const assertWritable = () => this.assertApplicationWritable();
+        do {
+            const due = this.maintenance(assertWritable).dueJobs()[0];
+            if (!due) return;
+            await this.maintenanceSteps.run(`${due.logId}:${due.id}`, () => this.maintenance(assertWritable).step(due.logId, due.id));
+        } while (Date.now() - started < 5000);
+    }
+
+    /** Wake at the earliest time any pending work (maintenance step, retry, resume, deletion) is due. */
+    private async scheduleAlarm(options: { deletionDelayMs?: number; failureDelayMs?: number } = {}): Promise<void> {
+        const now = Date.now();
+        const wakes: number[] = [];
+        if (this.ctx.storage.sql.exec('SELECT 1 FROM log_archive_deletions LIMIT 1').toArray().length) {
+            wakes.push(now + (options.deletionDelayMs ?? 1000));
         }
+        if (this.metadataOptional() !== undefined) {
+            const wake = this.maintenance().nextWake();
+            if (wake !== null) wakes.push(Math.max(wake, now + (options.failureDelayMs ?? 50)));
+        }
+        if (wakes.length) await this.ctx.storage.setAlarm(Math.min(...wakes));
+    }
+
+    /** Background work has no caller to authorize it, but must still stop for revoked or fenced applications. */
+    private assertApplicationWritable(): void {
+        if (this.metadata().revoked_at !== null) {
+            throw new LedgerError(401, { error: "access token has been rotated or revoked", code: "unauthorized" });
+        }
+        const fence = this.fence();
+        if (fence) throw fenceError(fence);
     }
 
     override async fetch(request: Request): Promise<Response> {
@@ -710,7 +760,7 @@ export class LedgerApp extends DurableObject<Env> {
         return rpcCall(async () => {
             const claims = this.writableAccess(access);
             this.deleteLogValue(parseUuid(logId, "logId"), claims);
-            await this.ctx.storage.setAlarm(Date.now() + 1000);
+            await this.scheduleAlarm();
             return rpcSuccess(null, 204);
         });
     }
@@ -860,7 +910,7 @@ export class LedgerApp extends DurableObject<Env> {
                 throw transferError("not_importing", "Only an import in progress can be aborted");
             }
             this.ctx.storage.transactionSync(() => {
-                for (const table of ["log_storage", "log_archive_pages", "log_maintenance_jobs", "gallery_photo_references", "log_fork_requests", "append_requests", "entity_claims", "log_events", "logs", "app_metadata"]) {
+                for (const table of ["log_checkpoint_work", "log_checkpoint_versions", "log_checkpoint_entities", "log_storage", "log_archive_pages", "log_maintenance_jobs", "gallery_photo_references", "log_fork_requests", "append_requests", "entity_claims", "log_events", "logs", "app_metadata"]) {
                     this.ctx.storage.sql.exec(`DELETE FROM ${table}`);
                 }
             });
@@ -1174,6 +1224,8 @@ export class LedgerApp extends DurableObject<Env> {
             }
             for (const query of [
                 "DELETE FROM log_checkpoint_entities WHERE job_id IN (SELECT id FROM log_maintenance_jobs WHERE log_id = ?)",
+                "DELETE FROM log_checkpoint_work WHERE job_id IN (SELECT id FROM log_maintenance_jobs WHERE log_id = ?)",
+                "DELETE FROM log_checkpoint_versions WHERE job_id IN (SELECT id FROM log_maintenance_jobs WHERE log_id = ?)",
                 "DELETE FROM log_fork_requests WHERE fork_log_id = ?",
                 "DELETE FROM append_requests WHERE log_id = ?",
                 "DELETE FROM log_storage WHERE log_id = ?",

@@ -99,30 +99,38 @@ test('creates, pins, edits, and deletes a calendar event', async ({ page }) => {
 test('creates a snapshot, confirms compaction, and retains the receipt after reload', async ({ page }) => {
     let state = { compactedThroughVersion: 0, storageGeneration: 0, checkpoint: null, job: null, available: true };
     const calls = [];
-    let pauseOnce = true;
+    let polls = 0;
     await page.route('**/api/ledger/session', route => route.fulfill({ json: { appId: 'e2e', principalId: 'owner',
         capabilities: ['action-metadata-v1', 'workspace-restore-v1', 'event-excision-v1', 'snapshot-baseline-v1'] } }));
+    // The Ledger advances jobs by itself: reads (GET) show progress, and only a stopped job is stepped by the page.
     await page.route('**/api/ledger/logs/*/maintenance**', async route => {
         const request = route.request(), path = new URL(request.url()).pathname;
         if (path.endsWith('/maintenance-preview')) return route.fulfill({ json: { checkpointId: state.checkpoint.id, storageGeneration: state.storageGeneration, throughVersion: 10, activePayloadEvents: 10, activePayloadBytes: 10000, snapshotBytes: 1000 } });
         if (request.method() === 'POST' && !path.endsWith('/step')) {
             const body = request.postDataJSON(); calls.push(body.kind);
+            polls = 0;
             state.job = { id: body.requestId, kind: body.kind, logId: 'e2e00000-0000-4000-8000-000000000000',
                 throughVersion: 10, status: body.kind === 'snapshot' ? 'building' : 'archiving', cursor: 0, error: null, updatedAt: new Date().toISOString() };
-        } else if (path.endsWith('/step') && pauseOnce) {
-            state.job.status = 'paused'; pauseOnce = false;
-        } else if (path.endsWith('/step')) {
-            state.job.status = 'complete'; state.job.cursor = 10;
-            if (state.job.kind === 'snapshot') state.checkpoint = { id: state.job.id, throughVersion: 10, eventCount: 2 };
-            else { state.compactedThroughVersion = 10; state.storageGeneration++; }
+        } else if (request.method() === 'GET' && state.job && !['complete', 'failed'].includes(state.job.status)) {
+            polls++;
+            if (state.job.kind === 'snapshot' && polls === 1) Object.assign(state.job, { error: 'Archive storage unavailable', attempts: 1, retryAt: new Date(Date.now() + 5000).toISOString() });
+            else if (state.job.kind === 'snapshot' && polls === 2) Object.assign(state.job, { status: 'failed', attempts: 5, retryAt: null });
+            else {
+                Object.assign(state.job, { status: 'complete', cursor: 10, error: null });
+                if (state.job.kind === 'snapshot') state.checkpoint = { id: state.job.id, throughVersion: 10, eventCount: 2 };
+                else { state.compactedThroughVersion = 10; state.storageGeneration++; }
+            }
+        } else if (path.endsWith('/step') && state.job.status === 'failed') {
+            Object.assign(state.job, { status: 'building', error: null, attempts: 0 });
         }
         await route.fulfill({ json: state });
     });
     await page.goto('/calendar?logPanel=activity');
     await page.getByText('Log maintenance', { exact: true }).click();
     await page.getByRole('button', { name: 'Create snapshot', exact: true }).click();
-    await expect(page.getByText('Snapshot: paused', { exact: false })).toBeVisible();
-    await page.getByRole('button', { name: 'Resume operation', exact: true }).click();
+    await expect(page.getByText('Archive storage unavailable', { exact: false })).toBeVisible();
+    await expect(page.getByText('Snapshot stopped after 5 attempts', { exact: false })).toBeVisible();
+    await page.getByRole('button', { name: 'Retry', exact: true }).click();
     await expect(page.getByText('Snapshot: complete', { exact: false })).toBeVisible();
     await page.getByRole('button', { name: 'Compact log…', exact: true }).click();
     const confirmation = page.getByRole('alertdialog', { name: 'Compact this log?' });

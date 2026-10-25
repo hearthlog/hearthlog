@@ -215,6 +215,25 @@ const LEDGER_APP_MIGRATIONS: readonly Migration[] = [
         );
         CREATE INDEX log_archive_object ON log_archive_pages(object_key);
     ` },
+    // Snapshot work state now lives in SQLite as per-entity replay slots (no R2
+    // work files). Jobs are advanced by an alarm and record retry/pause details.
+    { id: 15, sql: `
+        CREATE TABLE log_checkpoint_work (
+            job_id TEXT NOT NULL, entity_id TEXT NOT NULL, state TEXT NOT NULL,
+            PRIMARY KEY(job_id, entity_id)
+        );
+        CREATE TABLE log_checkpoint_versions (
+            job_id TEXT NOT NULL, version INTEGER NOT NULL, PRIMARY KEY(job_id, version)
+        );
+        ALTER TABLE log_maintenance_jobs ADD COLUMN phase TEXT;
+        ALTER TABLE log_maintenance_jobs ADD COLUMN version_cursor INTEGER NOT NULL DEFAULT 0;
+        ALTER TABLE log_maintenance_jobs ADD COLUMN attempts INTEGER NOT NULL DEFAULT 0;
+        ALTER TABLE log_maintenance_jobs ADD COLUMN retry_at TEXT;
+        ALTER TABLE log_maintenance_jobs ADD COLUMN resume_at TEXT;
+        ALTER TABLE log_maintenance_jobs ADD COLUMN pause_reason TEXT;
+        ALTER TABLE log_maintenance_jobs ADD COLUMN paused_status TEXT;
+        ALTER TABLE log_maintenance_jobs ADD COLUMN markers TEXT;
+    ` },
 ];
 
 const APP_REGISTRY_MIGRATIONS: readonly Migration[] = [

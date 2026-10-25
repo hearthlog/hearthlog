@@ -1,4 +1,4 @@
-import { installBaseline } from '../history/baseline.js';
+import { baselineVersion, directivesReachBehind, installBaseline, REPLAY_DIRECTIVES } from '../history/baseline.js';
 import { waitForPageUpdates } from '../runtime/page-data.svelte.js';
 import { pageVisible } from '../runtime/visibility.js';
 import { announceInvalidation } from '../runtime/invalidation.js';
@@ -470,6 +470,30 @@ export async function loadStoredLogSnapshot(
     clearSyncError();
 }
 
+/** Fewer retained local facts than this are not worth a baseline install on an up-to-date device. */
+const ADOPT_MIN_SURPLUS = 256;
+
+async function coveredSurplus(context: { tenantId: string; logId: string }, through: number): Promise<number> {
+    const row = await db.selectFrom('raw_events').select(eb => eb.fn.countAll<number>().as('count'))
+        .where('tenant_id', '=', context.tenantId).where('log_id', '=', context.logId)
+        .where('sync_state', '=', 'synced').where('log_version', '<=', through).executeTakeFirst();
+    return Number(row?.count ?? 0);
+}
+
+/**
+ * Local replay directives the baseline cannot stand in for: one still waiting to upload, or one accepted after the
+ * snapshot that reaches back into history the snapshot folds away. Directives the snapshot already includes do not
+ * matter; installing it replaces them.
+ */
+async function localDirectivesBlockBaseline(context: { tenantId: string; logId: string }, through: number): Promise<boolean> {
+    const rows = await db.selectFrom('raw_events').select(['type', 'payload', 'log_version'])
+        .where('tenant_id', '=', context.tenantId).where('log_id', '=', context.logId)
+        .where('type', 'in', [...REPLAY_DIRECTIVES])
+        .where(eb => eb.or([eb('log_version', 'is', null), eb('log_version', '>', through)])).execute();
+    if (rows.some(row => row.log_version === null)) return true;
+    return rows.length > 0 && await directivesReachBehind(context, through, rows);
+}
+
 async function download(): Promise<number> {
     return withTiming('sync', 'download', async () => {
         const logId = await ensureSelectedContext();
@@ -477,11 +501,13 @@ async function download(): Promise<number> {
         let cursor = await getLocalHeadVersion();
         const maintenance = await getLedgerClient().getLogMaintenance(logId);
         let installedBaseline = false;
-        const existingDirective = await db.selectFrom('raw_events').select('id')
-            .where('tenant_id', '=', context.tenantId).where('log_id', '=', logId)
-            .where('type', 'in', ['WORKSPACE_RESTORED', 'EVENTS_EXCISED', 'EVENT_TOMBSTONED']).executeTakeFirst();
-        if (!existingDirective && maintenance?.checkpoint && cursor < maintenance.checkpoint.throughVersion) {
-            await installBaseline(maintenance.checkpoint, context);
+        const checkpoint = maintenance?.checkpoint;
+        // Adopt a newer snapshot even when this device is already caught up, so its accepted prefix shrinks to the
+        // snapshot. A device that is merely ahead only does so when that saves real work.
+        if (checkpoint && await baselineVersion(context) < checkpoint.throughVersion
+            && (cursor < checkpoint.throughVersion || await coveredSurplus(context, checkpoint.throughVersion) > checkpoint.eventCount + ADOPT_MIN_SURPLUS)
+            && !await localDirectivesBlockBaseline(context, checkpoint.throughVersion)) {
+            await installBaseline(checkpoint, context);
             installedBaseline = true;
             cursor = await getLocalHeadVersion();
         }
