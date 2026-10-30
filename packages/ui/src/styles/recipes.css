@@ -1,13 +1,16 @@
 @layer components {
     .stor-page { display: flex; min-width: 0; flex-direction: column; gap: var(--stor-section-gap); }
-    .stor-panel, .stor-today-card { border: 0; border-radius: var(--stor-section-radius); background: var(--stor-surface); box-shadow: var(--stor-elevation-1); }
+    .stor-panel, .stor-today-card { border: 1px solid var(--stor-hairline); border-radius: var(--stor-section-radius); background: var(--stor-surface); box-shadow: var(--stor-elevation-1); }
+    /* A card that is a link or button lifts on hover; the shadow deepens and the card rises 2px. */
+    a.stor-panel, button.stor-panel, .stor-panel[data-interactive], .stor-today-card { transition: transform var(--stor-dur-2) var(--stor-ease-out), box-shadow var(--stor-dur-2) var(--stor-ease-out); }
+    a.stor-panel:hover, button.stor-panel:hover, .stor-panel[data-interactive]:hover, a.stor-today-card:hover { transform: translateY(-2px); box-shadow: var(--stor-elevation-1-hover); }
     .stor-panel { overflow: hidden; }
     .stor-panel-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: var(--stor-panel-padding); background: transparent; }
     .stor-panel-body { padding: var(--stor-panel-padding); }
     /* A section's title-3 header sits over a hairline when a padded body follows it. */
     .stor-panel-title { font-size: var(--stor-text-title-3); line-height: var(--stor-text-title-3-line); font-weight: 600; letter-spacing: -.006em; color: var(--stor-ink); }
-    .stor-panel-header-rule, .stor-panel-header:has(+ .stor-panel-body) { padding-block: 16px; border-bottom: 1px solid var(--stor-border); }
-    .stor-panel-header-flush { padding: 0 0 12px; border-bottom: 1px solid var(--stor-border); }
+    .stor-panel-header-rule, .stor-panel-header:has(+ .stor-panel-body) { padding-block: 16px; border-bottom: 1px solid var(--stor-rule); }
+    .stor-panel-header-flush { padding: 0 0 12px; border-bottom: 1px solid var(--stor-rule); }
     .stor-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
     /* A figure: overline label, the value, an optional sparkline, and one support line (a delta may lead it). */
     .stor-metric { display: flex; flex-direction: column; gap: 6px; min-width: 0; }

@@ -42,14 +42,14 @@ function failures(accent: string, mode: ResolvedTheme): string[] {
             if (ratioFound < ratio) problems.push(`${label} ${color} on ${background}: ${ratioFound.toFixed(2)}:1`);
         }
     };
-    const surfaces = ['--stor-bg', '--stor-surface', '--stor-surface-raised', '--stor-surface-muted', '--stor-surface-hover', '--stor-surface-well', '--stor-surface-overlay', '--stor-surface-sheet'].map((name) => v[name]!);
+    const surfaces = ['--stor-bg', '--stor-page', '--stor-surface', '--stor-surface-raised', '--stor-surface-muted', '--stor-surface-hover', '--stor-surface-well', '--stor-surface-overlay', '--stor-surface-sheet'].map((name) => v[name]!);
 
     // Text
     check('ink', v['--stor-ink']!, [...surfaces, v['--stor-accent-soft']!], 4.5);
     check('muted text', v['--stor-muted-text']!, [...surfaces, v['--stor-accent-soft']!], 4.5);
     check('accent text', v['--stor-accent-text']!, [...surfaces, v['--stor-accent-soft']!], 4.5);
     for (const role of STATUS_ROLES) {
-        check(role, v[`--stor-${role}`]!, [v['--stor-bg']!, v['--stor-surface']!, v['--stor-surface-raised']!, v[`--stor-${role}-soft`]!], 4.5);
+        check(role, v[`--stor-${role}`]!, [v['--stor-bg']!, v['--stor-page']!, v['--stor-surface']!, v['--stor-surface-raised']!, v[`--stor-${role}-soft`]!], 4.5);
     }
     // Text on the action, at rest and on hover, and on a filled negative
     check('action text', v['--stor-action-text']!, [v['--stor-action']!, v['--stor-action-hover']!], 4.5);
@@ -110,7 +110,7 @@ describe('tenant theme', () => {
         expect(action('#d4a85a', 'dark')).toBe('#dcb062');
         expect(themePaletteFor('#b23a34', 'light').variables['--stor-negative']).toBe('#a73447');
         expect(themePaletteFor('#b23a34', 'dark').variables['--stor-now']).toBe('#ece9e4');
-        expect(themePaletteFor('#2b3a67', 'dark').variables['--stor-action-text']).toBe('#171412');
+        expect(themePaletteFor('#2b3a67', 'dark').variables['--stor-action-text']).toBe('#110f0d');
     });
 
     it('makes a gray accent a monochrome site that acts in ink', () => {

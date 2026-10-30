@@ -92,8 +92,8 @@
 .stor-mobile-nav {
     left: 12px; right: 12px; bottom: var(--stor-mobile-bottom-inset);
     height: var(--stor-mobile-nav-height); padding: 4px;
-    border: 0; border-radius: 24px; background: var(--stor-surface-raised);
-    box-shadow: var(--stor-elevation-1);
+    border: 1px solid var(--stor-hairline); border-radius: 24px; background: var(--stor-surface-raised);
+    box-shadow: var(--stor-elevation-3);
 }
 
 .stor-mobile-header { background: var(--stor-bg); box-shadow: var(--stor-header-shadow); }
@@ -102,16 +102,12 @@
    Inside the panel the canvas is the panel's own surface, so sticky headers and fades match it,
    and panels step down from white cards to outlined sections. */
 
-:root { --stor-page-shadow: var(--stor-elevation-1); }
-
 @media (min-width: 768px) {
     [data-stor-main] {
-        --stor-bg: var(--stor-surface);
-        --stor-elevation-1: 0 0 0 1px color-mix(in srgb, var(--stor-border) 70%, transparent);
-        --stor-panel-shadow: var(--stor-elevation-1);
+        --stor-bg: var(--stor-page);
         margin: 12px 12px 12px 0;
         border-radius: var(--stor-panel-radius);
-        background: var(--stor-surface);
+        background: var(--stor-page);
         box-shadow: var(--stor-page-shadow);
     }
 }
@@ -211,7 +207,7 @@ body:has([data-stor-drawer]) .stor-mobile-fab { visibility: hidden; }
 
 @media (min-width: 1024px) {
     .stor-calendar-layout { min-height: 0; flex: 1; grid-template-columns: minmax(0, 1fr) 320px; grid-template-rows: minmax(0, 1fr); align-items: stretch; }
-    .stor-calendar-agendas { min-height: 0; align-content: start; overflow-y: auto; }
+    .stor-calendar-agendas { min-height: 0; align-content: start; overflow-y: auto; /* room for card shadows and the hover lift, which a scroller would clip */ padding: 4px 8px 16px; margin: -4px -8px -16px; }
     .stor-calendar-panel { height: auto; }
     .stor-calendar-day { min-height: 112px; padding: 4px; }
     .stor-calendar-select { justify-content: flex-start; }
