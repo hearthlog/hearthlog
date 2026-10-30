@@ -130,6 +130,9 @@ const CLASH_DISTANCE = 0.1;
 
 interface Neutrals {
     bg: string;
+    /** The page panel beside the sidebar: one step between the canvas and a card. */
+    page: string;
+    /** A card on the page. */
     surface: string;
     raised: string;
     muted: string;
@@ -151,36 +154,38 @@ interface Neutrals {
  */
 const NEUTRALS: Record<ResolvedTheme, Neutrals> = {
     light: {
-        bg: '#f7f5f2',
-        surface: '#fefdfc',
+        bg: '#eeeae4',
+        page: '#f8f6f3',
+        surface: '#ffffff',
         raised: '#ffffff',
-        muted: '#f2f0ec',
-        well: '#ece9e4',
-        hover: '#f0ede9',
+        muted: '#f3f0ec',
+        well: '#e9e5df',
+        hover: '#f4f1ed',
         overlay: '#ffffff',
         sheet: '#ffffff',
-        border: '#e2dfda',
+        border: '#e0dcd6',
         borderStrong: '#cecac3',
         field: '#918b84',
         ink: '#221d18',
-        mutedText: '#68625b',
-        faintText: '#8b857f',
+        mutedText: '#615b54',
+        faintText: '#77716a',
     },
     dark: {
-        bg: '#171412',
-        surface: '#1f1c18',
-        raised: '#26231f',
-        muted: '#23201c',
-        well: '#13110f',
-        hover: '#2a2622',
-        overlay: '#2f2b26',
+        bg: '#110f0d',
+        page: '#191614',
+        surface: '#221f1b',
+        raised: '#2a2622',
+        muted: '#1f1c19',
+        well: '#0f0d0b',
+        hover: '#2b2723',
+        overlay: '#2e2a25',
         sheet: '#2f2b26',
-        border: '#38332f',
+        border: '#3a3531',
         borderStrong: '#49443f',
         field: '#736e67',
         ink: '#ece9e4',
-        mutedText: '#b0aaa1',
-        faintText: '#847f78',
+        mutedText: '#b3ada4',
+        faintText: '#8f8a82',
     },
 };
 
@@ -268,7 +273,7 @@ interface AccentRoles {
 
 function accentRoles(accent: string, mode: ResolvedTheme): AccentRoles {
     const n = NEUTRALS[mode];
-    const surfaces = [n.bg, n.surface, n.raised, n.muted, n.hover, n.well, n.overlay];
+    const surfaces = [n.bg, n.page, n.surface, n.raised, n.muted, n.hover, n.well, n.overlay];
     const { L, C, H } = oklch(accent);
     if (C < MONOCHROME_CHROMA) {
         // A gray accent has no hue to keep: the site acts in ink and selects in the well tone.
@@ -320,7 +325,7 @@ const hueGap = (a: number, b: number): number => {
 function resolveStatus(role: StatusRole, mode: ResolvedTheme, action: string, clashes: ThemeClash[]): readonly [string, string] {
     const n = NEUTRALS[mode];
     const readable = (color: string, soft: string): string =>
-        withContrast(color, [n.bg, n.surface, n.raised, soft], TEXT_CONTRAST, mode);
+        withContrast(color, [n.bg, n.page, n.surface, n.raised, soft], TEXT_CONTRAST, mode);
     const [own, ownSoft] = STATUS[mode][role];
     const color = readable(own, ownSoft);
     const distance = colorDistance(action, color);
@@ -503,23 +508,36 @@ function chartPalette(
 const ELEVATION_STRENGTH = 1;
 
 /**
- * The elevation scale: well (-1), page (1), raised (2), float (3), sheet (4). Every level above the canvas has a
- * hairline; light mode adds a warm-ink shadow, deep only for what floats. Dark mode shows height as lighter tone,
- * so page and raised are the hairline alone. The sidebar's current-section card has its own, a step above raised.
+ * The elevation scale: well (-1), card (1), raised (2), float (3), sheet (4). Cards and the page carry their edge as
+ * a real border (`--stor-hairline`), so a scrolling parent never clips it; the shadows below are depth alone. Every
+ * shadow pairs a tight contact layer with a soft ambient one. Dark mode adds a top highlight and true black.
  */
 function elevationVariables(mode: ResolvedTheme): Record<string, string> {
     const dark = mode === 'dark';
-    const edge = `0 0 0 1px ${NEUTRALS[mode].border}`;
+    const ink = dark ? '255, 244, 230' : '34, 29, 24';
+    const hair = (alpha: number): string => `rgba(${ink}, ${alpha})`;
     const shade = (alpha: number): string =>
-        `rgba(${dark ? '0, 0, 0' : '34, 29, 24'}, ${Math.min(alpha * ELEVATION_STRENGTH, 0.7).toFixed(3)})`;
+        `rgba(${dark ? '0, 0, 0' : '34, 29, 24'}, ${Math.min(alpha * ELEVATION_STRENGTH, 0.9).toFixed(3)})`;
+    const ring = `0 0 0 1px ${hair(dark ? 0.09 : 0.08)}`;
+    const top = dark ? 'inset 0 1px 0 rgba(255, 255, 255, 0.05), ' : '';
     return {
+        '--stor-hairline': hair(dark ? 0.085 : 0.11),
+        '--stor-rule': hair(dark ? 0.06 : 0.07),
         '--stor-well-shadow': 'none',
-        '--stor-elevation-1': dark ? edge : `${edge}, 0 1px 2px ${shade(0.04)}`,
-        '--stor-elevation-2': dark ? edge : `${edge}, 0 1px 1px ${shade(0.06)}`,
-        '--stor-elevation-pressed': edge,
-        '--stor-elevation-3': `${edge}, 0 12px 32px -8px ${shade(dark ? 0.5 : 0.18)}`,
-        '--stor-elevation-4': `${edge}, 0 24px 64px -16px ${shade(dark ? 0.6 : 0.28)}`,
-        '--stor-nav-card-shadow': dark ? edge : `${edge}, 0 1px 2px ${shade(0.06)}, 0 6px 16px -10px ${shade(0.2)}`,
+        '--stor-elevation-1': dark
+            ? `inset 0 1px 0 rgba(255, 255, 255, 0.035), 0 1px 2px ${shade(0.4)}, 0 4px 14px -6px ${shade(0.5)}`
+            : `0 1px 2px ${shade(0.05)}, 0 2px 8px -3px ${shade(0.07)}`,
+        '--stor-elevation-1-hover': dark
+            ? `inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 1px 2px ${shade(0.45)}, 0 16px 32px -12px ${shade(0.75)}`
+            : `0 1px 2px ${shade(0.06)}, 0 12px 26px -10px ${shade(0.24)}`,
+        '--stor-elevation-2': `${ring}, ${top}0 1px 2px ${shade(dark ? 0.5 : 0.08)}${dark ? '' : `, 0 2px 6px -2px ${shade(0.12)}`}`,
+        '--stor-elevation-pressed': ring,
+        '--stor-elevation-3': `${ring}, 0 4px 10px -2px ${shade(dark ? 0.4 : 0.08)}, 0 22px 44px -12px ${shade(dark ? 0.75 : 0.28)}`,
+        '--stor-elevation-4': `${ring}, 0 8px 16px -4px ${shade(dark ? 0.45 : 0.1)}, 0 32px 72px -16px ${shade(dark ? 0.8 : 0.32)}`,
+        '--stor-nav-card-shadow': `${ring}, ${top}0 1px 2px ${shade(dark ? 0.5 : 0.07)}, 0 10px 22px -12px ${shade(dark ? 0.8 : 0.32)}`,
+        '--stor-page-shadow': dark
+            ? `0 0 0 1px ${hair(0.06)}, 0 12px 36px -16px ${shade(0.7)}`
+            : `0 0 0 1px ${hair(0.07)}, 0 1px 3px ${shade(0.05)}, 0 10px 30px -14px ${shade(0.2)}`,
     };
 }
 
@@ -570,8 +588,9 @@ export function themePaletteFor(accent = DEFAULT_ACCENT, mode: ResolvedTheme = '
         '--stor-health-move': health.move,
         '--stor-health-body': health.body,
         '--stor-bg': n.bg,
-        // The sidebar sits on the canvas; the page panel beside it is the surface.
+        // The sidebar sits on the canvas; the page panel beside it is the page tone, and cards on it are the surface.
         '--stor-sidebar': n.bg,
+        '--stor-page': n.page,
         '--stor-surface': n.surface,
         '--stor-surface-muted': n.muted,
         '--stor-surface-raised': n.raised,
@@ -581,7 +600,8 @@ export function themePaletteFor(accent = DEFAULT_ACCENT, mode: ResolvedTheme = '
         '--stor-surface-sheet': n.sheet,
         ...elevationVariables(mode),
         // Aliases: the older shadow names point at the scale.
-        '--stor-panel-shadow': 'var(--stor-elevation-1)',
+        // Legacy boxes with no border of their own take the hairline as a ring; .stor-panel uses a real border.
+        '--stor-panel-shadow': '0 0 0 1px var(--stor-hairline), var(--stor-elevation-1)',
         '--stor-sidebar-shadow': 'none',
         '--stor-shadow-sm': 'var(--stor-elevation-2)',
         '--stor-shadow-md': 'var(--stor-elevation-3)',

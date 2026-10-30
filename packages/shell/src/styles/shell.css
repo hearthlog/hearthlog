@@ -92,8 +92,8 @@
 .stor-mobile-nav {
     left: 12px; right: 12px; bottom: var(--stor-mobile-bottom-inset);
     height: var(--stor-mobile-nav-height); padding: 4px;
-    border: 0; border-radius: 24px; background: var(--stor-surface-raised);
-    box-shadow: var(--stor-elevation-1);
+    border: 1px solid var(--stor-hairline); border-radius: 24px; background: var(--stor-surface-raised);
+    box-shadow: var(--stor-elevation-3);
 }
 
 .stor-mobile-header { background: var(--stor-bg); box-shadow: var(--stor-header-shadow); }
@@ -102,16 +102,12 @@
    Inside the panel the canvas is the panel's own surface, so sticky headers and fades match it,
    and panels step down from white cards to outlined sections. */
 
-:root { --stor-page-shadow: var(--stor-elevation-1); }
-
 @media (min-width: 768px) {
     [data-stor-main] {
-        --stor-bg: var(--stor-surface);
-        --stor-elevation-1: 0 0 0 1px color-mix(in srgb, var(--stor-border) 70%, transparent);
-        --stor-panel-shadow: var(--stor-elevation-1);
+        --stor-bg: var(--stor-page);
         margin: 12px 12px 12px 0;
         border-radius: var(--stor-panel-radius);
-        background: var(--stor-surface);
+        background: var(--stor-page);
         box-shadow: var(--stor-page-shadow);
     }
 }
