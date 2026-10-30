@@ -40,7 +40,14 @@ export function tabIndicator(list: HTMLElement): () => void {
             list.classList.remove('stor-tabs-sliding');
             return;
         }
-        list.classList.add('stor-tabs-sliding', 'stor-tabs-ready');
+        list.classList.add('stor-tabs-sliding');
+        // The first placement lands without motion; only later moves slide. Animating it would grow the pill from
+        // zero width over the tab's own face, which fades out at the same time, so every load showed two pills.
+        if (!list.classList.contains('stor-tabs-ready')) {
+            requestAnimationFrame(() => {
+                if (!destroyed) list.classList.add('stor-tabs-ready');
+            });
+        }
     };
 
     const schedule = (): void => {

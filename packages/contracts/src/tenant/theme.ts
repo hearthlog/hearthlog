@@ -521,7 +521,7 @@ function elevationVariables(mode: ResolvedTheme): Record<string, string> {
     const ring = `0 0 0 1px ${hair(dark ? 0.09 : 0.08)}`;
     const top = dark ? 'inset 0 1px 0 rgba(255, 255, 255, 0.05), ' : '';
     return {
-        '--stor-hairline': hair(dark ? 0.085 : 0.11),
+        '--stor-hairline': hair(0.11),
         '--stor-rule': hair(dark ? 0.06 : 0.07),
         '--stor-well-shadow': 'none',
         '--stor-elevation-1': dark
@@ -530,7 +530,17 @@ function elevationVariables(mode: ResolvedTheme): Record<string, string> {
         '--stor-elevation-1-hover': dark
             ? `inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 1px 2px ${shade(0.45)}, 0 16px 32px -12px ${shade(0.75)}`
             : `0 1px 2px ${shade(0.06)}, 0 12px 26px -10px ${shade(0.24)}`,
-        '--stor-elevation-2': `${ring}, ${top}0 1px 2px ${shade(dark ? 0.5 : 0.08)}${dark ? '' : `, 0 2px 6px -2px ${shade(0.12)}`}`,
+        // Controls (secondary buttons, raised tools, selected pills, chips) share one edge: a ring, a shade along the
+        // bottom (a highlight along the top in dark mode) and a contact shadow. Hover adds a soft drop.
+        '--stor-elevation-2': dark
+            ? `0 0 0 1px ${hair(0.12)}, inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 1px 2px ${shade(0.55)}`
+            : `0 0 0 1px ${hair(0.14)}, inset 0 -1px 0 ${hair(0.05)}, 0 1px 2px ${shade(0.07)}`,
+        '--stor-control-shadow-hover': dark
+            ? `0 0 0 1px ${hair(0.16)}, inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 1px 2px ${shade(0.55)}, 0 6px 14px -6px ${shade(0.7)}`
+            : `0 0 0 1px ${hair(0.2)}, inset 0 -1px 0 ${hair(0.05)}, 0 1px 2px ${shade(0.08)}, 0 4px 10px -4px ${shade(0.18)}`,
+        // A sunken track under segmented controls and tabs, and the inset of a field.
+        '--stor-well-inset': dark ? `inset 0 1px 2px ${shade(0.5)}` : `inset 0 1px 2px ${shade(0.07)}`,
+        '--stor-field-inset': dark ? `inset 0 1px 2px ${shade(0.35)}` : `inset 0 1px 2px ${shade(0.07)}`,
         '--stor-elevation-pressed': ring,
         '--stor-elevation-3': `${ring}, 0 4px 10px -2px ${shade(dark ? 0.4 : 0.08)}, 0 22px 44px -12px ${shade(dark ? 0.75 : 0.28)}`,
         '--stor-elevation-4': `${ring}, 0 8px 16px -4px ${shade(dark ? 0.45 : 0.1)}, 0 32px 72px -16px ${shade(dark ? 0.8 : 0.32)}`,
@@ -594,6 +604,8 @@ export function themePaletteFor(accent = DEFAULT_ACCENT, mode: ResolvedTheme = '
         '--stor-surface': n.surface,
         '--stor-surface-muted': n.muted,
         '--stor-surface-raised': n.raised,
+        // Fields: white on light cards, sunken below the card in dark mode.
+        '--stor-field-fill': dark ? '#1a1714' : n.surface,
         '--stor-surface-hover': n.hover,
         '--stor-surface-well': n.well,
         '--stor-surface-overlay': n.overlay,
@@ -620,6 +632,10 @@ export function themePaletteFor(accent = DEFAULT_ACCENT, mode: ResolvedTheme = '
         '--stor-action': roles.action,
         '--stor-action-text': roles.actionText,
         '--stor-action-hover': roles.actionHover,
+        // The primary button's edge: a darker rim of the action, a top highlight and a contact shadow.
+        '--stor-action-shadow': dark
+            ? `0 0 0 1px color-mix(in srgb, ${roles.action} 70%, #000), inset 0 1px 0 rgba(255, 255, 255, 0.3), 0 1px 2px rgba(0, 0, 0, 0.5)`
+            : `0 0 0 1px color-mix(in srgb, ${roles.action} 78%, #000), inset 0 1px 0 rgba(255, 255, 255, 0.16), 0 1px 2px rgba(34, 29, 24, 0.18), 0 3px 8px -4px color-mix(in srgb, ${roles.action} 55%, transparent)`,
         '--stor-focus': roles.focus,
         '--stor-accent-strong': roles.text,
         '--stor-accent-soft': roles.soft,

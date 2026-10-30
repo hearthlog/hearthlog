@@ -28,7 +28,7 @@
         class?: string;
     } = $props();
 
-    const chip = (on: boolean) => `inline-flex h-9 items-center gap-1 rounded-full px-3.5 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--stor-focus)] ${on ? "bg-[var(--stor-accent-soft)] font-semibold text-[var(--stor-accent-strong)]" : "bg-[var(--stor-surface-muted)] font-medium text-[var(--stor-ink)]"}`;
+    const chip = (on: boolean) => `inline-flex h-9 items-center gap-1 rounded-full px-3.5 text-sm transition-[color,background-color,box-shadow] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--stor-focus)] ${on ? "bg-[var(--stor-accent-soft)] font-semibold text-[var(--stor-accent-strong)]" : "bg-[var(--stor-surface-raised)] font-medium text-[var(--stor-ink)] shadow-[var(--stor-elevation-2)] hover:shadow-[var(--stor-control-shadow-hover)]"}`;
 
     // Arrow keys move between chips so a row is one stop for Tab, like a radio group.
     function moveFocus(event: KeyboardEvent): void {

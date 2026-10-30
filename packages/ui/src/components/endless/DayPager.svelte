@@ -308,6 +308,11 @@
     }
     .scroller::-webkit-scrollbar { display: none; }
     .scroller { scroll-snap-type: x mandatory; }
+    /* With a mouse the neighbouring days are reached by keys and arrows, not a swipe, so their slivers fade out
+       instead of showing a cut-off heading at the edge. Touch keeps the peek as the hint to swipe. */
+    @media (pointer: fine) {
+        .pager:not(.flow) .scroller { mask-image: linear-gradient(90deg, transparent 10px, #000 18px, #000 calc(100% - 18px), transparent calc(100% - 10px)); }
+    }
     .rail { position: relative; height: 100%; }
     .column {
         position: absolute; top: 0; bottom: 0; overflow-x: hidden; overflow-y: auto;
