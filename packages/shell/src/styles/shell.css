@@ -207,7 +207,7 @@ body:has([data-stor-drawer]) .stor-mobile-fab { visibility: hidden; }
 
 @media (min-width: 1024px) {
     .stor-calendar-layout { min-height: 0; flex: 1; grid-template-columns: minmax(0, 1fr) 320px; grid-template-rows: minmax(0, 1fr); align-items: stretch; }
-    .stor-calendar-agendas { min-height: 0; align-content: start; overflow-y: auto; }
+    .stor-calendar-agendas { min-height: 0; align-content: start; overflow-y: auto; /* room for card shadows and the hover lift, which a scroller would clip */ padding: 4px 8px 16px; margin: -4px -8px -16px; }
     .stor-calendar-panel { height: auto; }
     .stor-calendar-day { min-height: 112px; padding: 4px; }
     .stor-calendar-select { justify-content: flex-start; }
