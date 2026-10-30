@@ -275,7 +275,8 @@
         negative: "bg-[var(--stor-negative-soft)] text-[var(--stor-ink)]",
         positive: "bg-[var(--stor-positive-soft)] text-[var(--stor-ink)]",
         info: "bg-[var(--stor-info-soft)] text-[var(--stor-ink)]",
-        muted: "bg-[var(--stor-surface-muted)] text-[var(--stor-ink)]",
+        // Untoned events take a light ink tint: the muted fill sits too close to the card to read as a chip.
+        muted: "bg-[color-mix(in_srgb,var(--stor-ink)_8%,var(--stor-surface))] text-[var(--stor-ink)]",
     };
 
     const TONE_DOTS: Record<CalendarTone, string> = {

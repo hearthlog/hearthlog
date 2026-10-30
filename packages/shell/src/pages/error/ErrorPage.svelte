@@ -2,6 +2,7 @@
     import { page } from "$app/state";
     import { localStoreStatus } from "@hearthlog/runtime/store/local-store.svelte.js";
     import { onMount } from "svelte";
+    import { buttonVariants } from "@hearthlog/ui/components/ui/button-variants.js";
     import type { LocalRecoverySummary } from "@hearthlog/runtime/recovery/local-recovery.js";
 
     type LocalRecoveryModule = typeof import("@hearthlog/runtime/recovery/local-recovery.js");
@@ -104,44 +105,37 @@
     <title>{title} | stor</title>
 </svelte:head>
 
-<main class="flex min-h-screen items-center justify-center bg-[var(--stor-surface-muted)] px-4 py-12">
+<main class="flex min-h-screen items-center justify-center bg-[var(--stor-bg)] px-4 py-12">
     <section class="stor-panel w-full max-w-lg p-6 sm:p-8">
-        <a href="/" class="inline-flex items-center gap-2 font-mono font-semibold text-stone-950">
-            <span class="flex h-9 w-9 items-center justify-center rounded-xl bg-stone-950 text-lg font-black text-white">s</span>
-            stor
-        </a>
-        <p class="mt-8 font-mono text-[11px] font-semibold uppercase tracking-normal text-[var(--stor-muted-text)]">
+        <p class="stor-overline">
             {localStoreFailed ? "Local store" : error ? "Workspace unavailable" : `Error ${page.status}`}
         </p>
-        <h1 class="mt-2 text-2xl font-semibold tracking-tight text-stone-950">{title}</h1>
-        <p class="mt-3 text-sm leading-6 text-stone-600">{description}</p>
+        <h1 class="stor-title-2 mt-2 text-[var(--stor-ink)]">{title}</h1>
+        <p class="mt-3 text-sm leading-6 text-[var(--stor-muted-text)]">{description}</p>
         <div class="mt-6 flex flex-wrap gap-2">
             <button
                 type="button"
-                class="inline-flex items-center justify-center rounded-xl bg-stone-950 px-4 py-2.5 text-sm font-semibold text-white hover:bg-stone-800"
+                class={buttonVariants({ variant: localStoreFailed ? "default" : "secondary" })}
                 onclick={() => void retry()}
                 disabled={recoveryBusy}
             >
                 Retry
             </button>
             {#if !localStoreFailed}
-                <a
-                    href="/"
-                    class="inline-flex items-center justify-center rounded-xl bg-[var(--stor-surface-muted)] px-4 py-2.5 text-sm font-semibold text-stone-700 hover:bg-[var(--stor-surface-hover)]"
-                >
+                <a href="/" class={buttonVariants({ variant: "default" })}>
                     Go to start
                 </a>
             {/if}
             {#if localStoreFailed}
-                <button type="button" class="inline-flex items-center justify-center rounded-xl bg-[var(--stor-surface-muted)] px-4 py-2.5 text-sm font-semibold text-stone-700 hover:bg-[var(--stor-surface-hover)]" onclick={() => void download()} disabled={recoveryBusy}>Download SQLite</button>
-                <button type="button" class="inline-flex items-center justify-center rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-semibold text-red-700 hover:bg-red-100" onclick={() => void reset()} disabled={recoveryBusy}>{confirmReset ? "Confirm reset" : "Reset from Ledger"}</button>
+                <button type="button" class={buttonVariants({ variant: "secondary" })} onclick={() => void download()} disabled={recoveryBusy}>Download SQLite</button>
+                <button type="button" class={buttonVariants({ variant: "destructive" })} onclick={() => void reset()} disabled={recoveryBusy}>{confirmReset ? "Confirm reset" : "Reset from Ledger"}</button>
             {/if}
         </div>
         {#if localStoreFailed}
             <p class="mt-5 border-t border-[var(--stor-border)] pt-4 text-xs leading-5 text-[var(--stor-muted-text)]">
                 {recoverySummary.pending ?? "Unknown"} pending events · {recoverySummary.blocked ?? "Unknown"} blocked operations. Reset removes them from this device; remote events return through normal sync after reload.
             </p>
-            {#if recoveryMessage}<p class="mt-3 text-xs font-medium text-stone-700">{recoveryMessage}</p>{/if}
+            {#if recoveryMessage}<p class="mt-3 text-xs font-medium text-[var(--stor-ink)]">{recoveryMessage}</p>{/if}
         {/if}
     </section>
 </main>

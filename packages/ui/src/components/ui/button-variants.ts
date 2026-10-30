@@ -1,7 +1,8 @@
 import { cva } from "class-variance-authority";
 
 /**
- * Flat faces: primary is the accent fill, secondary a raised surface with a 1px border, ghost borrows the
+ * Primary is the accent fill with a darker rim, secondary a raised surface on the shared control edge
+ * (--stor-elevation-2, deeper on hover), ghost borrows the
  * neutral hover surface (accent keeps meaning "selected"), and destructive is tonal. Focus is the global
  * 2px outline with a 2px gap; a press scales to 0.98. ConfirmDialog draws its actions from this recipe too.
  */
@@ -10,8 +11,8 @@ export const buttonVariants = cva(
     {
         variants: {
             variant: {
-                default: "bg-[var(--stor-action)] text-[var(--stor-action-text)] hover:bg-[var(--stor-action-hover)] active:brightness-[.94]",
-                secondary: "bg-[var(--stor-surface-raised)] text-[var(--stor-ink)] shadow-[0_0_0_1px_var(--stor-border-strong)] hover:bg-[var(--stor-surface-hover)]",
+                default: "bg-[var(--stor-action)] text-[var(--stor-action-text)] shadow-[var(--stor-action-shadow)] hover:bg-[var(--stor-action-hover)] active:brightness-[.94]",
+                secondary: "bg-[var(--stor-surface-raised)] text-[var(--stor-ink)] shadow-[var(--stor-elevation-2)] hover:shadow-[var(--stor-control-shadow-hover)] active:shadow-[var(--stor-elevation-2)]",
                 ghost: "text-[var(--stor-muted-text)] hover:bg-[var(--stor-surface-hover)] hover:text-[var(--stor-ink)]",
                 destructive: "bg-[var(--stor-negative-soft)] text-[var(--stor-negative)] hover:bg-[color-mix(in_srgb,var(--stor-negative)_8%,var(--stor-negative-soft))]",
             },
