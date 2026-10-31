@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { compare, lockedVersion, makePlan, moveSetting, parseArgs, readJson, satisfies, updateModule } from './model.mjs';
+import { compare, lockedVersion, makePlan, moveSetting, parseArgs, platformRange, readJson, satisfies, updateModule } from './model.mjs';
 import { acquireLock, Coordinator, Pending, writeJson } from './coordinator.mjs';
 
 function fixture(t) {
@@ -99,12 +99,19 @@ test('incompatible platform peers and dev tooling are updated together and both 
     const result = updateModule(manifest, contract, '0.2.0', ['@hearthlog/sdk', '@hearthlog/tooling']);
     assert.equal(result.manifest.version, '1.0.1');
     assert.equal(result.contract.version, '1.0.1');
-    assert.equal(result.manifest.peerDependencies['@hearthlog/sdk'], '>=0.1.0 <0.2.0 || 0.2.0');
-    assert.equal(result.manifest.devDependencies['@hearthlog/tooling'], '^0.1.8 || 0.2.0');
+    assert.equal(result.manifest.peerDependencies['@hearthlog/sdk'], '^0.2.0');
+    assert.equal(result.manifest.devDependencies['@hearthlog/tooling'], '^0.2.0');
     assert.equal(result.contract.compatibility.moduleApi, 1);
     assert.throws(() => updateModule(manifest, contract, '0.2.0', ['@hearthlog/sdk'], '1.0.0'), /new version/);
     assert.equal(updateModule(manifest, { ...contract, version: '0.9.0' }, '0.1.9', ['@hearthlog/sdk']).changed, false);
     assert.equal(updateModule(manifest, { ...contract, version: '0.9.0' }, undefined, [], '1.0.1').contract.version, '1.0.1');
+});
+
+test('a platform range is one caret line, whatever the number of releases it has been through', () => {
+    assert.equal(platformRange('0.10.2'), '^0.10.0');
+    assert.equal(platformRange('1.4.7'), '^1.0.0');
+    assert.equal(satisfies('0.10.2', platformRange('0.10.0')), true);
+    assert.equal(satisfies('0.11.0', platformRange('0.10.2')), false);
 });
 
 test('tenant-only adoption never publishes or changes module compatibility', (t) => {
@@ -147,7 +154,7 @@ test('installed Hearthlog versions and module peers are checked independently of
     const plan = makePlan(config, parseArgs(['tenant', 'home', '--core', '0.2.0', '--module', 'photos@1.2.0']), paths);
     writeJson(join(paths.tenant, 'node_modules', '@hearthlog/sdk', 'package.json'), { version: '0.2.0' });
     const file = join(paths.tenant, 'node_modules', '@private/module-photos', 'package.json');
-    writeJson(file, { version: '1.2.0', peerDependencies: { '@hearthlog/sdk': '>=0.1.0 <0.2.0 || 0.2.0', '@sveltejs/kit': '^2.21.0' } });
+    writeJson(file, { version: '1.2.0', peerDependencies: { '@hearthlog/sdk': '^0.2.0', '@sveltejs/kit': '^2.21.0' } });
     instance.validateInstalled(paths.tenant, plan);
     writeJson(file, { version: '1.2.0', peerDependencies: { '@hearthlog/sdk': '<0.2.0' } });
     assert.throws(() => instance.validateInstalled(paths.tenant, plan), /does not support core/);

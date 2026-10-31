@@ -123,6 +123,12 @@ export function lockedVersion(root, name) {
     return match[1];
 }
 
+/** The range a module declares for a validated platform version: its whole compatible line (`^0.10.0`, `^1.0.0`). */
+export function platformRange(target) {
+    const [major, minor] = version(target);
+    return `^${major}.${major ? 0 : minor}.0`;
+}
+
 export function updateModule(manifest, contract, target, platformNames, requested) {
     manifest = structuredClone(manifest);
     contract = structuredClone(contract);
@@ -131,8 +137,8 @@ export function updateModule(manifest, contract, target, platformNames, requeste
         for (const section of ['dependencies', 'peerDependencies', 'devDependencies']) {
             for (const [name, range] of Object.entries(manifest[section] ?? {})) {
                 if (!platformNames.includes(name) || satisfies(target, range)) continue;
-                // Add only the version actually validated; do not promise an untested future release range.
-                manifest[section][name] = `${range} || ${target}`;
+                // One caret range for the validated line, never a list of versions that grows with each release.
+                manifest[section][name] = platformRange(target);
                 changes.push(`${section}.${name}: ${range} → ${manifest[section][name]}`);
             }
         }

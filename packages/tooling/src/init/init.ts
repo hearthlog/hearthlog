@@ -26,8 +26,11 @@ import { lockFor, renderModuleLock } from "../tenants/lock-file.js";
 const TOOLING = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const TEMPLATE = join(TOOLING, "templates", "tenant");
 
-/** The @hearthlog packages every site depends on; the modules it uses are added to them. */
-const CORE_PACKAGES = ["cloudflare", "contracts", "ledger", "runtime", "sdk", "shell", "tooling", "ui"] as const;
+/**
+ * The @hearthlog packages every site lists: the platform as one package, and the tooling, whose `hearthlog` command
+ * and Vite configuration the site runs directly. The rest of the platform comes through `core` and is hoisted.
+ */
+const CORE_PACKAGES = ["core", "tooling"] as const;
 
 export interface InitOptions {
     directory: string;

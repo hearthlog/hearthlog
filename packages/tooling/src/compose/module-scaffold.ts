@@ -112,12 +112,19 @@ export function scaffoldModule(modulesDirectory: string, options: ScaffoldOption
     return directory;
 }
 
+/** The one caret range a module declares for the platform it was written against: `^0.10.0` for 0.10.2, `^1.0.0` for 1.4.7. */
+export function currentPlatformRange(): string {
+    const { version } = JSON.parse(readFileSync(join(PLATFORM_ROOT, "packages", "sdk", "package.json"), "utf8")) as { version: string };
+    const [major, minor] = version.split(".");
+    return `^${major}.${major === "0" ? minor : "0"}.0`;
+}
+
 /**
  * A module as a repository of its own: its files at the root, `workspace:`
  * references turned into ranges, a license, and a README that says what is
  * still missing (CI and publishing, which wait for the platform packages).
  */
-export function exportModule(modulesDirectory: string, name: string, out: string, platformRange = ">=0.1.0 <0.2.0"): string[] {
+export function exportModule(modulesDirectory: string, name: string, out: string, platformRange = currentPlatformRange()): string[] {
     const source = join(modulesDirectory, name);
     if (!existsSync(join(source, "hearthlog.module.json"))) throw new Error(`modules/${name} is not a module`);
     if (existsSync(out) && readdirSync(out).length > 0) throw new Error(`${out} is not empty`);
