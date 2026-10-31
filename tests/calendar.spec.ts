@@ -25,12 +25,8 @@ function monthKey(date) {
 }
 
 function addEventLabel(date) {
-    return date.toLocaleDateString('en-US', {
-        weekday: 'long',
-        month: 'long',
-        day: 'numeric',
-        year: 'numeric',
-    });
+    const part = (options) => date.toLocaleDateString('en-US', options);
+    return `${part({ weekday: 'long' })} ${date.getDate()} ${part({ month: 'long' })} ${date.getFullYear()}`;
 }
 
 async function openAddForDate(page, date) {

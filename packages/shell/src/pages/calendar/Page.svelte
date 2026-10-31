@@ -364,7 +364,7 @@
     const selectedDateLabel = $derived.by(() => {
         const parsed = new Date(`${selectedDate}T12:00:00`);
         if (Number.isNaN(parsed.getTime())) return selectedDate;
-        return formatDay(parsed, "EEEE, MMMM d, yyyy");
+        return formatDay(parsed, "EEEE d MMMM yyyy");
     });
 
     function selectDay(dayKey: string): void {
@@ -444,7 +444,7 @@
     }
 
     function dayLabel(day: DateInfo, items: CalendarPointItem[], dayRanges: CalendarRangeItem[]): string {
-        const labels = [formatDay(day.date, "EEEE, MMMM d, yyyy")];
+        const labels = [formatDay(day.date, "EEEE d MMMM yyyy")];
         if (toLocalDateString(day.date) === data.today) labels.push("today");
         if (day.holidayName) labels.push(`public holiday, ${day.holidayName}`);
         else if (day.isWeekend) labels.push("weekend");
@@ -941,7 +941,7 @@
                 <button
                     type="button"
                     onclick={() => selectDay(dayKey)}
-                    aria-label={`${formatDay(info.date, "EEEE, MMMM d, yyyy")}${today ? ", today" : ""}${selected ? ", selected" : ""}${hasItems ? `, ${cellItems.length + cellRanges.length} items` : ", no events"}`}
+                    aria-label={`${formatDay(info.date, "EEEE d MMMM yyyy")}${today ? ", today" : ""}${selected ? ", selected" : ""}${hasItems ? `, ${cellItems.length + cellRanges.length} items` : ", no events"}`}
                     aria-pressed={selected}
                     class="stor-calendar-select flex w-full items-center rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-[var(--stor-focus)]"
                 >
@@ -1006,7 +1006,7 @@
                 <CommandOnly>
                     <button
                         type="button"
-                        aria-label={`Add event on ${formatDay(info.date, "EEEE, MMMM d, yyyy")}`}
+                        aria-label={`Add event on ${formatDay(info.date, "EEEE d MMMM yyyy")}`}
                         title="Add event on this day"
                         onclick={() => startCreate(dayKey)}
                         class="absolute bottom-1 right-0 hidden h-8 w-8 items-center justify-center rounded-md text-[var(--stor-muted-text)] hover:bg-[var(--stor-accent-soft)] hover:text-[var(--stor-accent-strong)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--stor-focus)] opacity-0 group-hover:opacity-100 focus:opacity-100 lg:inline-flex"
@@ -1073,7 +1073,7 @@
             onkeydown={handleCalendarKeydown}
             aria-label={`${monthLabel} calendar`}
             aria-describedby="calendar-keyboard-help"
-            class="stor-panel stor-calendar-panel min-w-0 p-2 outline-none focus-visible:ring-2 focus-visible:ring-[var(--stor-focus)] lg:p-4"
+            class="stor-panel stor-calendar-panel min-w-0 p-2 outline-none lg:p-4"
             data-under-action={phone.current ? "" : undefined}
         >
         <!-- Phones: the month in view and the sources head the grid; the top bar names the page. -->
