@@ -111,7 +111,7 @@ export function describeAppDataState(input: {
             return {
                 label: 'Synced',
                 description: input.lastSyncedAt
-                    ? `Updated ${input.lastSyncedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+                    ? `Updated ${input.lastSyncedAt.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })}`
                     : 'Ledger is up to date',
                 tone: 'success',
             };
