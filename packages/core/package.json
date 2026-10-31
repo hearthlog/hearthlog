@@ -1,6 +1,6 @@
 {
   "name": "@hearthlog/core",
-  "version": "0.13.0",
+  "version": "0.13.1",
   "description": "The Hearthlog platform in one dependency: a site installs this, the tooling, and its modules",
   "license": "AGPL-3.0-only",
   "repository": {
