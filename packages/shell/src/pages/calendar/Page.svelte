@@ -1033,7 +1033,7 @@
 <div class="stor-calendar-page stor-page w-full p-2.5 max-md:flex max-md:h-full max-md:flex-col sm:p-3 lg:h-full">
     <PageHeader title="Calendar" class="max-md:sr-only">
         {#snippet tabs()}
-            <MonthNavigator year={currentYear} month={currentMonth + 1} currentYear={boundaryNow.getFullYear()} currentMonth={boundaryNow.getMonth() + 1} subtitle={`${workingDayCount} working days`} onNavigate={chooseMonth} compact />
+            <MonthNavigator year={currentYear} month={currentMonth + 1} currentYear={boundaryNow.getFullYear()} currentMonth={boundaryNow.getMonth() + 1} subtitle={`${workingDayCount} working days`} onNavigate={chooseMonth} slide={false} compact />
         {/snippet}
         {@render sourcesMenu()}
         <CommandOnly>
@@ -1078,7 +1078,7 @@
         >
         <!-- Phones: the month in view and the sources head the grid; the top bar names the page. -->
         <div class="-mx-2 -mt-2 mb-1 flex h-12 shrink-0 items-center gap-1.5 border-b border-[color-mix(in_srgb,var(--stor-border)_62%,transparent)] pl-2 pr-1 md:hidden">
-            <MonthNavigator year={currentYear} month={currentMonth + 1} currentYear={boundaryNow.getFullYear()} currentMonth={boundaryNow.getMonth() + 1} onNavigate={chooseMonth} compact phoneArrows={false} class="min-w-0" />
+            <MonthNavigator year={currentYear} month={currentMonth + 1} currentYear={boundaryNow.getFullYear()} currentMonth={boundaryNow.getMonth() + 1} onNavigate={chooseMonth} slide={false} compact phoneArrows={false} class="min-w-0" />
             <div class="ml-auto">{@render sourcesMenu()}</div>
         </div>
         <div class="stor-calendar-grid" role="grid" aria-label={`${monthLabel} days`}>

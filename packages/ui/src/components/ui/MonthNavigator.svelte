@@ -15,6 +15,7 @@
         subtitle = '',
         compact = false,
         phoneArrows = true,
+        slide = true,
         hrefForMonth,
         onNavigate,
         class: className = '',
@@ -27,6 +28,8 @@
         compact?: boolean;
         /** Off where a list already scrolls through the months: phones then keep only the month picker. */
         phoneArrows?: boolean;
+        /** Off where the page scrolls to the month itself: the sideways page slide would fight that scroll. */
+        slide?: boolean;
         hrefForMonth?: (year: number, month: number) => string;
         onNavigate: (year: number, month: number) => void | Promise<void>;
         class?: string;
@@ -74,6 +77,10 @@
         desktopOpen = false;
         mobileOpen = false;
         const direction = targetYear * 12 + targetMonth >= year * 12 + month ? 1 : -1;
+        if (!slide) {
+            void onNavigate(targetYear, targetMonth);
+            return;
+        }
         void timeTravel(direction, () => onNavigate(targetYear, targetMonth));
     }
 </script>
