@@ -215,6 +215,36 @@ importers:
         specifier: workspace:*
         version: link:../../dev/.generated
 
+  packages/core:
+    dependencies:
+      '@hearthlog/cloudflare':
+        specifier: workspace:*
+        version: link:../cloudflare
+      '@hearthlog/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@hearthlog/czech':
+        specifier: workspace:*
+        version: link:../czech
+      '@hearthlog/ledger':
+        specifier: workspace:*
+        version: link:../ledger
+      '@hearthlog/native':
+        specifier: workspace:*
+        version: link:../native
+      '@hearthlog/runtime':
+        specifier: workspace:*
+        version: link:../runtime
+      '@hearthlog/sdk':
+        specifier: workspace:*
+        version: link:../sdk
+      '@hearthlog/shell':
+        specifier: workspace:*
+        version: link:../shell
+      '@hearthlog/ui':
+        specifier: workspace:*
+        version: link:../ui
+
   packages/czech: {}
 
   packages/ledger:

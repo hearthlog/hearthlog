@@ -9,7 +9,7 @@ import { validateManifest } from '@hearthlog/contracts';
 import { checkBoundaries } from '../check/check-modules.js';
 import { checkComposition, loadModules, modulesForFeatures, renderRoute } from './compose-modules.js';
 import { renderSite } from '../init/init.js';
-import { exportModule, moduleTemplate, scaffoldModule } from './module-scaffold.js';
+import { currentPlatformRange, exportModule, moduleTemplate, scaffoldModule } from './module-scaffold.js';
 /** Calc and Health as installed (`pnpm test:integration` installs the published modules; this repository has none). */
 const REAL_MODULES = loadModules().filter(({ manifest }) => ['@hearthlog/module-calc', '@hearthlog/module-health'].includes(manifest.package));
 const needsModules = { skip: REAL_MODULES.length < 2 && 'needs the modules: pnpm test:integration' };
@@ -95,7 +95,8 @@ test('an exported module is a repository of its own: a valid manifest, peer rang
         assert.equal(manifest.private, undefined);
         assert.equal(manifest.license, 'AGPL-3.0-only');
         assert.equal(manifest.dependencies['@hearthlog/sdk'], undefined, 'the platform is a peer, not a bundled dependency');
-        assert.match(manifest.peerDependencies['@hearthlog/sdk'], /^>=0\.1\.0/);
+        assert.equal(manifest.peerDependencies['@hearthlog/sdk'], currentPlatformRange(), 'one caret range for the platform line, never a list');
+        assert.doesNotMatch(manifest.peerDependencies['@hearthlog/sdk'], /\|\|/);
         assert.equal(manifest.dependencies['date-fns'], '^4.4.0', 'third-party dependencies stay');
         assert.deepEqual(manifest.files, ['src', 'hearthlog.module.json', '!**/*.test.ts'], 'the tests stay out of the package');
         assert.deepEqual(manifest.publishConfig, { access: 'public', provenance: true });

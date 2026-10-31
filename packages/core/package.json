@@ -1,0 +1,30 @@
+{
+  "name": "@hearthlog/core",
+  "version": "0.13.0",
+  "description": "The Hearthlog platform in one dependency: a site installs this, the tooling, and its modules",
+  "license": "AGPL-3.0-only",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hearthlog/hearthlog.git",
+    "directory": "packages/core"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "files": [
+    "README.md"
+  ],
+  "type": "module",
+  "dependencies": {
+    "@hearthlog/cloudflare": "workspace:*",
+    "@hearthlog/contracts": "workspace:*",
+    "@hearthlog/czech": "workspace:*",
+    "@hearthlog/ledger": "workspace:*",
+    "@hearthlog/native": "workspace:*",
+    "@hearthlog/runtime": "workspace:*",
+    "@hearthlog/sdk": "workspace:*",
+    "@hearthlog/shell": "workspace:*",
+    "@hearthlog/ui": "workspace:*"
+  }
+}

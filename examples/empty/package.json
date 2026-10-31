@@ -11,15 +11,9 @@
     "check": "hearthlog build && svelte-kit sync && tsc --noEmit -p tsconfig.json --skipLibCheck"
   },
   "dependencies": {
-    "@hearthlog/cloudflare": "workspace:*",
-    "@hearthlog/contracts": "workspace:*",
+    "@hearthlog/core": "workspace:*",
     "@hearthlog/generated": "link:.generated",
-    "@hearthlog/ledger": "workspace:*",
-    "@hearthlog/runtime": "workspace:*",
-    "@hearthlog/sdk": "workspace:*",
-    "@hearthlog/shell": "workspace:*",
-    "@hearthlog/tooling": "workspace:*",
-    "@hearthlog/ui": "workspace:*"
+    "@hearthlog/tooling": "workspace:*"
   },
   "devDependencies": {
     "@iconify/json": "^2.2.535",

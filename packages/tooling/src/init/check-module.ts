@@ -35,9 +35,25 @@ function run(command: string, args: string[], cwd: string): void {
     if (result.status !== 0) throw new Error(`${command} ${args.join(" ")} failed in ${cwd}`);
 }
 
+/**
+ * A module declares one range per platform package (`^0.10.0`), not a list of the versions it has met: a list grows
+ * with every release and says nothing the range does not.
+ */
+export function platformRangeProblems(manifest: { name?: string; peerDependencies?: Record<string, string>; devDependencies?: Record<string, string> }): string[] {
+    const problems: string[] = [];
+    for (const section of ["peerDependencies", "devDependencies"] as const) {
+        for (const [dependency, range] of Object.entries(manifest[section] ?? {})) {
+            if (dependency.startsWith("@hearthlog/") && range.includes("||")) problems.push(`${manifest.name ?? "module"}: ${section}.${dependency} is "${range}"; declare one range such as "^0.10.0"`);
+        }
+    }
+    return problems;
+}
+
 /** Writes the site into `work` and returns the module's package name. */
 export function assembleCheckSite(options: Required<Pick<CheckModuleOptions, "directory" | "work">> & Pick<CheckModuleOptions, "overrides">): string {
     const directory = resolve(options.directory);
+    const rangeProblems = platformRangeProblems(JSON.parse(readFileSync(join(directory, "package.json"), "utf8")));
+    if (rangeProblems.length > 0) throw new Error(rangeProblems.join("\n"));
     const loaded = loadModuleAt(directory);
     const name = loaded.manifest.package;
     for (const [path, content] of renderSite({ directory: options.work, id: "st", modules: [name], available: [loaded] })) {

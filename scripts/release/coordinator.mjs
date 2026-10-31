@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync, rmSync, readdirSync, cpSync, openSync, closeSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync, rmSync, readdirSync, cpSync, openSync, closeSync, realpathSync } from 'node:fs';
 import { hostname } from 'node:os';
 import { dirname, join, resolve, sep } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -44,6 +44,19 @@ export function acquireLock(path) {
     writeFileSync(descriptor, JSON.stringify({ pid: process.pid, host: hostname() }));
     closeSync(descriptor);
     return () => rmSync(path, { force: true });
+}
+
+/**
+ * The manifest of an installed platform package. A site installs `@hearthlog/core` and gets the rest through it, so a
+ * package that is not at the site's top level is looked up beside the core package's real location.
+ */
+function installedManifest(site, name) {
+    const direct = join(site, 'node_modules', name, 'package.json');
+    if (existsSync(direct)) return direct;
+    const core = join(site, 'node_modules', '@hearthlog', 'core');
+    if (!existsSync(core)) return undefined;
+    const beside = join(dirname(realpathSync(core)), '..', name, 'package.json');
+    return existsSync(beside) ? beside : undefined;
 }
 
 export class Pending extends Error {}
@@ -227,8 +240,8 @@ export class Coordinator {
 
     validateInstalled(path, plan) {
         for (const name of plan.platformNames) {
-            const file = join(path, 'node_modules', name, 'package.json');
-            if (existsSync(file) && readJson(file).version !== plan.core) throw new Error(`${name} must resolve to core ${plan.core}`);
+            const file = installedManifest(path, name);
+            if (file && readJson(file).version !== plan.core) throw new Error(`${name} must resolve to core ${plan.core}`);
         }
         for (const item of plan.modules) {
             const manifest = readJson(join(path, 'node_modules', item.name, 'package.json'));
