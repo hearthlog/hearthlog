@@ -1,6 +1,6 @@
 {
   "name": "@hearthlog/ui",
-  "version": "0.13.3",
+  "version": "0.13.4",
   "description": "Hearthlog's design system: primitives, overlays, the generic data table, and the small stores they share",
   "license": "AGPL-3.0-only",
   "repository": {
