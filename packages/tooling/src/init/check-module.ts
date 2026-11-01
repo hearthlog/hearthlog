@@ -73,6 +73,11 @@ export function assembleCheckSite(options: Required<Pick<CheckModuleOptions, "di
         const settings = ((config.infrastructure.moduleSettings ??= {})[loaded.manifest.id] ??= {});
         settings[variable.setting] ??= moduleSettingPlaceholder(variable);
     }
+    for (const binding of loaded.manifest.server?.bindings ?? []) {
+        if (binding.type !== "service" || binding.optional) continue;
+        const settings = ((config.infrastructure.moduleSettings ??= {})[loaded.manifest.id] ??= {});
+        settings[binding.setting] ??= moduleSettingPlaceholder({ format: "worker-name" });
+    }
     writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`);
     const manifestPath = join(options.work, "package.json");
     const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as { dependencies: Record<string, string> };
