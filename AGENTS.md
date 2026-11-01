@@ -601,6 +601,11 @@ imported through `.generated/module-sources.generated.css` only for tenants that
   outside the section in view (`recent-places.svelte.ts`, browser storage, never synced). A place
   is named by the first part of the page's `<title>`, so give a month, sub-page, or record its own
   title; a page titled only with its section name is not listed.
+- NSFW sections: a module feature with `"nsfw": true` in its manifest leaves the groups, the phone dock, the
+  Mac menu bar, the start section (never remembered or used as `home`) and Recently. The sidebar and the phone
+  More sheet list it under an NSFW toggle that starts hidden in every new window (session storage,
+  `nsfw-toggle.svelte.ts`) and stays open while such a section is in view. Like all navigation, it is not an
+  access check.
 - Last change: from 768px the shell shows an inverse ink pill (`.stor-last-change`, the toast face: `--stor-tooltip` fill, `--stor-tooltip-text`, Undo in `--stor-action-inverse`) for the latest change this tab committed,
   named as Log history names it, with History and, when the action only added standard records, Undo
   (`LastChangeBar`). Undo appends those records' `…_REMOVED` events (`runtime/commands/undo.ts`);

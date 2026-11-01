@@ -25,6 +25,11 @@
     .stor-nav-sub-in { min-height: 0; overflow: hidden; visibility: hidden; transition: visibility 0s linear 200ms; }
     .stor-nav-sub[data-open] > .stor-nav-sub-in { visibility: visible; transition-delay: 0s; }
     /* Recently: two-line rows whose icons sit in the navigation's icon column. */
+    /* The NSFW toggle reads as a group heading that opens; it disables itself while an NSFW section is in view. */
+    .stor-nsfw-toggle { display: flex; align-items: center; gap: 6px; min-height: 30px; border-radius: 8px; font-size: 10.5px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--stor-muted-text); transition: color var(--stor-dur-1), background-color var(--stor-dur-1); }
+    .stor-nsfw-toggle:hover:not(:disabled) { color: var(--stor-ink); background: var(--stor-nav-hover); }
+    .stor-nsfw-toggle:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--stor-focus); }
+    .stor-nsfw-toggle:disabled { cursor: default; }
     .stor-recent-place { display: flex; align-items: center; gap: 11px; min-height: 40px; padding: 3px 10px 3px 13px; border-radius: 10px; transition: background-color 120ms; }
     .stor-recent-place:hover { background: var(--stor-nav-hover); }
     .stor-recent-place:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--stor-focus); }

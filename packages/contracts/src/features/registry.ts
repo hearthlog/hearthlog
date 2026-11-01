@@ -50,6 +50,8 @@ export interface PageMeta {
     mobileOrder?: number;
     /** Place among the destinations: lower first; none comes last. */
     navOrder?: number;
+    /** Listed only behind the navigation's NSFW toggle; never a start section or a Recently place. */
+    nsfw?: boolean;
 }
 
 export interface FeatureDefinition {
@@ -89,6 +91,7 @@ const FEATURE_PAGE_META: Record<FeatureId, PageMeta> = {
         ...(feature.mobilePrimary !== undefined ? { mobilePrimary: feature.mobilePrimary } : {}),
         ...(feature.mobileOrder !== undefined ? { mobileOrder: feature.mobileOrder } : {}),
         ...(feature.navOrder !== undefined ? { navOrder: feature.navOrder } : {}),
+        ...(feature.nsfw ? { nsfw: true } : {}),
     } satisfies PageMeta])) as Record<ModuleFeatureId, PageMeta>,
 };
 

@@ -20,6 +20,8 @@ export interface Destination {
     children?: NavChild[];
     /** The module section this destination stands for, which supplies its icon. */
     section?: string;
+    /** Listed behind the NSFW toggle, outside the groups. */
+    nsfw?: boolean;
 }
 export interface NavChild {
     id: string;
@@ -66,7 +68,7 @@ export function buildNavigation(config: NavigationConfig) {
     // Features declare their place (`navOrder`); one that declares none comes last, in registration order.
     const place = (id: string) => FEATURES.find((feature) => feature.id === id)?.page?.navOrder ?? Number.MAX_SAFE_INTEGER;
     const registeredOrder = FEATURES.map((feature) => feature.id).sort((a, b) => place(a) - place(b));
-    const destinations: Destination[] = registeredOrder.flatMap((id): Destination[] => {
+    const all: Destination[] = registeredOrder.flatMap((id): Destination[] => {
         if (!config.features.has(id)) return [];
         const meta = FEATURES.find((feature) => feature.id === id)!.page!;
         // A module section (Health) is one destination for several features: it
@@ -83,6 +85,10 @@ export function buildNavigation(config: NavigationConfig) {
         }
         return [{ id, ...meta, group: meta.navGroup, children: FEATURE_CHILDREN[id]?.length ? FEATURE_CHILDREN[id] : undefined }];
     });
+    // NSFW destinations stay out of every list a glance, the start section, or the menu bar reads; the sidebar
+    // shows them behind its toggle.
+    const destinations = all.filter((destination) => !destination.nsfw);
+    const nsfw = all.filter((destination) => destination.nsfw).map((destination) => ({ ...destination, mobilePrimary: false }));
     // Entities and Developer are maintenance pages: they live in the account
     // menu (desktop) and More (mobile), not in the main destination list.
     const settings: Destination[] = [];
@@ -93,5 +99,5 @@ export function buildNavigation(config: NavigationConfig) {
     const groups = showHeadings
         ? domains.map((label) => ({ label, links: destinations.filter((d) => d.group === label) })).filter((g) => g.links.length)
         : [{ label: '', links: destinations }];
-    return { destinations: [...destinations, ...settings], sections: destinations, settings, groups, showHeadings };
+    return { destinations: [...destinations, ...settings], sections: destinations, nsfw, settings, groups, showHeadings };
 }
