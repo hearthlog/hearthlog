@@ -12,6 +12,7 @@
     } from "@hearthlog/runtime/store/sync-state.js";
     import { navIndicator } from "./nav-indicator.js";
     import { placeHref, placeTitle, recentPlaces } from "./recent-places.svelte.js";
+    import { nsfwToggle } from "./nsfw-toggle.svelte.js";
     import SidebarResizer from "./SidebarResizer.svelte";
     import NavItem from "./NavItem.svelte";
     import NavFlyout from "./NavFlyout.svelte";
@@ -31,6 +32,8 @@
     import IconDots from "~icons/mdi/dots-horizontal";
     import IconChevronDown from "~icons/mdi/chevron-down";
     import IconCheck from "~icons/mdi/check";
+    import IconEyeOff from "~icons/mdi/eye-off-outline";
+    import IconEye from "~icons/mdi/eye-outline";
     import { DropdownMenu } from "bits-ui";
     import { goto } from "$app/navigation";
     import { phoneHeader } from "@hearthlog/runtime/runtime/phone-header.svelte.js";
@@ -68,10 +71,13 @@
         icon: link.id === "entities" ? ENTITIES_ICON : DEVELOPER_ICON,
     }));
     const navLinks = navGroups.flatMap((group) => group.links);
+    /** NSFW sections: listed behind the toggle, never in Recently or the dock. */
+    const nsfwLinks: NavLink[] = navigation.nsfw.map((link) => ({ ...link, icon: link.section ? MODULE_SECTION_ICONS[link.section] : FEATURE_ICONS[link.id as keyof typeof FEATURE_ICONS] }));
     const mobilePrimaryLinks = navLinks
         .filter((link) => link.mobilePrimary)
         .sort((left, right) => (left.mobileOrder ?? 99) - (right.mobileOrder ?? 99));
     const moreNavLinks = navLinks.filter((link) => !link.mobilePrimary);
+    nsfwToggle.open(tenant.id);
 
     let {
         userEmail,
@@ -136,8 +142,14 @@
 
     const activeMoreLink = $derived.by(() =>
         moreNavLinks.find(isLinkActive) ??
+        nsfwLinks.find(isLinkActive) ??
         null,
     );
+
+    /** The NSFW sections show while the toggle is on, and always while one of them is in view. */
+    const nsfwActive = $derived(nsfwLinks.some(isLinkActive));
+    const nsfwVisible = $derived(nsfwToggle.shown || nsfwActive);
+    const nsfwToggleLabel = $derived(nsfwVisible ? "Hide NSFW sections" : "Show NSFW sections");
 
     const isMoreActive = $derived(isMoreOpen || activeMoreLink !== null);
     // Spatial spec: More keeps the visible label "More" even when the
@@ -319,7 +331,7 @@
     // ---------------------------------------------------------------- phone top bar
     /** The section in view names the bar; its sub-pages open from the title. */
     const phoneSection = $derived(
-        navLinks.find(isLinkActive) ?? settingsLinks.find((link) => isActive(link.path)) ?? null,
+        navLinks.find(isLinkActive) ?? nsfwLinks.find(isLinkActive) ?? settingsLinks.find((link) => isActive(link.path)) ?? null,
     );
     const phoneChildren = $derived(
         phoneSection && "children" in phoneSection && phoneSection.children && phoneSection.children.length > 1
@@ -371,6 +383,80 @@
 
 </script>
 
+{#snippet navLink(link: NavLink)}
+    {@const active = isLinkActive(link)}
+    {@const badge = attention.badge(link.id)}
+    {@const figure = attention.figure(link.id)}
+    {#if !collapsed}
+        <!-- The current section is one raised card: its row and its open sub-pages. -->
+        <div data-nav-section data-active={active ? '' : undefined}>
+            <!-- The count sits on the sub-page that holds the work while the section is open. -->
+            <NavItem
+                href={linkHref(link.path)}
+                icon={link.icon}
+                label={link.label}
+                {active}
+                {collapsed}
+                {badge}
+                {figure}
+                showCount={!(active && link.children)}
+            />
+            {#if link.children}
+                <!-- Sub-pages stay in the DOM and open in place; closed lists are invisible to focus. -->
+                <div class="stor-nav-sub" data-open={active ? '' : undefined}>
+                    <div class="stor-nav-sub-in">
+                        <ul class="stor-nav-children" aria-label={`${link.label} pages`}>
+                            {#each link.children as child}
+                                {@const childActive = active && isChildActive(link, child)}
+                                {@const childBadge = child.badgeId ? attention.badge(child.badgeId) : null}
+                                {@const childFigure = childBadge ? null : attention.figure(child.id)}
+                                <li><a
+                                    href={childHref(link, child)}
+                                    class="stor-nav-child {childActive ? 'stor-nav-child-active' : ''}"
+                                    aria-current={childActive ? "page" : undefined}
+                                    aria-label={childBadge || childFigure ? [child.label, childBadge?.label ?? childFigure?.label].join(', ') : undefined}
+                                >
+                                    <span class="min-w-0 truncate {childFigure ? 'flex-none' : 'flex-1'}">{child.label}</span>
+                                    {#if childBadge}
+                                        <span class="stor-nav-badge {childBadge.tone === 'negative' ? 'stor-nav-badge-negative' : 'stor-nav-badge-warning'}" aria-hidden="true">{childBadge.count}</span>
+                                    {:else if childFigure}
+                                        <span class="stor-nav-figure" aria-hidden="true">{childFigure.text}</span>
+                                    {/if}
+                                </a></li>
+                            {/each}
+                        </ul>
+                    </div>
+                </div>
+            {/if}
+        </div>
+    {:else if link.children}
+        <!-- Rail: a section with pages opens a flyout beside the rail. -->
+        <NavFlyout
+            label={link.label}
+            {badge}
+            {figure}
+            items={link.children.map((child) => ({
+                child,
+                href: childHref(link, child),
+                active: active && isChildActive(link, child),
+                badge: child.badgeId ? attention.badge(child.badgeId) : null,
+                figure: attention.figure(child.id),
+            }))}
+        >
+            {#snippet trigger()}
+                <NavItem href={linkHref(link.path)} icon={link.icon} label={link.label} {active} {collapsed} {badge} {figure} />
+            {/snippet}
+        </NavFlyout>
+    {:else}
+        <!-- Rail: a section without pages names itself in a tooltip. -->
+        <Tooltip content={[link.label, badge?.label, figure?.label].filter(Boolean).join(' · ')} side="right" delayDuration={150}>
+            {#snippet trigger({ props })}
+                <NavItem {...props} href={linkHref(link.path)} icon={link.icon} label={link.label} {active} {collapsed} {badge} {figure} />
+            {/snippet}
+        </Tooltip>
+    {/if}
+{/snippet}
+
 <aside
     class="fixed left-0 top-0 bottom-0 z-50 hidden flex-col bg-[var(--stor-sidebar)] transition-[width] duration-150 ease-out motion-reduce:transition-none md:flex {collapsed
         ? 'w-20'
@@ -405,81 +491,37 @@
                 {#if group.label && !collapsed}<p class="px-3 pb-1.5 pt-2 text-[10.5px] font-semibold uppercase tracking-[0.1em] text-[var(--stor-muted-text)]">{group.label}</p>{/if}
                 <div class="space-y-0.5">
                     {#each group.links as link}
-                        {@const active = isLinkActive(link)}
-                        {@const badge = attention.badge(link.id)}
-                        {@const figure = attention.figure(link.id)}
-                        {#if !collapsed}
-                            <!-- The current section is one raised card: its row and its open sub-pages. -->
-                            <div data-nav-section data-active={active ? '' : undefined}>
-                                <!-- The count sits on the sub-page that holds the work while the section is open. -->
-                                <NavItem
-                                    href={linkHref(link.path)}
-                                    icon={link.icon}
-                                    label={link.label}
-                                    {active}
-                                    {collapsed}
-                                    {badge}
-                                    {figure}
-                                    showCount={!(active && link.children)}
-                                />
-                                {#if link.children}
-                                    <!-- Sub-pages stay in the DOM and open in place; closed lists are invisible to focus. -->
-                                    <div class="stor-nav-sub" data-open={active ? '' : undefined}>
-                                        <div class="stor-nav-sub-in">
-                                            <ul class="stor-nav-children" aria-label={`${link.label} pages`}>
-                                                {#each link.children as child}
-                                                    {@const childActive = active && isChildActive(link, child)}
-                                                    {@const childBadge = child.badgeId ? attention.badge(child.badgeId) : null}
-                                                    {@const childFigure = childBadge ? null : attention.figure(child.id)}
-                                                    <li><a
-                                                        href={childHref(link, child)}
-                                                        class="stor-nav-child {childActive ? 'stor-nav-child-active' : ''}"
-                                                        aria-current={childActive ? "page" : undefined}
-                                                        aria-label={childBadge || childFigure ? [child.label, childBadge?.label ?? childFigure?.label].join(', ') : undefined}
-                                                    >
-                                                        <span class="min-w-0 truncate {childFigure ? 'flex-none' : 'flex-1'}">{child.label}</span>
-                                                        {#if childBadge}
-                                                            <span class="stor-nav-badge {childBadge.tone === 'negative' ? 'stor-nav-badge-negative' : 'stor-nav-badge-warning'}" aria-hidden="true">{childBadge.count}</span>
-                                                        {:else if childFigure}
-                                                            <span class="stor-nav-figure" aria-hidden="true">{childFigure.text}</span>
-                                                        {/if}
-                                                    </a></li>
-                                                {/each}
-                                            </ul>
-                                        </div>
-                                    </div>
-                                {/if}
-                            </div>
-                        {:else if link.children}
-                            <!-- Rail: a section with pages opens a flyout beside the rail. -->
-                            <NavFlyout
-                                label={link.label}
-                                {badge}
-                                {figure}
-                                items={link.children.map((child) => ({
-                                    child,
-                                    href: childHref(link, child),
-                                    active: active && isChildActive(link, child),
-                                    badge: child.badgeId ? attention.badge(child.badgeId) : null,
-                                    figure: attention.figure(child.id),
-                                }))}
-                            >
-                                {#snippet trigger()}
-                                    <NavItem href={linkHref(link.path)} icon={link.icon} label={link.label} {active} {collapsed} {badge} {figure} />
-                                {/snippet}
-                            </NavFlyout>
-                        {:else}
-                            <!-- Rail: a section without pages names itself in a tooltip. -->
-                            <Tooltip content={[link.label, badge?.label, figure?.label].filter(Boolean).join(' · ')} side="right" delayDuration={150}>
-                                {#snippet trigger({ props })}
-                                    <NavItem {...props} href={linkHref(link.path)} icon={link.icon} label={link.label} {active} {collapsed} {badge} {figure} />
-                                {/snippet}
-                            </Tooltip>
-                        {/if}
+                        {@render navLink(link)}
                     {/each}
                 </div>
             </section>
         {/each}
+        {#if nsfwLinks.length}
+            <!-- NSFW sections sit apart, behind one quiet toggle that starts hidden in every new window. -->
+            <section class={collapsed ? "mt-2 border-t border-[var(--stor-border)] pt-2" : "mt-3"} aria-label="NSFW">
+                {#if collapsed}
+                    <Tooltip content={nsfwToggleLabel} side="right" delayDuration={150}>
+                        {#snippet trigger({ props })}
+                            <button {...props} type="button" class="stor-nsfw-toggle mx-auto h-10 w-11 justify-center" aria-label={nsfwToggleLabel} aria-expanded={nsfwVisible} disabled={nsfwActive} onclick={() => nsfwToggle.toggle()}>
+                                {#if nsfwVisible}<IconEye class="h-[18px] w-[18px]" />{:else}<IconEyeOff class="h-[18px] w-[18px]" />{/if}
+                            </button>
+                        {/snippet}
+                    </Tooltip>
+                {:else}
+                    <button type="button" class="stor-nsfw-toggle w-full px-3" aria-expanded={nsfwVisible} title={nsfwToggleLabel} disabled={nsfwActive} onclick={() => nsfwToggle.toggle()}>
+                        <span class="flex-1 text-left">NSFW</span>
+                        {#if nsfwVisible}<IconEye class="h-3.5 w-3.5" />{:else}<IconEyeOff class="h-3.5 w-3.5" />{/if}
+                    </button>
+                {/if}
+                {#if nsfwVisible}
+                    <div class="space-y-0.5">
+                        {#each nsfwLinks as link}
+                            {@render navLink(link)}
+                        {/each}
+                    </div>
+                {/if}
+            </section>
+        {/if}
     </nav>
 
     {#if !collapsed && recentShown.length > 0}
@@ -624,6 +666,10 @@
         open={isMoreOpen}
         {userEmail}
         links={moreNavLinks}
+        {nsfwLinks}
+        {nsfwVisible}
+        nsfwLocked={nsfwActive}
+        onToggleNsfw={() => nsfwToggle.toggle()}
         settings={settingsLinks}
         {currentLogName}
         {syncLabel}

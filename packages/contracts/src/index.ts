@@ -43,6 +43,11 @@ export interface ModuleFeature {
     mobileOrder?: number;
     /** Place in the sidebar and menus: lower first; a feature without one comes last. */
     navOrder?: number;
+    /**
+     * Not safe for work: the sidebar lists it behind its NSFW toggle, and it is never the start section, a mobile
+     * tab, a menu-bar entry, or a Recently place.
+     */
+    nsfw?: boolean;
     /** Sub-pages the sidebar lists under the section. */
     children?: ModuleNavChild[];
     shortcuts?: ModuleShortcut[];
@@ -432,13 +437,15 @@ export function validateManifest(value: unknown, source = 'hearthlog.module.json
     const featureIds = (manifest.features as Array<{ id?: unknown }>).map((feature) => String(feature.id));
     for (const [index, raw] of manifest.features.entries()) {
         const label = `${id} features[${index}]`;
-        const feature = keys(label, raw, ['id', 'path', 'label', 'subtitle', 'keywords', 'navGroup', 'icon', 'mobilePrimary', 'mobileOrder', 'navOrder', 'children', 'shortcuts']);
+        const feature = keys(label, raw, ['id', 'path', 'label', 'subtitle', 'keywords', 'navGroup', 'icon', 'mobilePrimary', 'mobileOrder', 'navOrder', 'nsfw', 'children', 'shortcuts']);
         text(`${label} id`, feature.id, FEATURE_ID);
         text(`${label} path`, feature.path, ROUTE_PATH);
         for (const key of ['label', 'subtitle', 'keywords'] as const) text(`${label} ${key}`, feature[key]);
         if (!['Money', 'Life', 'Tools'].includes(feature.navGroup as string)) fail(label, 'navGroup must be Money, Life, or Tools');
         text(`${label} icon`, feature.icon, ICON);
         if (feature.navOrder !== undefined && !Number.isInteger(feature.navOrder)) fail(label, 'navOrder must be an integer');
+        if (feature.nsfw !== undefined && typeof feature.nsfw !== 'boolean') fail(label, 'nsfw must be a boolean');
+        if (feature.nsfw && feature.mobilePrimary) fail(label, 'an nsfw feature cannot be a mobile tab');
         for (const [childIndex, child] of ((feature.children ?? []) as unknown[]).entries()) {
             const childLabel = `${label} children[${childIndex}]`;
             const value = keys(childLabel, child, ['id', 'label', 'href', 'tab', 'badgeId']);

@@ -26,7 +26,7 @@ function menuEntries(): { destinations: ShellMenuEntry[]; actions: ShellMenuEntr
         children: children?.map((child) => ({ id: child.id, title: child.label, path: child.href })),
     }));
     const actions = FEATURES
-        .filter((feature) => isFeatureEnabled(feature.id))
+        .filter((feature) => isFeatureEnabled(feature.id) && !feature.page?.nsfw)
         .flatMap((feature) => feature.commands.map((command) => ({
             id: command.id,
             title: command.label,

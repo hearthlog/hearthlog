@@ -14,7 +14,8 @@ export function sectionForPath(pathname: string, tenant: TenantConfig): string |
     }
 
     const feature = featureForPath(pathname);
-    if (!feature || !tenant.features.has(feature.id)) return null;
+    // An NSFW section never opens by itself, so it is never remembered or configured as the start.
+    if (!feature || !tenant.features.has(feature.id) || feature.page?.nsfw) return null;
     return feature.page?.path ?? null;
 }
 

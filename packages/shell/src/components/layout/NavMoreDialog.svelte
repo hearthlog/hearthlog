@@ -6,6 +6,8 @@
     import LogStatusChip, { type LogStatusTone } from "./LogStatusChip.svelte";
     import IconLogout from "~icons/mdi/logout";
     import IconChevronRight from "~icons/mdi/chevron-right";
+    import IconEyeOff from "~icons/mdi/eye-off-outline";
+    import IconEye from "~icons/mdi/eye-outline";
     import { ACCESS_LOGOUT_ENDPOINT, LOCAL_USER_EMAIL } from "@hearthlog/runtime/access/user-session.js";
     import { beginAccessLogout } from "@hearthlog/runtime/access/session.js";
 
@@ -21,6 +23,10 @@
         open,
         userEmail = "",
         links,
+        nsfwLinks = [],
+        nsfwVisible = false,
+        nsfwLocked = false,
+        onToggleNsfw,
         settings = [],
         currentLogName,
         syncLabel,
@@ -39,6 +45,12 @@
         open: boolean;
         userEmail?: string;
         links: NavLink[];
+        /** NSFW sections, listed under their own toggle. */
+        nsfwLinks?: NavLink[];
+        nsfwVisible?: boolean;
+        /** An NSFW section is in view, so the list cannot hide. */
+        nsfwLocked?: boolean;
+        onToggleNsfw?: () => void;
         settings?: NavLink[];
         currentLogName: string | null;
         syncLabel: string;
@@ -82,6 +94,24 @@
     }
 </script>
 
+{#snippet linkRow(link: NavLink)}
+    {@const Icon = link.icon}
+    {@const active = isLinkActive(link)}
+    <a
+        href={link.path}
+        class="flex min-h-12 items-center gap-3 rounded-xl px-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--stor-focus)] {active ? 'bg-[var(--stor-selected)]' : 'hover:bg-[var(--stor-surface-hover)]'}"
+        aria-current={active ? "page" : undefined}
+        onclick={close}
+    >
+        <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] {active ? 'bg-[var(--stor-surface-raised)] text-[var(--stor-accent-strong)]' : 'bg-[var(--stor-surface-muted)] text-[var(--stor-muted-text)]'}"><Icon class="h-[18px] w-[18px]" /></span>
+        <span class="min-w-0 flex-1">
+            <span class="block text-sm font-semibold text-[var(--stor-ink)]">{link.label}</span>
+            {#if link.subtitle}<span class="block truncate text-xs text-[var(--stor-muted-text)]">{link.subtitle}</span>{/if}
+        </span>
+        <IconChevronRight class="h-4 w-4 shrink-0 text-[var(--stor-muted-text)]" />
+    </a>
+{/snippet}
+
 <Dialog.Root {open} onOpenChange={onOpenChange}>
     <Dialog.Portal>
         <Dialog.Overlay class="fixed inset-0 z-[51] bg-[var(--stor-overlay)] md:hidden" />
@@ -91,25 +121,22 @@
         >
             <div class="mx-auto mb-2 h-1 w-10 rounded-full bg-[var(--stor-border)]" aria-hidden="true"></div>
 
-            {#if links.length}
+            {#if links.length || nsfwLinks.length}
                 <nav aria-label="More pages" class="grid gap-0.5">
                     {#each links as link}
-                        {@const Icon = link.icon}
-                        {@const active = isLinkActive(link)}
-                        <a
-                            href={link.path}
-                            class="flex min-h-12 items-center gap-3 rounded-xl px-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--stor-focus)] {active ? 'bg-[var(--stor-selected)]' : 'hover:bg-[var(--stor-surface-hover)]'}"
-                            aria-current={active ? "page" : undefined}
-                            onclick={close}
-                        >
-                            <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] {active ? 'bg-[var(--stor-surface-raised)] text-[var(--stor-accent-strong)]' : 'bg-[var(--stor-surface-muted)] text-[var(--stor-muted-text)]'}"><Icon class="h-[18px] w-[18px]" /></span>
-                            <span class="min-w-0 flex-1">
-                                <span class="block text-sm font-semibold text-[var(--stor-ink)]">{link.label}</span>
-                                {#if link.subtitle}<span class="block truncate text-xs text-[var(--stor-muted-text)]">{link.subtitle}</span>{/if}
-                            </span>
-                            <IconChevronRight class="h-4 w-4 shrink-0 text-[var(--stor-muted-text)]" />
-                        </a>
+                        {@render linkRow(link)}
                     {/each}
+                    {#if nsfwLinks.length}
+                        <button type="button" class="stor-nsfw-toggle min-h-11 px-2" aria-expanded={nsfwVisible} disabled={nsfwLocked} onclick={onToggleNsfw}>
+                            <span class="flex-1 text-left">NSFW</span>
+                            {#if nsfwVisible}<IconEye class="h-4 w-4" />{:else}<IconEyeOff class="h-4 w-4" />{/if}
+                        </button>
+                        {#if nsfwVisible}
+                            {#each nsfwLinks as link}
+                                {@render linkRow(link)}
+                            {/each}
+                        {/if}
+                    {/if}
                 </nav>
                 <div class="mx-1 my-2 h-px bg-[var(--stor-border)]"></div>
             {/if}
