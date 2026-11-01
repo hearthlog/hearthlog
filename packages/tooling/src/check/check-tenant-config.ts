@@ -52,7 +52,14 @@ function checkModuleBindings(
     label: string,
     site: Pick<ResolvedSite, "id" | "features">,
     infrastructure: InfrastructureDefinition,
-    config: { vars: Record<string, unknown>; r2Buckets: Array<Record<string, unknown>>; images: unknown; main: unknown; workerFirst?: readonly string[] },
+    config: {
+        vars: Record<string, unknown>;
+        r2Buckets: Array<Record<string, unknown>>;
+        services: Array<Record<string, unknown>>;
+        images: unknown;
+        main: unknown;
+        workerFirst?: readonly string[];
+    },
 ): string[] {
     const problems: string[] = [];
     const expected = moduleBindings(site.features, infrastructure);
@@ -65,6 +72,17 @@ function checkModuleBindings(
     const wanted = new Set(expected.r2.map((entry) => entry.binding));
     for (const { binding, type } of everyModuleBinding) {
         if (type === "r2" && !wanted.has(binding) && config.r2Buckets.some((bucket) => bucket.binding === binding)) {
+            problems.push(`${label}: binds ${binding}, which none of its modules declare`);
+        }
+    }
+    for (const { binding, service } of expected.services) {
+        if (config.services.find((entry) => entry.binding === binding)?.service !== service) {
+            problems.push(`${label}: ${binding} service should be ${service}`);
+        }
+    }
+    const wantedServices = new Set(expected.services.map((entry) => entry.binding));
+    for (const { binding, type } of everyModuleBinding) {
+        if (type === "service" && !wantedServices.has(binding) && config.services.some((entry) => entry.binding === binding)) {
             problems.push(`${label}: binds ${binding}, which none of its modules declare`);
         }
     }
@@ -142,7 +160,7 @@ function checkGeneratedSite(
         problems.push(`${label}: LEDGER binding does not target the Ledger`);
     }
     const r2Buckets = (generated.r2_buckets ?? []) as Array<Record<string, unknown>>;
-    problems.push(...checkModuleBindings(label, site, infrastructure, { vars, r2Buckets, images: generated.images, main: generated.main, workerFirst: (generated.assets as { run_worker_first?: string[] } | undefined)?.run_worker_first }));
+    problems.push(...checkModuleBindings(label, site, infrastructure, { vars, r2Buckets, services: (generated.services ?? []) as Array<Record<string, unknown>>, images: generated.images, main: generated.main, workerFirst: (generated.assets as { run_worker_first?: string[] } | undefined)?.run_worker_first }));
     return problems;
 }
 
