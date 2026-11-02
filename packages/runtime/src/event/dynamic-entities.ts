@@ -143,6 +143,7 @@ export function createProjectionConfigFromDynamic(
                 f.type === 'boolean' ? 'INTEGER' :
                     undefined,
             default: f.default as string | number | null | undefined,
+            required: f.required,
         })),
     };
 }
