@@ -23,6 +23,8 @@ export interface FieldConfig {
     cast?: string;
     /** Default value if null */
     default?: string | number | null;
+    /** The column is NOT NULL; a record that never received a value is not materialized. */
+    required?: boolean;
 }
 
 /**
@@ -134,6 +136,18 @@ function buildFinalFields(fields: FieldConfig[]): string {
             return `${expr} AS ${f.name}`;
         })
         .join(',\n                    ');
+}
+
+/**
+ * Required fields without a default that the record's events never set. Such a
+ * record has updates but no accepted creation (e.g. a cancel for an add that was
+ * never accepted, or an undone add), so it does not exist yet.
+ */
+function buildRequiredFilter(fields: FieldConfig[]): string {
+    return fields
+        .filter(f => f.required && (f.default === undefined || f.default === null))
+        .map(f => `\n          AND ${f.name} IS NOT NULL`)
+        .join('');
 }
 
 /**
@@ -267,7 +281,7 @@ function buildProjectionSQL(
         )
         SELECT ${sql.raw(selectCols)}
         FROM final
-        WHERE type <> ${removedEventType}
+        WHERE type <> ${removedEventType}${sql.raw(buildRequiredFilter(fields))}
     `;
 }
 
@@ -372,6 +386,7 @@ export function createProjectionConfigFromDefinition(def: EntityDefinition): Ent
             payloadKey: getPayloadKey(field),
             cast: field.type === 'number' ? 'REAL' : undefined,
             default: field.default,
+            required: field.required,
         })),
     };
 }

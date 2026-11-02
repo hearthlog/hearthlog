@@ -88,4 +88,16 @@ describe('field presence', () => {
         await db.project('calendar_event', [entityId]);
         expect(row()).toEqual({ title: 'Dentist, Brno', notes: '', start_time: '09:00' });
     });
+
+    it('skips a record whose updates arrive without the creation that carries its required fields', async () => {
+        const db = fixture();
+        const orphan = 'calendar_event:orphan';
+        const kept = 'calendar_event:kept';
+        db.addEvent({ id: 'orphan-update', type: 'CALENDAR_EVENT_UPDATED', timestamp: 1_000, entityId: orphan, entityVersion: 1, logVersion: 1,
+            payload: { id: 'orphan', notes: 'Cancelled' } });
+        db.addEvent({ id: 'kept-add', type: 'CALENDAR_EVENT_ADDED', timestamp: 1_000, entityId: kept, entityVersion: 1, logVersion: 2,
+            payload: { id: 'kept', title: 'Dentist', eventDate: '2026-10-12' } });
+        await db.project('calendar_event', [orphan, kept]);
+        expect(db.sqlite.prepare('SELECT id FROM calendar_events').all()).toEqual([{ id: 'kept' }]);
+    });
 });
