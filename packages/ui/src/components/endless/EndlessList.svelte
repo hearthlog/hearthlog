@@ -292,7 +292,10 @@
             if (aiming.tries <= 0) { aiming = null; openingReady = true; return; }
             const windowReady = !openingPlaceholder || openingReady || keys.every((key) => {
                 const element = block(key);
-                return loaded(key) && element && Math.abs(($virtualizer.itemSizeCache.get(key) ?? -1) - element.getBoundingClientRect().height) < 1;
+                // The virtualizer caches a size only when it differs from the estimate, so a block
+                // missing from the cache was measured at exactly its estimate.
+                const known = $virtualizer.itemSizeCache.get(key) ?? estimated(axis.indexOf(key));
+                return loaded(key) && element && Math.abs(known - element.getBoundingClientRect().height) < 1;
             });
             if (!loaded(aiming.key) || !aiming.measured || !windowReady) {
                 // One extra frame after loading lets the list measure the block.
