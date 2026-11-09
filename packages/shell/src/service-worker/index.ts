@@ -17,6 +17,7 @@ import { NavigationRoute, registerRoute } from 'workbox-routing';
 import { CacheFirst, NetworkOnly } from 'workbox-strategies';
 
 import { ACCESS_REAUTH_QUERY_PARAM } from '@hearthlog/runtime/access/session.js';
+import { bypassesWorker } from './media-requests.js';
 import { PRECACHE_EXTRA_PATHS, precacheEntries } from './offline-bundle.js';
 
 const APP_SHELL_URL = '/index.html';
@@ -97,7 +98,9 @@ registerRoute(
 );
 
 registerRoute(
-    ({ url, sameOrigin }) => sameOrigin && url.pathname.startsWith('/api/'),
+    // Video/audio streams and range reads are left unrouted (see media-requests.ts),
+    // so the browser fetches them natively and seeking works in WebKit.
+    ({ url, sameOrigin, request }) => sameOrigin && url.pathname.startsWith('/api/') && !bypassesWorker(request),
     // Local SQLite plus the app shell provide offline operation. Caching a
     // protected API response risks retaining an Access login page as data.
     new NetworkOnly(),
