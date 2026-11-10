@@ -23,6 +23,7 @@ const state = vi.hoisted(() => ({
 vi.mock('../db/index.js', () => ({
     get db() { return state.database; },
     requireActiveContext: async () => state.context,
+    refreshQueryStatistics: async () => {},
 }));
 vi.mock('$app/navigation', () => ({ invalidate: async () => {} }));
 vi.mock('../runtime/page-data.svelte.js', () => ({ waitForPageUpdates: async () => {} }));

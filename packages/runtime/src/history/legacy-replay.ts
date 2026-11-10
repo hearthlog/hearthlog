@@ -16,7 +16,8 @@ export async function hasReplayDirectives(database: ReplayDatabase, scope: Scope
     // membership must also see pending local directives so a removal applies
     // before it uploads.
     if (through !== undefined) query = query.where('log_version', '<=', through);
-    return Boolean(await query.executeTakeFirst());
+    // idx_raw_events_scope_type answers this from the few directive rows; it runs on every sync cycle.
+    return Boolean(await query.limit(1).executeTakeFirst());
 }
 
 /** Derive live projection membership; raw facts and immutable outbox bodies remain intact. */

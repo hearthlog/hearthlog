@@ -208,6 +208,14 @@ export interface Database extends EntityDatabaseTables {
 // We attach the DB instance to globalThis to prevent multiple workers spawning during hot reloads
 // which causes database locking issues.
 
+/**
+ * SQLite's page cache, in KiB (SQLite's own default here is 16 MB). Pages missing from the cache are read through the
+ * OPFS worker proxy, and once a log's database outgrows 16 MB, catching up spends most of its time on those reads:
+ * a 50,000-event log (about 120 MB) fell from about 600 to about 7 events per second. The cache grows only as pages
+ * are used, so a small database never takes this much memory.
+ */
+export const LOCAL_PAGE_CACHE_KIB = 65_536;
+
 // SAFETY: `globalThis` is an untyped host object; the only property this
 // module reads from it is the SQLocal singleton it wrote itself under HMR.
 const globalForDb = globalThis as unknown as {
@@ -425,6 +433,8 @@ export const sqlocalDb =
         `;
 
             return [
+                // Per connection, so it runs on every (re)initialization.
+                { sql: `PRAGMA cache_size = -${LOCAL_PAGE_CACHE_KIB}`, params: [] },
                 ...entityDDLs,
                 rawEventsDDL,
                 rawEventsTimestampIdx,
@@ -562,6 +572,8 @@ async function migrateCoreSchema(
     if (schema.user_version === SCHEMA_VERSION) {
         // A current version alone does not prove snapshot support was initialized.
         await createCheckpointTables(database);
+        await createQueryIndexes(database);
+        await refreshQueryStatistics(database);
         if (schema.healthy) return;
         // Feature sets can change between builds without a schema version
         // bump: reconcile when the actual schema differs. Dropping is safe —
@@ -685,9 +697,36 @@ async function migrateCoreSchema(
     `.execute(database);
 
     await createCheckpointTables(database);
+    await createQueryIndexes(database);
     await validateCoreSchema(database, approvedTables);
     await repairStoredProgress(database);
     await sql.raw(`PRAGMA user_version = ${SCHEMA_VERSION}`).execute(database);
+    await refreshQueryStatistics(database);
+}
+
+/**
+ * Indexes for queries that run on every save or sync cycle. Created on every start (each is a no-op once present),
+ * so existing databases get them without a schema version change or a rebuild.
+ */
+async function createQueryIndexes(database: Kysely<Database>): Promise<void> {
+    // Restore and removal directives are a handful of rows; without this index the check for them walked the
+    // whole log (760 ms per call on a 50,000-event log, several calls per cycle).
+    await sql`CREATE INDEX IF NOT EXISTS idx_raw_events_scope_type ON raw_events (tenant_id, log_id, type)`.execute(database);
+}
+
+/**
+ * Refresh the query planner's statistics. The browser database otherwise never has any, and without them SQLite has
+ * chosen whole-log scans over selective indexes. `analysis_limit` keeps it to a sample per index, so this costs
+ * milliseconds; call it after a large ingest, when table sizes have changed the most.
+ */
+export async function refreshQueryStatistics(database: Kysely<Database> = db): Promise<void> {
+    try {
+        await sql`PRAGMA analysis_limit = 1000`.execute(database);
+        await sql`PRAGMA optimize = 0x10002`.execute(database);
+    } catch (error) {
+        // Statistics only steer plans; a failure must never fail sync.
+        console.warn('[DB] Could not refresh query statistics', error);
+    }
 }
 
 async function createCheckpointTables(database: Kysely<Database>): Promise<void> {

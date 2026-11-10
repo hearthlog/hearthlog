@@ -4,7 +4,7 @@ import { pageVisible } from '../runtime/visibility.js';
 import { announceInvalidation } from '../runtime/invalidation.js';
 import { measurementMetadata } from '../utils/perf.js';
 import { invalidate } from '$app/navigation';
-import { db, requireActiveContext } from '../db/index.js';
+import { db, refreshQueryStatistics, requireActiveContext } from '../db/index.js';
 import {
     clearActiveProjections,
     handleIncomingStoredEvents,
@@ -357,7 +357,29 @@ async function getLocalHeadVersion(): Promise<number> {
     return row?.downloaded_head_version ?? 0;
 }
 
-async function updatePendingCount(): Promise<void> {
+let pendingCountRun: Promise<void> | null = null;
+let pendingCountRequested = false;
+
+/**
+ * Saves, uploads, refreshes and the end of each cycle all ask for fresh counts, often at once. Callers that arrive
+ * while a refresh runs share it and get one more pass after it, so every caller still sees counts read after its call.
+ */
+function updatePendingCount(): Promise<void> {
+    pendingCountRequested = true;
+    pendingCountRun ??= (async () => {
+        try {
+            while (pendingCountRequested) {
+                pendingCountRequested = false;
+                await readPendingCount();
+            }
+        } finally {
+            pendingCountRun = null;
+        }
+    })();
+    return pendingCountRun;
+}
+
+async function readPendingCount(): Promise<void> {
     try {
         syncStatus.pendingUploads = await getPendingCount();
         const context = await requireActiveContext();
@@ -472,6 +494,8 @@ export async function loadStoredLogSnapshot(
 
 /** Fewer retained local facts than this are not worth a baseline install on an up-to-date device. */
 const ADOPT_MIN_SURPLUS = 256;
+/** A download at least this large refreshes the query planner's statistics afterwards. */
+const LARGE_DOWNLOAD_EVENTS = 2_048;
 
 async function coveredSurplus(context: { tenantId: string; logId: string }, through: number): Promise<number> {
     const row = await db.selectFrom('raw_events').select(eb => eb.fn.countAll<number>().as('count'))
@@ -525,6 +549,8 @@ async function download(): Promise<number> {
         }
         catchUpRevision += 1;
         caughtUpScope = scopeKey({ tenantId: context.tenantId, logId });
+        // A large catch-up changes table sizes the most; give the planner current statistics.
+        if (installedBaseline || downloaded >= LARGE_DOWNLOAD_EVENTS) await refreshQueryStatistics();
         if (downloaded === 0 && !installedBaseline) return 0;
         await addSyncLogEntry('download', installedBaseline ? `Loaded snapshot and ${downloaded} events` : `Downloaded ${downloaded} events`, `Through version ${cursor}`);
         await syncRefreshQueue.flush();

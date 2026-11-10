@@ -160,6 +160,9 @@ async function storeIncomingBatch(
 
     // Derive status from all events in each original local batch, not just this
     // download page. Keep its creation/replacement metadata on acknowledgement.
+    // CROSS JOIN keeps the event ids as the outer loop, so each is a primary-key
+    // lookup; otherwise SQLite may serve the DISTINCT by walking the whole log
+    // through idx_raw_events_batch, which made catch-up quadratic.
     await sql`
         INSERT INTO local_batches (id, tenant_id, log_id, status, replacement_for, updated_at)
         SELECT DISTINCT accepted.local_batch_id, ${context.tenantId}, ${context.logId},
@@ -171,10 +174,11 @@ async function storeIncomingBatch(
                   AND pending.log_version IS NULL
             ) THEN 'pending' ELSE 'synced' END,
             NULL, ${new Date().toISOString()}
-        FROM raw_events accepted
+        FROM json_each(${JSON.stringify(events.map(event => event.id))}) AS wanted
+        CROSS JOIN raw_events accepted
         WHERE accepted.tenant_id = ${context.tenantId}
           AND accepted.log_id = ${context.logId}
-          AND accepted.id IN (${sql.join(events.map(event => event.id))})
+          AND accepted.id = wanted.value
         ON CONFLICT (id) DO UPDATE SET
             status = excluded.status, updated_at = excluded.updated_at
         WHERE local_batches.tenant_id = excluded.tenant_id
