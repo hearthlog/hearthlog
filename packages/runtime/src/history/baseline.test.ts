@@ -5,13 +5,13 @@ const state = vi.hoisted(() => ({ database: null as unknown as ReturnType<typeof
     chunk: null as unknown as CheckpointChunk, history: [] as CheckpointChunk['events'], corrupt: false }));
 const context = { tenantId: 'person', logId: 'personal', principalId: 'owner', ledgerOrigin: 'test' };
 vi.mock('../db/index.js', () => ({ get db() { return state.database; }, requireActiveContext: async () => ({ tenantId: 'person', logId: 'personal', principalId: 'owner', ledgerOrigin: 'test' }) }));
-vi.mock('../db/kv.js', () => ({ get() {}, set() {} }));
+vi.mock('../db/kv.js', () => ({ get() {}, set() {}, del() {} }));
 vi.mock('../ledger/version-tracker-singleton.js', () => ({ versionTracker: { async rebuildVersionCache() {}, async updateVersionsFromEvents() {} } }));
 vi.mock('../ledger/client.js', () => ({ getLedgerClient: () => ({ getSession: async () => ({ appId: 'app' }),
     getEventPage: async (_logId: string, after: number) => state.history.filter(event => event.version > after),
     getCheckpointChunk: async () => state.corrupt ? { events: [], claims: [] } : structuredClone(state.chunk) }) }));
 vi.mock('../store/tab-coordination.js', () => ({ SCHEMA_LOCK_NAME: 'schema', withTabLock: async (_key: string, task: () => Promise<void>) => task(), postTabChange() {} }));
-vi.mock('@hearthlog/contracts/tenant/config', () => ({ tenant: { dynamicEntities: false, approvedEntities: { entityNames: new Set(['calendar_event']) } } }));
+vi.mock('@hearthlog/contracts/tenant/config', () => ({ tenant: { dynamicEntities: false, features: [], approvedEntities: { entityNames: new Set(['calendar_event']), tables: new Set(['calendar_events']) } } }));
 import { installBaseline, loadArchivedHistory } from './baseline.js';
 
 afterEach(async () => { await state.database.destroy(); state.corrupt = false; state.history = []; });

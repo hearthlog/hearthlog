@@ -10,6 +10,8 @@ import {
     handleIncomingStoredEvents,
     rebuildReadModel,
 } from '../event/index.js';
+import { projectionsCurrent } from '../event/rebuild.js';
+import { seedForkFromSource } from './fork-seed.js';
 import {
     AuthenticationError,
     EntityVersionChainError,
@@ -40,6 +42,7 @@ import {
     markOperationSyncedIn,
     markOperationSyncing,
     persistOperation,
+    pruneSettledLocalState,
     prepareAppendRequest,
     rejectBatch,
     supersedeOperation,
@@ -487,8 +490,17 @@ export async function loadStoredLogSnapshot(
     await activateLogContext(logId);
     syncStatus.hasCompletedSync = false;
     syncStatus.isLedgerReachable = null;
+    const context = await requireActiveContext();
     if (storedEvents.length > 0) await handleIncomingStoredEvents(storedEvents);
-    await rebuildReadModel();
+    // A new fork copies its shared history from the source on this device instead of downloading it again.
+    const seeded = storedEvents.length === 0 && await seedForkFromSource(context);
+    // A log whose projections are current (rebuilt under this build, kept up by ingestion since) opens as it is.
+    if (seeded || storedEvents.length > 0 || !await projectionsCurrent(context)) {
+        await rebuildReadModel();
+    } else {
+        // The registry of runtime-defined entities is per tab and per log.
+        await loadDynamicEntityTypes();
+    }
     // Route invalidation reads through the active target. Activate the rebuilt
     // log first so a guarded log transition cannot deadlock waiting on itself.
     await activateCurrentReadTarget();
@@ -984,7 +996,22 @@ export async function sync(trigger: SyncTrigger = 'manual'): Promise<void> {
         if (!synchronizationSuspended) {
             await updatePendingCount();
             await scheduleRetryWakeup();
+            await pruneSettledStateNowAndThen();
         }
+    }
+}
+
+const PRUNE_INTERVAL_MS = 60 * 60 * 1000;
+let lastPrunedAt = 0;
+
+/** At most hourly, after a sync cycle: drop settled bookkeeping (see pruneSettledLocalState). */
+async function pruneSettledStateNowAndThen(): Promise<void> {
+    if (Date.now() - lastPrunedAt < PRUNE_INTERVAL_MS) return;
+    lastPrunedAt = Date.now();
+    try {
+        await pruneSettledLocalState();
+    } catch (error) {
+        console.warn('[Sync] Could not prune settled local state', error);
     }
 }
 

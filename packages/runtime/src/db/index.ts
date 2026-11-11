@@ -350,42 +350,11 @@ export const sqlocalDb =
             );
         `;
 
-            // Indexes
-            const rawEventsTimestampIdx = sql`
-            CREATE INDEX IF NOT EXISTS "idx_raw_events_timestamp"
-            ON "raw_events" ("timestamp");
-        `;
-
-            const rawEventsTypeIdx = sql`
-            CREATE INDEX IF NOT EXISTS "idx_raw_events_type"
-            ON "raw_events" ("type");
-        `;
-
-            const rawEventsEntityIdx = sql`
-            CREATE INDEX IF NOT EXISTS "idx_raw_events_entity_id"
-            ON "raw_events" ("entity_id");
-        `;
-
             // One record's events within a log. Projections, history labels and undo all start from an entity id;
             // without the scope in front SQLite reads the whole log to find them.
             const rawEventsScopeEntityIdx = sql`
             CREATE INDEX IF NOT EXISTS "idx_raw_events_scope_entity"
             ON "raw_events" ("tenant_id", "log_id", "entity_id", "log_version");
-        `;
-
-            const rawEventsTypeTsIdx = sql`
-            CREATE INDEX IF NOT EXISTS "idx_raw_events_type_ts"
-            ON "raw_events" ("type", "timestamp");
-        `;
-
-            const rawEventsEntityVersionIdx = sql`
-            CREATE INDEX IF NOT EXISTS "idx_raw_events_entity_version"
-            ON "raw_events" ("entity_id", "entity_version");
-        `;
-
-            const rawEventsLogVersionIdx = sql`
-            CREATE INDEX IF NOT EXISTS "idx_raw_events_log_version"
-            ON "raw_events" ("log_version");
         `;
 
             const localBatchesScopeIdx = sql`
@@ -438,13 +407,7 @@ export const sqlocalDb =
                 { sql: `PRAGMA cache_size = -${LOCAL_PAGE_CACHE_KIB}`, params: [] },
                 ...entityDDLs,
                 rawEventsDDL,
-                rawEventsTimestampIdx,
-                rawEventsTypeIdx,
-                rawEventsEntityIdx,
                 rawEventsScopeEntityIdx,
-                rawEventsTypeTsIdx,
-                rawEventsEntityVersionIdx,
-                rawEventsLogVersionIdx,
                 entityVersionsDDL,
                 activeContextDDL,
                 localBatchesDDL,
@@ -713,6 +676,12 @@ async function createQueryIndexes(database: Kysely<Database>): Promise<void> {
     // Restore and removal directives are a handful of rows; without this index the check for them walked the
     // whole log (760 ms per call on a 50,000-event log, several calls per cycle).
     await sql`CREATE INDEX IF NOT EXISTS idx_raw_events_scope_type ON raw_events (tenant_id, log_id, type)`.execute(database);
+    // Every raw_events query is scoped by tenant and log, so these unscoped indexes (or prefixes of scoped ones)
+    // only cost writes: each insert updated six more randomly keyed b-trees.
+    for (const index of ['idx_raw_events_type', 'idx_raw_events_entity_id', 'idx_raw_events_timestamp',
+        'idx_raw_events_type_ts', 'idx_raw_events_entity_version', 'idx_raw_events_log_version']) {
+        await sql.raw(`DROP INDEX IF EXISTS "${index}"`).execute(database);
+    }
     // A batch's operations: finding the next batch to send checks it has none in flight.
     await sql`CREATE INDEX IF NOT EXISTS idx_outbox_operations_batch ON outbox_operations (batch_id, status)`.execute(database);
     // Log history's action index (history/action-index.ts); each log fills its rows on first use.
@@ -800,24 +769,6 @@ async function createScopedSupportTables(
         database,
     );
     await sql`CREATE INDEX IF NOT EXISTS idx_raw_events_batch ON raw_events (tenant_id, log_id, local_batch_id, local_sequence)`.execute(
-        database,
-    );
-    await sql`CREATE INDEX IF NOT EXISTS idx_raw_events_timestamp ON raw_events (timestamp)`.execute(
-        database,
-    );
-    await sql`CREATE INDEX IF NOT EXISTS idx_raw_events_type ON raw_events (type)`.execute(
-        database,
-    );
-    await sql`CREATE INDEX IF NOT EXISTS idx_raw_events_entity_id ON raw_events (entity_id)`.execute(
-        database,
-    );
-    await sql`CREATE INDEX IF NOT EXISTS idx_raw_events_type_ts ON raw_events (type, timestamp)`.execute(
-        database,
-    );
-    await sql`CREATE INDEX IF NOT EXISTS idx_raw_events_entity_version ON raw_events (entity_id, entity_version)`.execute(
-        database,
-    );
-    await sql`CREATE INDEX IF NOT EXISTS idx_raw_events_log_version ON raw_events (log_version)`.execute(
         database,
     );
     await sql`CREATE INDEX IF NOT EXISTS idx_local_batches_scope_status ON local_batches (tenant_id, log_id, status, created_at)`.execute(

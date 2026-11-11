@@ -15,7 +15,7 @@ import { db as readModelDB, requireActiveContext } from '../db/index.js';
 import type { ActiveContext, Database } from '../db/index.js';
 import { sql, type Transaction } from 'kysely';
 import type { StoredEvent } from '../ledger/types.js';
-import { versionTracker, rebuildReadModel } from './rebuild.js';
+import { versionTracker, rebuildReadModel, forgetProjections } from './rebuild.js';
 import { schemaTombstoneIds } from './schema-effects.js';
 import { entityRegistry, getAllEntityTables, clearDynamicRegistry } from './registry.js';
 import { createEntityProjector, projectEntitySet } from './projection-builder.js';
@@ -319,6 +319,7 @@ export async function clearActiveProjections(): Promise<void> {
         });
         clearDynamicRegistry();
         clearEventCache();
+        await forgetProjections(context);
         console.log('[Event] Active projections cleared');
     } catch (error) {
         console.error('[Event] Failed to clear read model:', error);

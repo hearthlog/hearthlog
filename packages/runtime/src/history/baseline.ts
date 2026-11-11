@@ -3,7 +3,7 @@ import { checkpointDigest, verifyCheckpointManifest, type CheckpointEvent, type 
 import { db, requireActiveContext, type Database, type RawEventTable } from '../db/index.js';
 import { getLedgerClient } from '../ledger/client.js';
 import { SCHEMA_LOCK_NAME, withTabLock, postTabChange } from '../store/tab-coordination.js';
-import { rebuildProjectionState } from '../event/rebuild.js';
+import { markProjectionsCurrent, rebuildProjectionState } from '../event/rebuild.js';
 import { loadDynamicEntityTypes } from '../event/dynamic-entities.js';
 import type { ActiveContext } from '../db/index.js';
 import { markHistoryIndexStale } from './action-index.js';
@@ -133,6 +133,7 @@ export async function installBaseline(manifest: CheckpointManifest, context: Act
                     }))).execute();
             });
             await loadDynamicEntityTypes();
+            await markProjectionsCurrent(context);
             postTabChange({ kind: 'rebuild', tenantId: context.tenantId, logId: context.logId });
         } finally {
             await sql`DROP TABLE IF EXISTS temp.checkpoint_stage`.execute(db);
@@ -211,6 +212,7 @@ export async function loadArchivedHistory(): Promise<void> {
                 await markHistoryIndexStale((query) => query.execute(tx), context);
             });
             await loadDynamicEntityTypes();
+            await markProjectionsCurrent(context);
             postTabChange({ kind: 'rebuild', tenantId: context.tenantId, logId: context.logId });
         } finally {
             await sql`DROP TABLE IF EXISTS temp.archived_history_stage`.execute(db);

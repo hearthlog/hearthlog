@@ -49,6 +49,10 @@ vi.mock('../event/rebuild.js', async () => ({
             await new EntityVersionTracker(state.database).updateVersionsFromEvents(events);
         },
     },
+    // Opening a log always rebuilds here, as before projections were tracked per log.
+    async projectionsCurrent() { return false; },
+    async markProjectionsCurrent() {},
+    async forgetProjections() {},
 }));
 vi.mock('../ledger/version-tracker-singleton.js', () => ({
     versionTracker: {

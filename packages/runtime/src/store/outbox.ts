@@ -454,3 +454,51 @@ export async function parkOperationForConflict(
         }).execute();
     });
 }
+
+/** Synced and superseded operations are kept this long for diagnostics, then pruned. */
+export const SETTLED_OPERATION_RETENTION_MS = 14 * 24 * 60 * 60 * 1000;
+const PRUNE_LIMIT = 500;
+
+/**
+ * Remove local bookkeeping nothing reads any more, a bounded amount per call: operations that synced or were
+ * superseded more than two weeks ago (with their items and their synced batch rows), and the per-event batch rows
+ * downloads created before downloaded events shared one batch id. Unsynced work, operations needing attention, and
+ * events are never touched.
+ */
+export async function pruneSettledLocalState(now = Date.now()): Promise<number> {
+    const context = await requireActiveContext();
+    const before = new Date(now - SETTLED_OPERATION_RETENTION_MS).toISOString();
+    return db.transaction().execute(async (tx) => {
+        const settled = await tx.selectFrom('outbox_operations').select(['id', 'batch_id'])
+            .where('tenant_id', '=', context.tenantId).where('log_id', '=', context.logId)
+            .where('status', 'in', ['synced', 'superseded'])
+            .where('updated_at', '<', before)
+            .limit(PRUNE_LIMIT).execute();
+        let removed = 0;
+        if (settled.length > 0) {
+            const ids = settled.map((operation) => operation.id);
+            await tx.deleteFrom('outbox_operation_items').where('operation_id', 'in', ids).execute();
+            removed += Number((await tx.deleteFrom('outbox_operations').where('id', 'in', ids).executeTakeFirst()).numDeletedRows ?? 0);
+            // A batch row goes once it is synced and no operation refers to it any more.
+            await tx.deleteFrom('local_batches')
+                .where('tenant_id', '=', context.tenantId).where('log_id', '=', context.logId)
+                .where('status', '=', 'synced')
+                .where('id', 'in', [...new Set(settled.map((operation) => operation.batch_id))])
+                .where((eb) => eb.not(eb.exists(eb.selectFrom('outbox_operations as operation').select('operation.id')
+                    .whereRef('operation.batch_id', '=', 'local_batches.id'))))
+                .execute();
+        }
+        // 'server:<tenant>:<log>:<event>' rows from before downloads shared the 'server' batch id; a key range, so
+        // the primary key finds them.
+        const legacy = await tx.selectFrom('local_batches').select('id')
+            .where('id', '>=', 'server:').where('id', '<', 'server;')
+            .where('tenant_id', '=', context.tenantId).where('log_id', '=', context.logId)
+            .where('status', '=', 'synced')
+            .limit(PRUNE_LIMIT * 4).execute();
+        if (legacy.length > 0) {
+            await tx.deleteFrom('local_batches').where('id', 'in', legacy.map((row) => row.id)).execute();
+            removed += legacy.length;
+        }
+        return removed;
+    });
+}
