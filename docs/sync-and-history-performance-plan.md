@@ -273,9 +273,9 @@ was added after the baseline: small fixes with the largest measured effect, ahea
 | --- | --- | --- | --- |
 | 0 | Baseline measurements on a seeded 50,000-event log and on a copy of real data; record them in this document. | Runtime, local Ledger | Done on seeded logs (above); a copy of real data is still to measure. |
 | 1 | Quick fixes from the baseline: the `local_batches` plan (finding 1); `refreshEntitySyncState` and the replay-directive check on indexed plans, run once per cycle (finding 3); a larger page cache set in sqlocal's `onInit`, size chosen by measuring on a phone; `PRAGMA optimize` after a large ingest. | Runtime | Met on seeded data (results above): 50k catch-up completes at a steady rate; acknowledgement 0.8 s. Phone memory with the 64 MB cache still to check. |
-| 1b | H1 (action index, reads on it) and H2 (targeted diff, no implicit archive load). | Runtime, shell | History equivalence tests pass; history budgets met. |
-| 2 | S1 (ingestion) and S2 (save path). | Runtime | Sync convergence suite passes unchanged; ingestion and save budgets met. |
-| 3 | S5.2, S5.3 (device pruning and indexes) and S6 (switch and fork seeding). | Runtime, shell | Every surveyed query still uses an index; a seeded fork equals a downloaded fork row for row. |
+| 1b | H1 (action index, reads on it) and H2 (targeted diff, no implicit archive load). | Runtime, shell | Implemented 2026-11-11 (`68aadd0`); equivalence tests pass. Measured once on the 50k log: a page in 6–7 ms, lookups 1–2 ms; first index build 37 s before it moved to the background, not re-measured. |
+| 2 | S1 (ingestion) and S2 (save path). | Runtime | Implemented 2026-11-11 (`2bbdc56`); convergence suite passes with a new acknowledgement case. Budgets not measured. |
+| 3 | S5.2, S5.3 (device pruning and indexes) and S6 (switch and fork seeding). | Runtime, shell | Implemented 2026-11-11 (`0177807`); a seeded fork equals the download row for row in tests. Budgets not measured. |
 | 4 | S4 (read path) and S5.1 (receipt copy). | Ledger, then runtime for S4.3 | Byte-identical event pages against the current route on fixtures; Ledger worker suite passes. |
 | 5 | S3 (batched appends). | Ledger first, runtime after the capability is live | Lost-response and mid-batch-failure tests pass; old clients unaffected. |
 | 6 | H3 (view mockups), then H4 (the approved view). | Shell | Feedback on mockups; browser journey passes. |
