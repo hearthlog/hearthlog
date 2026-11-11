@@ -4,7 +4,7 @@ const state = vi.hoisted(() => ({ database: null as unknown as ReturnType<typeof
 vi.mock('../db/index.js', () => ({ get db() { return state.database; }, requireActiveContext: async () => ({ tenantId: 'person', logId: 'personal' }) }));
 vi.mock('../db/kv.js', () => ({ get() {}, set() {}, del() {} }));
 vi.mock('../ledger/version-tracker-singleton.js', () => ({ versionTracker: { async rebuildVersionCache() {} } }));
-vi.mock('@hearthlog/contracts/tenant/config', () => ({ tenant: { dynamicEntities: true, features: [], approvedEntities: { entityNames: new Set(['calendar_event']), tables: new Set(['calendar_events']) } } }));
+vi.mock('@hearthlog/contracts/tenant/config', () => ({ tenant: { dynamicEntities: true, features: new Set(), approvedEntities: { entityNames: new Set(['calendar_event']), tables: new Set(['calendar_events']) } } }));
 import { rebuildReadModel } from './rebuild.js';
 import { clearDynamicRegistry } from './registry.js';
 afterEach(async () => { clearDynamicRegistry(); await state.database.destroy(); });

@@ -11,7 +11,7 @@ vi.mock('../ledger/client.js', () => ({ getLedgerClient: () => ({ getSession: as
     getEventPage: async (_logId: string, after: number) => state.history.filter(event => event.version > after),
     getCheckpointChunk: async () => state.corrupt ? { events: [], claims: [] } : structuredClone(state.chunk) }) }));
 vi.mock('../store/tab-coordination.js', () => ({ SCHEMA_LOCK_NAME: 'schema', withTabLock: async (_key: string, task: () => Promise<void>) => task(), postTabChange() {} }));
-vi.mock('@hearthlog/contracts/tenant/config', () => ({ tenant: { dynamicEntities: false, features: [], approvedEntities: { entityNames: new Set(['calendar_event']), tables: new Set(['calendar_events']) } } }));
+vi.mock('@hearthlog/contracts/tenant/config', () => ({ tenant: { dynamicEntities: false, features: new Set(), approvedEntities: { entityNames: new Set(['calendar_event']), tables: new Set(['calendar_events']) } } }));
 import { installBaseline, loadArchivedHistory } from './baseline.js';
 
 afterEach(async () => { await state.database.destroy(); state.corrupt = false; state.history = []; });
