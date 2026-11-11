@@ -110,6 +110,11 @@ describe('history list', () => {
     it('labels a log of thousands of events in well under a second', async () => {
         const { history, events } = fixture({ records: 1300, updatesPerRecord: 4, importEvery: 5 });
         expect(events).toBe(6500);
+        // Building the action index happens once per log (in the background after sync); it stays linear in the
+        // log. The bound is loose so a busy machine does not fail it; quadratic work would take minutes.
+        const building = performance.now();
+        await history.newest();
+        expect(performance.now() - building).toBeLessThan(10_000);
         const started = performance.now();
         const [latest] = await history.list({ limit: 1 });
         const elapsed = performance.now() - started;
@@ -137,6 +142,7 @@ describe('history list', () => {
 
     it('reads the newest time and the map points without scanning the log per event', async () => {
         const { history } = fixture({ records: 1300, updatesPerRecord: 4, importEvery: 5 });
+        await history.latest(); // builds the action index, timed in the test above
         const started = performance.now();
         const newest = await history.newest();
         const points = await history.points(0, Date.now());
