@@ -2,6 +2,7 @@ import { DatabaseSync, type SQLInputValue } from 'node:sqlite';
 import { Kysely, SqliteDialect } from 'kysely';
 import type { Database } from '../db/index.js';
 import { getEntityDDLForTables } from '#generated/schema';
+import { HISTORY_INDEX_DDL } from '../db/history-index-schema.js';
 
 /** Independent SQLite stores for persistence/convergence tests; no browser globals. */
 export function createLocalDatabase(tables: readonly string[] = ["calendar_events"]) {
@@ -111,6 +112,7 @@ export function createLocalDatabase(tables: readonly string[] = ["calendar_event
         CREATE TABLE checkpoint_claims AS SELECT * FROM entity_versions WHERE 0;
     `);
     for (const ddl of getEntityDDLForTables(new Set(tables))) sqlite.exec(ddl);
+    for (const ddl of HISTORY_INDEX_DDL) sqlite.exec(ddl);
     const database = new Kysely<Database>({ dialect: new SqliteDialect({ database: {
         close: () => sqlite.close(),
         prepare(query: string) {

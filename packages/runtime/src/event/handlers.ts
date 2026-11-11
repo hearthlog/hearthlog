@@ -2,6 +2,7 @@ import { baselineVersion, directivesReachBehind, loadArchivedHistory, REPLAY_DIR
 import { hasReplayDirectives } from '../history/legacy-replay.js';
 import { EVENTS_EXCISED, WORKSPACE_RESTORED } from '@hearthlog/contracts/history/replay-selection';
 import { recordIngestedProgress } from '../store/sync-progress.js';
+import { indexIngestedActions, markHistoryIndexStale } from '../history/action-index.js';
 /**
  * Event Handlers
  * 
@@ -350,6 +351,7 @@ async function deleteActiveLogData(): Promise<void> {
             .where('tenant_id', '=', context.tenantId)
             .where('log_id', '=', context.logId)
             .execute();
+        await markHistoryIndexStale((query) => query.execute(tx), context);
     });
     await clearActiveProjections();
 }
@@ -449,6 +451,7 @@ export async function handleIncomingStoredEvents(
                         .where('tenant_id', '=', context.tenantId).where('log_id', '=', context.logId).where('id', 'in', batch.map(event => event.id)).execute();
                 }
                 await projectAffectedEntities(new Set(covered.map(event => event.entityId)), tx, context);
+                await indexIngestedActions((query) => query.execute(tx), context, covered);
             });
             storedEvents = storedEvents.filter(event => event.version > coveredThrough);
             if (!storedEvents.length) return { hasNewEvents: true, newCount: 0 };
@@ -507,6 +510,7 @@ export async function handleIncomingStoredEvents(
                     if (!hasDdl) {
                         await projectAffectedEntities(affectedEntityIds, tx, context);
                     }
+                    await indexIngestedActions((query) => query.execute(tx), context, storedEvents);
                 });
             });
         }

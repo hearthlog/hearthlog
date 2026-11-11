@@ -1,4 +1,5 @@
 import { repairStoredProgress } from "../store/sync-progress.js";
+import { HISTORY_INDEX_DDL } from "./history-index-schema.js";
 /**
  * Database Configuration
  *
@@ -712,6 +713,8 @@ async function createQueryIndexes(database: Kysely<Database>): Promise<void> {
     // Restore and removal directives are a handful of rows; without this index the check for them walked the
     // whole log (760 ms per call on a 50,000-event log, several calls per cycle).
     await sql`CREATE INDEX IF NOT EXISTS idx_raw_events_scope_type ON raw_events (tenant_id, log_id, type)`.execute(database);
+    // Log history's action index (history/action-index.ts); each log fills its rows on first use.
+    for (const ddl of HISTORY_INDEX_DDL) await sql.raw(ddl).execute(database);
 }
 
 /**

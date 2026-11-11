@@ -1,4 +1,5 @@
 import { db, requireActiveContext } from '../db/index.js';
+import { indexActions } from '../history/action-index.js';
 import {
     applyMetaEvents,
     cacheEventId,
@@ -147,6 +148,7 @@ async function applyPendingDdlEvents(
             .where('log_id', '=', context.logId)
             .where('id', 'in', [...metaEvents.map(event => event.id), ...schemaUndos])
             .execute();
+        await indexActions((query) => query.execute(db), context, [...metaEvents.map(event => event.id), ...schemaUndos]);
         return true;
     } catch (error) {
         console.error('[Command] Dynamic schema projection remains pending', error);

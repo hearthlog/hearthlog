@@ -6,6 +6,7 @@ import {
 } from './outbox-request.js';
 import { computeRetryDeadline } from './sync-coordinator.js';
 import { describeClashes, type EntityClash, type EntityEdit } from './conflict-merge.js';
+import { indexActions, indexBatchActions, markHistoryIndexStale } from '../history/action-index.js';
 
 export { hashRequest, MAX_BATCH_SIZE, prepareAppendRequest } from './outbox-request.js';
 export type { PendingBatchEvent } from './outbox-request.js';
@@ -166,6 +167,7 @@ export async function persistOperation(
                 type: event.type, timestamp: event.timestamp!, payload: JSON.stringify(event.payload), entity_id: event.entityId,
                 entity_version: null, log_version: null, sync_state: 'pending', projection_state: 'pending_restore',
                 rejection_code: null, rejection_detail: null, is_tombstoned: 0 }).execute();
+            await markHistoryIndexStale((query) => query.execute(tx), context);
         }
         await tx.insertInto('outbox_operations').values({
             id,
@@ -235,6 +237,7 @@ export async function markOperationSynced(operation: DurableOperation, storedEve
             .where('tenant_id', '=', context.tenantId)
             .where('log_id', '=', context.logId)
             .where('id', '=', operation.batchId).execute();
+        await indexActions((query) => query.execute(tx), context, storedEvents.map((event) => event.id));
         await tx.updateTable('outbox_operations').set({
             status: 'synced',
             next_retry_at: null,
@@ -317,6 +320,7 @@ export async function rejectBatch(operation: DurableOperation, code: string, mes
         }).where('tenant_id', '=', context.tenantId)
           .where('log_id', '=', context.logId)
           .where('local_batch_id', '=', operation.batchId).execute();
+        await indexBatchActions((query) => query.execute(tx), context, operation.batchId);
         await tx.updateTable('local_batches').set({ status: 'rejected', updated_at: new Date().toISOString() })
             .where('tenant_id', '=', context.tenantId)
             .where('log_id', '=', context.logId)
@@ -347,9 +351,13 @@ export async function clearOutbox(): Promise<void> {
         }
         await tx.deleteFrom('outbox_operations')
             .where('tenant_id', '=', context.tenantId).where('log_id', '=', context.logId).execute();
+        const discarded = await tx.selectFrom('raw_events').select('id')
+            .where('tenant_id', '=', context.tenantId).where('log_id', '=', context.logId)
+            .where('sync_state', 'in', ['pending', 'conflicted']).execute();
         await tx.updateTable('raw_events').set({ sync_state: 'discarded', projection_state: 'excluded' })
             .where('tenant_id', '=', context.tenantId).where('log_id', '=', context.logId)
             .where('sync_state', 'in', ['pending', 'conflicted']).execute();
+        await indexActions((query) => query.execute(tx), context, discarded.map((row) => row.id));
         await tx.updateTable('local_batches').set({ status: 'discarded', updated_at: new Date().toISOString() })
             .where('tenant_id', '=', context.tenantId).where('log_id', '=', context.logId)
             .where('status', 'in', ['pending', 'conflicted']).execute();

@@ -6,6 +6,7 @@ import { SCHEMA_LOCK_NAME, withTabLock, postTabChange } from '../store/tab-coord
 import { rebuildProjectionState } from '../event/rebuild.js';
 import { loadDynamicEntityTypes } from '../event/dynamic-entities.js';
 import type { ActiveContext } from '../db/index.js';
+import { markHistoryIndexStale } from './action-index.js';
 
 function row(event: CheckpointEvent, context: ActiveContext): Insertable<RawEventTable> {
     return { id: event.id, tenant_id: context.tenantId, log_id: context.logId,
@@ -121,6 +122,7 @@ export async function installBaseline(manifest: CheckpointManifest, context: Act
                     .onConflict(oc => oc.columns(['tenant_id', 'log_id']).doUpdateSet({ through_version: manifest.throughVersion, manifest: JSON.stringify(manifest) })).execute();
                 await rebuildProjectionState(tx, context);
                 await rebuildCheckpointVersions(tx, context);
+                await markHistoryIndexStale((query) => query.execute(tx), context);
                 await tx.insertInto('log_sync_state').values({ tenant_id: context.tenantId, log_id: context.logId,
                     downloaded_head_version: manifest.throughVersion, projected_head_version: manifest.throughVersion, last_synced_at: new Date().toISOString() })
                     .onConflict(oc => oc.columns(['tenant_id', 'log_id']).doUpdateSet(eb => ({
@@ -205,6 +207,7 @@ export async function loadArchivedHistory(): Promise<void> {
                 }
                 await rebuildProjectionState(tx, context);
                 await rebuildCheckpointVersions(tx, context);
+                await markHistoryIndexStale((query) => query.execute(tx), context);
             });
             await loadDynamicEntityTypes();
             postTabChange({ kind: 'rebuild', tenantId: context.tenantId, logId: context.logId });

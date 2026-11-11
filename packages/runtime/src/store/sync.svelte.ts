@@ -80,6 +80,7 @@ import {
     type TabChangeKind,
 } from './tab-coordination.js';
 import { loadDynamicEntityTypes } from '../event/dynamic-entities.js';
+import { ensureHistoryIndex } from '../history/action-index.js';
 const UPLOAD_DEBOUNCE_MS = 100;
 const REALTIME_INVALIDATION_DEBOUNCE_MS = 150;
 const REALTIME_HEALTH_RECOVERY_MS = 5_000;
@@ -551,6 +552,9 @@ async function download(): Promise<number> {
         caughtUpScope = scopeKey({ tenantId: context.tenantId, logId });
         // A large catch-up changes table sizes the most; give the planner current statistics.
         if (installedBaseline || downloaded >= LARGE_DOWNLOAD_EVENTS) await refreshQueryStatistics();
+        // Build Log history's index in the background, so opening the panel does not wait for it.
+        void ensureHistoryIndex((query) => query.execute(db), context)
+            .catch((error) => console.warn('[Sync] Could not prepare Log history', error));
         if (downloaded === 0 && !installedBaseline) return 0;
         await addSyncLogEntry('download', installedBaseline ? `Loaded snapshot and ${downloaded} events` : `Downloaded ${downloaded} events`, `Through version ${cursor}`);
         await syncRefreshQueue.flush();
