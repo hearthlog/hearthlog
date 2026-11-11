@@ -6,9 +6,31 @@ import { rebuildCheckpointVersions } from '../history/baseline.js';
  * Maintains a cache of current entity versions for fast lookups during event appends.
  */
 
-import type { Kysely } from 'kysely';
+import { sql, type Kysely, type Transaction } from 'kysely';
 import { requireActiveContext, type Database } from '../db/index.js';
 import type { StoredEvent } from './types.js';
+
+/**
+ * Record accepted entity versions in one statement, in the caller's transaction. SQLite resolves repeated entities
+ * and older notifications monotonically.
+ */
+export async function writeEntityVersions(
+  executor: Kysely<Database> | Transaction<Database>,
+  scope: { tenantId: string; logId: string },
+  events: readonly StoredEvent[],
+  now = Date.now(),
+): Promise<void> {
+  if (events.length === 0) return;
+  const rows = JSON.stringify(events.map(event => [event.entityId, event.entityVersion, event.version]));
+  await sql`
+    INSERT INTO entity_versions (tenant_id, log_id, entity_id, current_version, log_version, updated_at)
+    SELECT ${scope.tenantId}, ${scope.logId}, value ->> 0, value ->> 1, value ->> 2, ${now} FROM json_each(${rows}) WHERE true
+    ON CONFLICT (tenant_id, log_id, entity_id) DO UPDATE SET
+      current_version = max(current_version, excluded.current_version),
+      log_version = max(log_version, excluded.log_version),
+      updated_at = excluded.updated_at
+  `.execute(executor);
+}
 
 /**
  * Tracks entity versions in the local SQLite database
@@ -95,30 +117,7 @@ export class EntityVersionTracker {
     const context = await requireActiveContext();
 
     try {
-      // Six columns x 100 events remain below the conservative 999-bind limit.
-      // SQLite resolves repeated entities and older notifications monotonically.
-      await this.db.transaction().execute(async (trx) => {
-        for (let offset = 0; offset < events.length; offset += 100) {
-          await trx
-            .insertInto('entity_versions')
-            .values(events.slice(offset, offset + 100).map(event => ({
-              tenant_id: context.tenantId,
-              log_id: context.logId,
-              entity_id: event.entityId,
-              current_version: event.entityVersion,
-              log_version: event.version,
-              updated_at: now
-            })))
-            .onConflict((oc) =>
-              oc.columns(['tenant_id', 'log_id', 'entity_id']).doUpdateSet(eb => ({
-                current_version: eb.fn('max', ['current_version', eb.ref('excluded.current_version')]),
-                log_version: eb.fn('max', ['log_version', eb.ref('excluded.log_version')]),
-                updated_at: now
-              }))
-            )
-            .execute();
-        }
-      });
+      await this.db.transaction().execute((trx) => writeEntityVersions(trx, context, events, now));
       
       console.log('[VersionTracker] Version updates completed successfully');
     } catch (error) {

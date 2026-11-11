@@ -37,7 +37,7 @@ import {
     getReadyOperation,
     markOperationFailed,
     parkOperationForConflict,
-    markOperationSynced,
+    markOperationSyncedIn,
     markOperationSyncing,
     persistOperation,
     prepareAppendRequest,
@@ -155,6 +155,8 @@ const pendingRealtimeEvents: StoredEvent[] = [];
 const SYNC_LOG_PAGE_SIZE = 50;
 /** The persisted sync log is a diagnostic trail, not history: keep the newest entries. */
 const SYNC_LOG_RETAINED_ENTRIES = 1_000;
+const SYNC_LOG_TRIM_EVERY = 100;
+let syncLogWrites = 0;
 
 export { getLedgerClient };
 
@@ -244,10 +246,13 @@ export async function addSyncLogEntry(
             message,
             details: details ?? null,
         }).execute();
-        await db.deleteFrom('sync_logs')
-            .where('id', 'in', db.selectFrom('sync_logs').select('id')
-                .orderBy('timestamp', 'desc').limit(-1).offset(SYNC_LOG_RETAINED_ENTRIES))
-            .execute();
+        // Trim now and then rather than on every entry: the log may run a little over its size between trims.
+        if (syncLogWrites++ % SYNC_LOG_TRIM_EVERY === 0) {
+            await db.deleteFrom('sync_logs')
+                .where('id', 'in', db.selectFrom('sync_logs').select('id')
+                    .orderBy('timestamp', 'desc').limit(-1).offset(SYNC_LOG_RETAINED_ENTRIES))
+                .execute();
+        }
     } catch (error) {
         console.error('[SyncLog] Failed to persist entry', error);
     }
@@ -619,8 +624,11 @@ async function executeOperation(operation: DurableOperation): Promise<OperationR
         accepted = true;
         // An append response contains only this request's events, not intervening
         // writes from other devices. Ingest/re-project it, then catch up any gap.
-        await handleIncomingStoredEvents(response.events);
-        await markOperationSynced(operation, response.events);
+        // The accepted events, their projection and the operation's synced state commit in one transaction.
+        const context = await requireActiveContext();
+        await handleIncomingStoredEvents(response.events, {
+            inTransaction: (tx) => markOperationSyncedIn(tx, context, operation),
+        });
         applied = true;
         const through = await getLocalHeadVersion();
         eventSocket?.acknowledge(through);
@@ -730,7 +738,7 @@ async function drainDurableOutbox(): Promise<void> {
             }
         },
     );
-    await updatePendingCount();
+    // The cycle refreshes pending counts once when it ends (sync()).
     await scheduleRetryWakeup();
     if (!acquired && !retryWakeupTimeout && syncStatus.isOnline) {
         retryWakeupTimeout = setTimeout(() => {

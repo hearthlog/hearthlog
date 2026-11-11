@@ -17,6 +17,18 @@ function row(event: CheckpointEvent, context: ActiveContext): Insertable<RawEven
         sync_state: 'synced', projection_state: 'effective', is_tombstoned: 0, rejection_code: null, rejection_detail: null };
 }
 
+const STAGED_COLUMNS = ['id', 'tenant_id', 'log_id', 'local_batch_id', 'local_sequence', 'action_id', 'action_index',
+    'action_size', 'actor', 'type', 'timestamp', 'payload', 'entity_id', 'entity_version', 'log_version', 'sync_state',
+    'projection_state', 'is_tombstoned', 'rejection_code', 'rejection_detail'] as const;
+
+/** Stage a page of event rows in one statement; payloads keep their exact stored text. */
+async function stageRows(table: 'checkpoint_stage' | 'archived_history_stage', rows: ReadonlyArray<Insertable<RawEventTable>>): Promise<void> {
+    if (rows.length === 0) return;
+    const json = JSON.stringify(rows.map(values => STAGED_COLUMNS.map(column => values[column] ?? null)));
+    await sql`INSERT INTO ${sql.raw(`temp.${table}`)} (${sql.join(STAGED_COLUMNS.map(column => sql.ref(column)))})
+        SELECT ${sql.raw(STAGED_COLUMNS.map((_, index) => `value ->> ${index}`).join(', '))} FROM json_each(${json})`.execute(db);
+}
+
 export async function baselineVersion(context: Pick<ActiveContext, 'tenantId' | 'logId'>): Promise<number> {
     const result = await db.selectFrom('log_baselines').select('through_version')
         .where('tenant_id', '=', context.tenantId).where('log_id', '=', context.logId).executeTakeFirst();
@@ -90,21 +102,11 @@ export async function installBaseline(manifest: CheckpointManifest, context: Act
                         || !Number.isSafeInteger(claim.logVersion) || claim.logVersion < 1 || claim.logVersion > manifest.throughVersion)) {
                     throw new Error('Snapshot page verification failed');
                 }
-                for (const event of chunk.events) {
-                    const values = row(event, context);
-                    await sql`INSERT INTO temp.checkpoint_stage
-                        (id, tenant_id, log_id, local_batch_id, local_sequence, action_id, action_index, action_size, actor,
-                         type, timestamp, payload, entity_id, entity_version, log_version, sync_state, projection_state,
-                         is_tombstoned, rejection_code, rejection_detail)
-                        VALUES (${values.id}, ${values.tenant_id}, ${values.log_id}, ${values.local_batch_id}, ${values.local_sequence},
-                            ${values.action_id ?? null}, ${values.action_index ?? null}, ${values.action_size ?? null}, ${values.actor ?? null},
-                            ${values.type}, ${values.timestamp}, ${values.payload}, ${values.entity_id}, ${values.entity_version}, ${values.log_version},
-                            'synced', 'effective', 0, NULL, NULL)`.execute(db);
-                }
-                for (const claim of chunk.claims) {
-                    await sql`INSERT INTO temp.checkpoint_claim_stage VALUES (${context.tenantId}, ${context.logId},
-                        ${claim.entityId}, ${claim.currentVersion}, ${claim.logVersion}, ${Date.now()})`.execute(db);
-                }
+                await stageRows('checkpoint_stage', chunk.events.map(event => row(event, context)));
+                const now = Date.now();
+                await sql`INSERT INTO temp.checkpoint_claim_stage
+                    SELECT ${context.tenantId}, ${context.logId}, value ->> 0, value ->> 1, value ->> 2, ${now}
+                    FROM json_each(${JSON.stringify(chunk.claims.map(claim => [claim.entityId, claim.currentVersion, claim.logVersion]))})`.execute(db);
             }
             const active = await requireActiveContext();
             if (active.tenantId !== context.tenantId || active.logId !== context.logId) throw new Error('Selected log changed while loading snapshot');
@@ -162,17 +164,16 @@ export async function loadArchivedHistory(): Promise<void> {
         let cursor = 0;
         try {
             while (cursor < through) {
-                const events = await client.getEventPage(context.logId, cursor, 128);
+                const events = await client.getEventPage(context.logId, cursor, 512);
                 if (!events.length) throw new Error('Archived history is incomplete');
+                const page = [];
                 for (const event of events) {
                     if (event.version > through) break;
                     if (event.version !== cursor + 1) throw new Error('Archived history contains a gap');
-                    const value = row(event, context);
-                    const keys = Object.keys(value) as Array<keyof typeof value>;
-                    await sql`INSERT INTO temp.archived_history_stage (${sql.join(keys.map(key => sql.ref(key)))})
-                        VALUES (${sql.join(keys.map(key => sql.val(value[key])))})`.execute(db);
+                    page.push(row(event, context));
                     cursor = event.version;
                 }
+                await stageRows('archived_history_stage', page);
             }
             const active = await requireActiveContext();
             if (active.tenantId !== context.tenantId || active.logId !== context.logId) throw new Error('Selected log changed while loading history');

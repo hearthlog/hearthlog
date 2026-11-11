@@ -280,6 +280,44 @@ describe('real local persistence and sync convergence', () => {
         expect(b.sqlite.prepare('SELECT id,notes FROM calendar_events ORDER BY id').all())
             .toEqual(a.sqlite.prepare('SELECT id,notes FROM calendar_events ORDER BY id').all());
     });
+    it('needs no reprojection to acknowledge its own edit, and reprojects when another edit came first', async () => {
+        const { handleIncomingStoredEvents, projectEntityById } = await import('../event/handlers.js');
+        const { commitLocalEventBatch } = await import('../commands/local-commit.js');
+        const { sync, syncStatus } = await import('./sync.svelte.js');
+        const update = (id: string, notes: string) => ({ id, type: 'CALENDAR_EVENT_UPDATED', timestamp: 5,
+            entityId: 'calendar_event:ce-1', payload: { id: 'ce-1', notes } });
+        const a = client();
+        state.events = [event(1)];
+        state.database = a.database;
+        await handleIncomingStoredEvents([...state.events]);
+        syncStatus.isOnline = true;
+
+        // Nothing came in between: the waiting edit is already what the record shows.
+        await commitLocalEventBatch({ database: a.database, context: state.context,
+            events: [update('mine-1', 'clean') as never], submissionId: 'clean', projectEntity: projectEntityById });
+        await sync();
+        expect(a.sqlite.prepare("SELECT notes FROM calendar_events WHERE id='ce-1'").get()).toEqual({ notes: 'clean' });
+
+        // Another device's edit of the same record is accepted first; this device's later one still wins.
+        await commitLocalEventBatch({ database: a.database, context: state.context,
+            events: [update('mine-2', 'mine') as never], submissionId: 'second', projectEntity: projectEntityById });
+        state.interleave = async () => {
+            const known = state.events.filter(stored => stored.entityId === 'calendar_event:ce-1');
+            state.events.push({ ...update('theirs', 'theirs'), version: state.events.length + 1,
+                entityVersion: Math.max(...known.map(stored => stored.entityVersion)) + 1 } as StoredEvent);
+        };
+        await sync();
+        await sync();
+        expect(syncStatus.hasError).toBe(false);
+        expect(a.sqlite.prepare("SELECT notes FROM calendar_events WHERE id='ce-1'").get()).toEqual({ notes: 'mine' });
+
+        // A device that downloads everything reads the same.
+        const fresh = client();
+        state.database = fresh.database;
+        await handleIncomingStoredEvents([...state.events]);
+        const read = (c: ReturnType<typeof client>) => c.sqlite.prepare('SELECT id, title, notes, updated_at FROM calendar_events ORDER BY id').all();
+        expect(read(a)).toEqual(read(fresh));
+    });
     it('parks an already-accepted upload without blocking later batches', async () => {
         const { projectEntityById } = await import('../event/handlers.js');
         const { commitLocalEventBatch } = await import('../commands/local-commit.js');

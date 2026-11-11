@@ -1,4 +1,4 @@
-import type { Kysely } from 'kysely';
+import type { Kysely, Transaction } from 'kysely';
 import type { Database } from '../db/index.js';
 
 type Scope = { tenantId: string; logId: string };
@@ -15,9 +15,12 @@ export function contiguousThrough(previous: number, versions: readonly number[])
 }
 
 export async function recordIngestedProgress(
-    database: Kysely<Database>, scope: Scope, versions: readonly number[],
+    database: Kysely<Database> | Transaction<Database>, scope: Scope, versions: readonly number[],
 ): Promise<number> {
-    return database.transaction().execute(async (tx) => {
+    // Inside the caller's transaction when it has one (ingestion writes a page in one transaction).
+    const within = <T,>(work: (tx: Kysely<Database>) => Promise<T>) => database.isTransaction
+        ? work(database) : database.transaction().execute(work);
+    return within(async (tx) => {
         const previous = await tx.selectFrom('log_sync_state').selectAll()
             .where('tenant_id', '=', scope.tenantId).where('log_id', '=', scope.logId).executeTakeFirst();
         const through = contiguousThrough(previous?.downloaded_head_version ?? 0, versions);

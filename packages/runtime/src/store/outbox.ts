@@ -1,4 +1,5 @@
-import { db, requireActiveContext } from '../db/index.js';
+import { db, requireActiveContext, type Database } from '../db/index.js';
+import type { Transaction } from 'kysely';
 import type { AppendEventsRequest, StoredEvent } from '../ledger/index.js';
 import {
     hashRequest,
@@ -92,45 +93,46 @@ export async function listUnsyncedOperations(): Promise<Array<{ logId: string; r
 
 export async function getNextPendingBatch(): Promise<{ id: string; events: PendingBatchEvent[] } | null> {
     const context = await requireActiveContext();
-    const batches = await db.selectFrom('local_batches')
-        .select(['id'])
+    // The oldest waiting batch with no live operation and at least one event still to send, in one query.
+    const batch = await db.selectFrom('local_batches as batch')
+        .select('batch.id')
+        .where('batch.tenant_id', '=', context.tenantId)
+        .where('batch.log_id', '=', context.logId)
+        .where('batch.status', 'in', ['pending', 'conflicted'])
+        .where((eb) => eb.not(eb.exists(eb.selectFrom('outbox_operations as operation').select('operation.id')
+            .whereRef('operation.batch_id', '=', 'batch.id')
+            .where('operation.status', 'in', ['pending', 'syncing', 'failed', 'needs_attention']))))
+        .where((eb) => eb.exists(eb.selectFrom('raw_events as event').select('event.id')
+            .whereRef('event.tenant_id', '=', 'batch.tenant_id')
+            .whereRef('event.log_id', '=', 'batch.log_id')
+            .whereRef('event.local_batch_id', '=', 'batch.id')
+            .where('event.sync_state', 'in', ['pending', 'conflicted'])
+            .where('event.projection_state', '=', 'effective')))
+        .orderBy('batch.created_at', 'asc')
+        .limit(1)
+        .executeTakeFirst();
+    if (!batch) return null;
+
+    const rows = await db.selectFrom('raw_events')
+        .select(['id', 'type', 'timestamp', 'entity_id', 'payload', 'local_sequence'])
         .where('tenant_id', '=', context.tenantId)
         .where('log_id', '=', context.logId)
-        .where('status', 'in', ['pending', 'conflicted'])
-        .orderBy('created_at', 'asc')
+        .where('local_batch_id', '=', batch.id)
+        .where('sync_state', 'in', ['pending', 'conflicted'])
+        .where('projection_state', '=', 'effective')
+        .orderBy('local_sequence', 'asc')
         .execute();
-
-    for (const batch of batches) {
-        const existing = await db.selectFrom('outbox_operations')
-            .select('id')
-            .where('batch_id', '=', batch.id)
-            .where('status', 'in', ['pending', 'syncing', 'failed', 'needs_attention'])
-            .executeTakeFirst();
-        if (existing) continue;
-
-        const rows = await db.selectFrom('raw_events')
-            .select(['id', 'type', 'timestamp', 'entity_id', 'payload', 'local_sequence'])
-            .where('tenant_id', '=', context.tenantId)
-            .where('log_id', '=', context.logId)
-            .where('local_batch_id', '=', batch.id)
-            .where('sync_state', 'in', ['pending', 'conflicted'])
-            .where('projection_state', '=', 'effective')
-            .orderBy('local_sequence', 'asc')
-            .execute();
-        if (rows.length === 0) continue;
-        return {
-            id: batch.id,
-            events: rows.map((row) => ({
-                id: row.id,
-                type: row.type,
-                timestamp: row.timestamp,
-                entityId: row.entity_id ?? '',
-                payload: JSON.parse(row.payload) as Record<string, unknown>,
-                localSequence: row.local_sequence,
-            })),
-        };
-    }
-    return null;
+    return {
+        id: batch.id,
+        events: rows.map((row) => ({
+            id: row.id,
+            type: row.type,
+            timestamp: row.timestamp,
+            entityId: row.entity_id ?? '',
+            payload: JSON.parse(row.payload) as Record<string, unknown>,
+            localSequence: row.local_sequence,
+        })),
+    };
 }
 
 export async function persistOperation(
@@ -216,6 +218,26 @@ export async function markOperationSyncing(operationId: string): Promise<void> {
         .where('tenant_id', '=', context.tenantId)
         .where('log_id', '=', context.logId)
         .where('id', '=', operationId).execute();
+}
+
+/**
+ * Mark an upload synced inside the transaction that ingested its accepted events. Ingestion has already adopted the
+ * events' accepted versions and reindexed their actions, so only the batch and the operation change here.
+ */
+export async function markOperationSyncedIn(
+    tx: Transaction<Database>,
+    context: { tenantId: string; logId: string },
+    operation: DurableOperation,
+): Promise<void> {
+    const now = new Date().toISOString();
+    await tx.updateTable('local_batches').set({ status: 'synced', updated_at: now })
+        .where('tenant_id', '=', context.tenantId)
+        .where('log_id', '=', context.logId)
+        .where('id', '=', operation.batchId).execute();
+    await tx.updateTable('outbox_operations').set({ status: 'synced', next_retry_at: null, updated_at: now })
+        .where('tenant_id', '=', context.tenantId)
+        .where('log_id', '=', context.logId)
+        .where('id', '=', operation.id).execute();
 }
 
 export async function markOperationSynced(operation: DurableOperation, storedEvents: StoredEvent[]): Promise<void> {
