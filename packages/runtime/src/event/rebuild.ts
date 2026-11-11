@@ -11,7 +11,7 @@ import { sql, type Transaction } from 'kysely';
 import { buildBulkProjectionSQL, type EntityProjectionConfig } from './projection-builder.js';
 import { entityRegistry, getAllEntityTables } from './registry.js';
 import { versionTracker } from '../ledger/version-tracker-singleton.js';
-import { get as getKv, set as setKv } from '../db/kv.js';
+import { del as delKv, get as getKv, set as setKv } from '../db/kv.js';
 import { SCHEMA_VERSION } from '../db/schema-version.js';
 import { currentProjections, moduleTables, staleModules } from '../db/module-projections.js';
 import { loadDynamicEntityTypes } from './dynamic-entities.js';
@@ -95,6 +95,7 @@ export async function rebuildReadModel(options: { includePendingDdl?: boolean } 
         console.log('[Event] Rebuilding entity version cache');
         await versionTracker.rebuildVersionCache();
 
+        await markProjectionsCurrent(context);
         // Other tabs hold stale registries and pages until told.
         postTabChange({ kind: 'rebuild', tenantId: context.tenantId, logId: context.logId });
         console.log('[Event] Read model rebuild completed successfully');
@@ -175,6 +176,41 @@ async function rebuildDynamicDefinitions(tx: Transaction<Database>, context: Act
             await sql.raw(`DROP TABLE IF EXISTS temp."${stagedTable}"`).execute(tx);
         }
     }, {});
+}
+
+/** What a log's projections depend on besides its events: a change to any of these needs a rebuild. */
+function projectionFingerprint(): string {
+    return JSON.stringify({
+        schema: SCHEMA_VERSION,
+        tables: [...tenant.approvedEntities.tables].sort(),
+        projections: currentProjections(tenant.features),
+        dynamicEntities: Boolean(tenant.dynamicEntities),
+    });
+}
+
+const fingerprintKey = (scope: Pick<ActiveContext, 'tenantId' | 'logId'>) => `projection-fingerprint:${scope.tenantId}:${scope.logId}`;
+
+/** Record that this log's projections were just rebuilt from all its events under the current build. */
+export async function markProjectionsCurrent(scope: Pick<ActiveContext, 'tenantId' | 'logId'>): Promise<void> {
+    await setKv(fingerprintKey(scope), projectionFingerprint());
+}
+
+/** This log's projections were cleared or replaced outside a rebuild. */
+export async function forgetProjections(scope: Pick<ActiveContext, 'tenantId' | 'logId'>): Promise<void> {
+    await delKv(fingerprintKey(scope));
+}
+
+/**
+ * Whether this log's projections can be used as they are: rebuilt under the same schema, tables, module projection
+ * versions and dynamic entity setting, and covering every downloaded event. Ingestion keeps them current after
+ * that, so opening the log again needs no rebuild.
+ */
+export async function projectionsCurrent(scope: Pick<ActiveContext, 'tenantId' | 'logId'>): Promise<boolean> {
+    if (await getKv<string>(fingerprintKey(scope)) !== projectionFingerprint()) return false;
+    const progress = await readModelDB.selectFrom('log_sync_state')
+        .select(['downloaded_head_version', 'projected_head_version'])
+        .where('tenant_id', '=', scope.tenantId).where('log_id', '=', scope.logId).executeTakeFirst();
+    return (progress?.projected_head_version ?? 0) === (progress?.downloaded_head_version ?? 0);
 }
 
 export { versionTracker };

@@ -1,4 +1,5 @@
 import { db, requireActiveContext, type ActiveContext, type Database } from '../db/index.js';
+import { indexBatchActions, markHistoryIndexStale } from '../history/action-index.js';
 import { projectEntityById } from '../event/handlers.js';
 import type { Kysely, Transaction } from 'kysely';
 import { withoutClashes, type EntityClash } from './conflict-merge.js';
@@ -152,6 +153,7 @@ export async function rebaseSyncIssue(
             .where('local_batch_id', '=', operation.batch_id)
             .where('projection_state', '=', 'effective')
             .execute();
+        await indexBatchActions((query) => query.execute(tx), context, operation.batch_id);
         await audit(tx, context, operation.batch_id, 'retry_rebase', {
             operationId,
             previousRetryCount: operation.retry_count,
@@ -290,6 +292,9 @@ async function replaceIssueBatch(
         }
 
         await projectAffected(tx, context, affected);
+        // A kept undo marks its target again, which can change how earlier history reads.
+        if (kept.some((row) => row.type === 'EVENT_TOMBSTONED')) await markHistoryIndexStale((query) => query.execute(tx), context);
+        else if (kept.length > 0) await indexBatchActions((query) => query.execute(tx), context, replacementBatchId);
         replacedAny = kept.length > 0;
         await audit(tx, context, operation.batch_id, action, {
             operationId,
@@ -349,6 +354,7 @@ async function excludeBatch(
     }).where('tenant_id', '=', context.tenantId)
       .where('log_id', '=', context.logId)
       .where('local_batch_id', '=', batchId).execute();
+    await indexBatchActions((query) => query.execute(tx), context, batchId);
     await tx.updateTable('local_batches').set({
         status: 'discarded',
         updated_at: new Date().toISOString(),
@@ -376,6 +382,7 @@ async function refreshTombstoneTargets(
             .where('tenant_id', '=', context.tenantId)
             .where('log_id', '=', context.logId)
             .where('id', '=', targetId).execute();
+        await markHistoryIndexStale((query) => query.execute(tx), context);
         if (target?.entity_id) affected.add(target.entity_id);
     }
 }

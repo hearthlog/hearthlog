@@ -1,3 +1,4 @@
+import { sql } from 'kysely';
 import { db, requireActiveContext } from '../db/index.js';
 
 export type EntitySyncState = 'pending' | 'blocked';
@@ -11,22 +12,31 @@ export function getEntitySyncState(entityId: string): EntitySyncState | null {
 export async function refreshEntitySyncState(): Promise<void> {
     try {
         const context = await requireActiveContext();
-        const rows = await db.selectFrom('raw_events as event')
-            .leftJoin('outbox_operations as operation', 'operation.batch_id', 'event.local_batch_id')
-            .select(['event.entity_id', 'event.sync_state', 'operation.status'])
-            .where('event.tenant_id', '=', context.tenantId)
-            .where('event.log_id', '=', context.logId)
-            .where('event.projection_state', '=', 'effective')
-            .where((eb) => eb.or([
-                eb('event.sync_state', '=', 'pending'),
-                eb('operation.status', '=', 'needs_attention'),
-            ]))
-            .execute();
+        // Two indexed branches instead of one OR across a join, which scanned every event of the log on each
+        // save and sync. Pending events never carry a log version (the schema migration enforces it), so the
+        // first branch reads only the unsynced tail of idx_raw_events_scope_order.
+        const pending = db.selectFrom('raw_events')
+            .select(['entity_id', sql<'pending' | 'blocked'>`'pending'`.as('state')])
+            .where('tenant_id', '=', context.tenantId)
+            .where('log_id', '=', context.logId)
+            .where('log_version', 'is', null)
+            .where('sync_state', '=', 'pending')
+            .where('projection_state', '=', 'effective');
+        const blocked = db.selectFrom('outbox_operations as operation')
+            .innerJoin('raw_events as event', (join) => join
+                .onRef('event.tenant_id', '=', 'operation.tenant_id')
+                .onRef('event.log_id', '=', 'operation.log_id')
+                .onRef('event.local_batch_id', '=', 'operation.batch_id'))
+            .select(['event.entity_id', sql<'pending' | 'blocked'>`'blocked'`.as('state')])
+            .where('operation.tenant_id', '=', context.tenantId)
+            .where('operation.log_id', '=', context.logId)
+            .where('operation.status', '=', 'needs_attention')
+            .where('event.projection_state', '=', 'effective');
+        const rows = await pending.unionAll(blocked).execute();
         const next: Record<string, EntitySyncState> = {};
         for (const row of rows) {
             if (!row.entity_id || row.entity_id.startsWith('tombstone:')) continue;
-            const state = row.status === 'needs_attention' ? 'blocked' : 'pending';
-            if (state === 'blocked' || !next[row.entity_id]) next[row.entity_id] = state;
+            if (row.state === 'blocked' || !next[row.entity_id]) next[row.entity_id] = row.state;
         }
         Object.keys(entitySyncState).forEach((key) => delete entitySyncState[key]);
         Object.assign(entitySyncState, next);

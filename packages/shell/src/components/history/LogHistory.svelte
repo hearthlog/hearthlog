@@ -77,11 +77,16 @@
     let root = $state<HTMLElement | null>(null);
     let sentinel = $state<HTMLElement | null>(null);
     let scrolledTo = '';
-    /** An older action the map asked for, so the list loads until it. */
-    let revealThrough = $state<string | null>(null);
+    /** An older action to open the list around (from the map or a link), instead of loading every newer one first. */
+    let anchor = $state<string | null>(null);
     let revealPending = $state<string | null>(null);
+    /** Search also looks inside saved values; slower, so only when asked. */
+    let searchValues = $state(false);
 
     const total = $derived(items[0]?.total ?? 0);
+    /** The window starts below the newest actions. */
+    const windowed = $derived((items[0]?.row ?? 1) > 1);
+    const more = $derived((items.at(-1)?.row ?? 0) < total);
 
     function navigate(values: Record<string, string | null>, replace = false) {
         const url = new URL(window.location.href);
@@ -95,12 +100,20 @@
     $effect(() => {
         void view.search; void view.feature; void currentLogId;
         limit = PAGE;
-        revealThrough = null;
+        anchor = null;
+        searchValues = false;
+    });
+
+    // An action opened from a link that is not on screen opens the list around it.
+    $effect(() => {
+        const action = view.action;
+        if (!action || loading) return;
+        if (!untrack(() => items).some(item => item.id === action)) anchor = action;
     });
 
     $effect(() => {
         const scope = currentLogId;
-        const options = { search: view.search, feature: view.feature, limit, through: revealThrough ?? view.action,
+        const options = { search: view.search, feature: view.feature, limit, around: anchor, searchValues,
             sourceVersion, markers: markerPositions };
         void events.updatedAt;
         void retry;
@@ -126,7 +139,8 @@
 
     $effect(() => {
         const action = view.action;
-        void events.updatedAt;
+        // A settled action reads the same after any later sync; only one still syncing is read again.
+        if (untrack(() => entry)?.status !== 'ready') void events.updatedAt;
         if (!action || !currentLogId) { entry = null; changes = []; return; }
         let cancelled = false;
         detailLoading = true;
@@ -157,7 +171,7 @@
         const element = untrack(() => root)?.querySelector<HTMLElement>(`[data-history-item="${CSS.escape(target.id)}"]`);
         if (element) { element.scrollIntoView({ block: 'start' }); return; }
         revealPending = target.id;
-        if (untrack(() => revealThrough) !== target.id) revealThrough = target.id;
+        if (untrack(() => anchor) !== target.id) { anchor = target.id; limit = PAGE; }
     });
     $effect(() => {
         const id = revealPending;
@@ -171,7 +185,7 @@
         const target = sentinel;
         if (!target) return;
         const observer = new IntersectionObserver(entries => {
-            if (entries.some(item => item.isIntersecting) && !loading && items.length < total) limit += PAGE;
+            if (entries.some(item => item.isIntersecting) && !loading && more) limit += PAGE;
         }, { root: target.closest('.stor-drawer-body'), rootMargin: '400px 0px' });
         observer.observe(target);
         return () => observer.disconnect();
@@ -236,8 +250,12 @@
         <p role="status" class="py-2 text-sm text-[var(--stor-muted-text)] motion-safe:animate-pulse">Loading history…</p>
     {:else if !error && !items.some(item => item.kind === 'action')}
         <p class="py-4 text-sm text-[var(--stor-muted-text)]">{view.search || view.feature ? 'No actions match your search.' : archivedHistory ? 'Load the archive to inspect earlier actions.' : 'No activity in this log yet. Your next saved action will show here.'}</p>
+        {#if view.search && !searchValues}<Button variant="secondary" size="sm" onclick={() => { searchValues = true; }}>Search saved values</Button>{/if}
     {/if}
     {#if items.length > 0}
+        {#if windowed}
+            <Button variant="ghost" size="sm" class="mb-1 w-full" onclick={() => { anchor = null; limit = PAGE; root?.closest('.stor-drawer-body')?.scrollTo({ top: 0 }); }}>Show newer actions</Button>
+        {/if}
         <ol aria-label="Activity in this log" aria-busy={loading}>
             {#if view.step === 'copy' && !view.search && !view.feature}{@render ghost()}{/if}
             {#each items as item (item.id)}
@@ -329,7 +347,7 @@
                 {/if}
             {/each}
         </ol>
-        {#if items.length < total}
+        {#if more}
             <p bind:this={sentinel} role="status" class="py-3 text-center text-xs text-[var(--stor-muted-text)]">Loading older actions…</p>
         {/if}
     {/if}

@@ -1,6 +1,7 @@
 import { sql, type Kysely, type Transaction } from 'kysely';
 import type { Database } from '../db/index.js';
 import { contiguousThrough } from '../store/sync-progress.js';
+import { markHistoryIndexStale } from './action-index.js';
 import { selectReplayEvents, WORKSPACE_RESTORED, EVENTS_EXCISED, type ReplayEvent } from '@hearthlog/contracts/history/replay-selection';
 
 type ReplayDatabase = Kysely<Database> | Transaction<Database>;
@@ -16,7 +17,8 @@ export async function hasReplayDirectives(database: ReplayDatabase, scope: Scope
     // membership must also see pending local directives so a removal applies
     // before it uploads.
     if (through !== undefined) query = query.where('log_version', '<=', through);
-    return Boolean(await query.executeTakeFirst());
+    // idx_raw_events_scope_type answers this from the few directive rows; it runs on every sync cycle.
+    return Boolean(await query.limit(1).executeTakeFirst());
 }
 
 /** Derive live projection membership; raw facts and immutable outbox bodies remain intact. */
@@ -47,6 +49,7 @@ export async function reconcileRestoredEvents(database: ReplayDatabase, scope: S
         }
         // Undo changes projection visibility, never delivery of the original
         // pending action. Its immutable upload still precedes its compensation.
+        await markHistoryIndexStale((query) => query.execute(tx), scope);
         const selectedIds = new Set(selected);
         for (const row of rows.filter(row => row.log_version === null && row.projection_state !== 'pending_ddl')) {
             await tx.updateTable('raw_events').set({ projection_state: 'effective', is_tombstoned: selectedIds.has(row.id) ? 0 : 1 })

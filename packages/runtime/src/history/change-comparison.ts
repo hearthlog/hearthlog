@@ -1,4 +1,8 @@
-import type { WorkspaceRecord } from './point-snapshot.js';
+export interface WorkspaceRecord {
+    key: string;
+    label: string;
+    value: Record<string, unknown>;
+}
 
 export interface HistoryChange {
     key: string;

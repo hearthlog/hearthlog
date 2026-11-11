@@ -1,5 +1,5 @@
 import { sql, type Kysely } from 'kysely';
-import { baselineVersion, loadArchivedHistory } from './baseline.js';
+import { baselineVersion } from './baseline.js';
 import { db, type Database } from '../db/index.js';
 import { generateDynamicTableDDL } from '../db/dynamic-ddl.js';
 import { getAllEntityDDL, getAllEntityIndexDDL } from '#generated/schema';
@@ -7,13 +7,15 @@ import { createProjectionConfigFromDynamic } from '../event/dynamic-entities.js'
 import { materializeDynamicEntities } from '../event/dynamic-materializer.js';
 import {
     buildBulkProjectionSQL,
+    buildEntitySetProjectionSQL,
     PROJECTION_CONFIGS,
     qualifiedIdentifier,
     quoteIdentifier,
 } from '../event/projection-builder.js';
 import { completeActionBoundary } from './action-boundary.js';
 import { EVENTS_EXCISED, WORKSPACE_RESTORED } from '@hearthlog/contracts/history/replay-selection';
-import { filterRestoredSnapshot } from './legacy-replay.js';
+import { filterRestoredSnapshot, hasReplayDirectives } from './legacy-replay.js';
+import { entityRegistry } from '../event/registry.js';
 import type { DynamicFieldDefinition } from '../event/meta-entity-types.js';
 import type { ReadScope } from '../db/read-session.js';
 import type { HistoryRecord } from './contracts.js';
@@ -32,48 +34,26 @@ function parseDefinitionFields(fieldsJson: string): DynamicFieldDefinition[] {
     throw new Error('point-snapshot-invalid-dynamic-fields');
 }
 
-export interface WorkspaceRecord {
-    key: string;
-    label: string;
-    value: Record<string, unknown>;
+type ProjectionConfigs = Awaited<ReturnType<typeof buildPointSnapshot>>['projectionConfigs'];
+type SnapshotTable = { entity: string; table: string; fields: string[] };
+
+const DEFINITION_TABLE: SnapshotTable = { entity: 'entity_type', table: 'entity_type_definitions',
+    fields: ['name', 'display_name', 'table_name', 'fields_json', 'calendar_json', 'is_archived'] };
+
+function snapshotTables(configs: ProjectionConfigs): SnapshotTable[] {
+    return configs.map(config => ({ entity: config.entityName, table: config.tableName, fields: config.fields.map(field => field.name) }));
 }
 
-/** Build one accepted prefix for a Log history comparison, then release it. */
-export async function readWorkspaceSnapshot(version: number, scope: ReadScope): Promise<WorkspaceRecord[]> {
-    return withPointSnapshot(version, scope, async (schema, projectionConfigs) => {
-        const records: WorkspaceRecord[] = [];
-        for (const config of projectionConfigs) {
-            const result = await sql<Record<string, unknown>>`SELECT * FROM ${sql.raw(qualifiedIdentifier(schema, config.tableName))}`.execute(db);
-            for (const row of result.rows) {
-                const { tenant_id: _tenant, log_id: _log, ...value } = row;
-                records.push({ key: `${config.entityName}:${String(row.id)}`, label: String(row.title ?? row.name ?? row.id), value });
-            }
-        }
-        const definitions = await sql<Record<string, unknown>>`SELECT * FROM ${sql.raw(qualifiedIdentifier(schema, 'entity_type_definitions'))}`.execute(db);
-        for (const row of definitions.rows) {
-            const { tenant_id: _tenant, log_id: _log, ...value } = row;
-            records.push({ key: `entity_type:${String(row.id)}`, label: String(row.display_name ?? row.name ?? row.id), value });
-        }
-        return records.sort((a, b) => a.key.localeCompare(b.key));
-    });
-}
-
-/** Keep both materialized prefixes leased while SQLite compares records and fields. */
-export async function readActionChanges(previousVersion: number, version: number, scope: ReadScope): Promise<HistoryRecord[]> {
-    return withPointSnapshot(previousVersion, scope, async (beforeSchema, beforeConfigs) =>
-        withPointSnapshot(version, scope, async (afterSchema, afterConfigs) => {
-            function snapshotRows(schema: string, configs: typeof beforeConfigs) {
-                const tables = [...configs.map(config => ({ entity: config.entityName, table: config.tableName,
-                    fields: config.fields.map(field => field.name) })),
-                    { entity: 'entity_type', table: 'entity_type_definitions',
-                        fields: ['name', 'display_name', 'table_name', 'fields_json', 'calendar_json', 'is_archived'] }];
-                return sql.join(tables.map(table => sql`SELECT ${table.entity} || ':' || id AS key,
-                    json_object(${sql.join(table.fields.flatMap(field => [sql`${field}`, sql.ref(field)]))}) AS value
-                    FROM ${sql.raw(qualifiedIdentifier(schema, table.table))}`), sql` UNION ALL `);
-            }
-            const { rows } = await sql<{ key: string; label: string; kind: HistoryRecord['kind']; fields: string }>`
-                WITH before_records AS (${snapshotRows(beforeSchema, beforeConfigs)}),
-                after_records AS (${snapshotRows(afterSchema, afterConfigs)}),
+/** Compare two materialized states record by record and field by field, in SQLite. */
+async function diffSnapshots(beforeSchema: string, afterSchema: string, tables: readonly SnapshotTable[]): Promise<HistoryRecord[]> {
+    function snapshotRows(schema: string) {
+        return sql.join(tables.map(table => sql`SELECT ${table.entity} || ':' || id AS key,
+            json_object(${sql.join(table.fields.flatMap(field => [sql`${field}`, sql.ref(field)]))}) AS value
+            FROM ${sql.raw(qualifiedIdentifier(schema, table.table))}`), sql` UNION ALL `);
+    }
+    const { rows } = await sql<{ key: string; label: string; kind: HistoryRecord['kind']; fields: string }>`
+                WITH before_records AS (${snapshotRows(beforeSchema)}),
+                after_records AS (${snapshotRows(afterSchema)}),
                 keys AS (SELECT key FROM before_records UNION SELECT key FROM after_records),
                 changes AS (
                     SELECT keys.key, b.value AS before_value, a.value AS after_value,
@@ -89,14 +69,92 @@ export async function readActionChanges(previousVersion: number, version: number
                         json_extract(before_value, '$.title'), json_extract(before_value, '$.name'), json_extract(before_value, '$.number'), key) AS label
                 FROM changes WHERE kind != 'changed' OR json_array_length(fields) > 0 ORDER BY key
             `.execute(db);
-            return rows.map(row => ({ ...row, fields: JSON.parse(row.fields) }));
-        }));
+    return rows.map(row => ({ ...row, fields: JSON.parse(row.fields) }));
+}
+
+/**
+ * What one action changed. Ordinary actions compare only the records they touched, projected just before and just
+ * after the action, so the cost follows those records' history rather than the size of the log. Actions that change
+ * which events replay or define record types take the full comparison of two workspace states.
+ */
+export async function readActionChanges(previousVersion: number, version: number, scope: ReadScope): Promise<HistoryRecord[]> {
+    const touched = await readTouchedChanges(previousVersion, version, scope);
+    return touched ?? readWorkspaceChanges(previousVersion, version, scope);
+}
+
+/** The full comparison: two complete workspace states, every record type. */
+export async function readWorkspaceChanges(previousVersion: number, version: number, scope: ReadScope): Promise<HistoryRecord[]> {
+    return withPointSnapshot(previousVersion, scope, async (beforeSchema, beforeConfigs) =>
+        withPointSnapshot(version, scope, async (afterSchema) =>
+            diffSnapshots(beforeSchema, afterSchema, [...snapshotTables(beforeConfigs), DEFINITION_TABLE])));
+}
+
+const FULL_COMPARISON_TYPES = new Set(['EVENT_TOMBSTONED', WORKSPACE_RESTORED, EVENTS_EXCISED]);
+
+/** The touched-records comparison, or null when the action needs the full one. */
+export async function readTouchedChanges(previousVersion: number, version: number, scope: ReadScope): Promise<HistoryRecord[] | null> {
+    if (!Number.isSafeInteger(version) || !Number.isSafeInteger(previousVersion) || previousVersion < 0 || version <= previousVersion) return null;
+    const members = await db.selectFrom('raw_events').select(['type', 'entity_id'])
+        .where('tenant_id', '=', scope.tenantId).where('log_id', '=', scope.logId)
+        .where('log_version', '>', previousVersion).where('log_version', '<=', version)
+        .where('projection_state', 'in', ['effective', 'restored_out']).execute();
+    if (members.length === 0 || members.some(member => FULL_COMPARISON_TYPES.has(member.type) || member.type.startsWith('ENTITY_TYPE_'))) return null;
+    // A restore or removal anywhere before this point changes which earlier events replay.
+    if (await hasReplayDirectives(db, scope, version)) return null;
+    // The state before the action must be local: a snapshot folds away history below its version.
+    if (previousVersion < await baselineVersion(scope)) return null;
+    const byType = new Map<string, Set<string>>();
+    for (const member of members) {
+        const [type, uuid] = member.entity_id?.split(':') ?? [];
+        if (!type || !uuid) return null;
+        byType.set(type, (byType.get(type) ?? new Set()).add(member.entity_id!));
+    }
+    const configs = [...byType.keys()].map(type => entityRegistry[type]?.projection);
+    if (configs.some(config => !config)) return null;
+    const tables = configs.map(config => config!.tableName);
+    const { rows: ddl } = await sql<{ name: string; sql: string }>`SELECT name, sql FROM main.sqlite_master
+        WHERE type = 'table' AND name IN (SELECT value FROM json_each(${JSON.stringify(tables)}))`.execute(db);
+    if (ddl.length !== tables.length) return null;
+
+    const counter = (aliases.storPointSnapshotAliasCounter = (aliases.storPointSnapshotAliasCounter ?? 0) + 2);
+    const before = `stor_point_${counter - 1}`;
+    const after = `stor_point_${counter}`;
+    await sql.raw(`ATTACH DATABASE ':memory:' AS ${quoteIdentifier(before)}`).execute(db);
+    try {
+        await sql.raw(`ATTACH DATABASE ':memory:' AS ${quoteIdentifier(after)}`).execute(db);
+        try {
+            for (const [schema, boundary] of [[before, previousVersion], [after, version]] as const) {
+                for (const table of ddl) await sql.raw(qualifyTableDDL(table.sql, table.name, schema)).execute(db);
+                for (const config of configs) {
+                    await buildEntitySetProjectionSQL(config!, [...byType.get(config!.entityName)!], scope, {
+                        boundary: { kind: 'log-version', version: boundary },
+                        target: { schema },
+                        source: { schema: 'main', table: 'projection_events' },
+                    }).execute(db);
+                }
+            }
+            return await diffSnapshots(before, after, snapshotTables(configs as ProjectionConfigs));
+        } finally {
+            await sql.raw(`DETACH DATABASE ${quoteIdentifier(after)}`).execute(db);
+        }
+    } finally {
+        await sql.raw(`DETACH DATABASE ${quoteIdentifier(before)}`).execute(db);
+    }
+}
+
+/** A table's stored CREATE TABLE statement, created in another attached schema. */
+function qualifyTableDDL(statement: string, name: string, schema: string): string {
+    const qualified = statement.replace(/^\s*CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(?:"[^"]+"|`[^`]+`|\[[^\]]+\]|[\w.]+)/i,
+        `CREATE TABLE ${qualifiedIdentifier(schema, name)}`);
+    if (qualified === statement) throw new Error(`Unrecognized table definition for ${name}`);
+    return qualified;
 }
 
 async function withPointSnapshot<T>(version: number, scope: ReadScope,
     read: (schema: string, configs: Awaited<ReturnType<typeof buildPointSnapshot>>['projectionConfigs']) => Promise<T>): Promise<T> {
     if (!Number.isSafeInteger(version) || version < 0) throw new Error('Invalid history version');
-    if (await baselineVersion(scope) > 0) await loadArchivedHistory();
+    // A snapshot folds away the history this comparison replays; loading it is an explicit choice (Load the archive).
+    if (await baselineVersion(scope) > 0) throw new Error('Load the archive to compare this action with earlier history.');
     const head = await downloadedHead(scope);
     if (version > (head ?? 0)) throw new Error('Download this log before inspecting its history');
     if (version > 0) {

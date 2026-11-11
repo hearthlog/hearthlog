@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
+import { HISTORY_INDEX_DDL } from '../db/history-index-schema.js';
 import { DatabaseSync, type SQLInputValue, type StatementSync } from 'node:sqlite';
 import { Kysely, SqliteDialect } from 'kysely';
 
@@ -44,6 +45,7 @@ function createDatabase(): { database: Kysely<Database>; sqlite: DatabaseSync } 
             log_id TEXT NOT NULL,
             local_batch_id TEXT NOT NULL,
             local_sequence INTEGER NOT NULL,
+            action_id TEXT, action_index INTEGER, action_size INTEGER, actor TEXT,
             type TEXT NOT NULL,
             timestamp INTEGER NOT NULL,
             payload TEXT NOT NULL,
@@ -82,6 +84,7 @@ function createDatabase(): { database: Kysely<Database>; sqlite: DatabaseSync } 
         );
     `);
     sqlite.exec('CREATE VIEW projection_events AS SELECT * FROM raw_events');
+    for (const ddl of HISTORY_INDEX_DDL) sqlite.exec(ddl);
     const adapter = {
         close: () => sqlite.close(),
         prepare: (query: string) => wrapStatement(sqlite.prepare(query), query),

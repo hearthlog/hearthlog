@@ -1,112 +1,88 @@
 import { sql, type RawBuilder } from 'kysely';
 import type { ReadModelSession } from './read-session.js';
-import { ENTITY_DEFINITIONS, getEventPrefix } from '@hearthlog/contracts/event/entity-definitions';
+import { ENTITY_DEFINITIONS } from '@hearthlog/contracts/event/entity-definitions';
 import { FEATURES } from '@hearthlog/contracts/features/registry';
-import { visibleEventCondition } from '../event/queries.js';
-import { completeActionBoundary } from '../history/action-boundary.js';
 import type { ForkReview, HistoryEntry, HistoryItem, HistoryListOptions, HistoryPoint, HistoryRecord } from '../history/contracts.js';
+import {
+    ensureHistoryIndex,
+    historyEventLabel,
+    historyFeatureLabels,
+    historyMetadata,
+    type SqlRunner,
+} from '../history/action-index.js';
 import { withTimeout } from '../utils/async.js';
 
-// Registry metadata, never user records. All activity selection and aggregation stays in SQL.
-const metadata = sql.join(ENTITY_DEFINITIONS.map(entity => sql`(
-    ${getEventPrefix(entity)}, ${entity.feature}, ${entity.displayName ?? entity.name.replace(/_/g, ' ')}, ${entity.table.replace(/_/g, ' ')}
-)`));
-const featureLabels = sql.join(FEATURES.map(feature => sql`(${feature.id}, ${feature.page?.label ?? feature.id})`));
-// Records without a name read as their main value, such as "Weight 81.2 kg";
-// entity definitions declare it (`summary`).
-const summarized = ENTITY_DEFINITIONS.filter((entity) => entity.summary);
-const summaries = summarized.length
-    ? sql`VALUES ${sql.join(summarized.map((entity) => sql`(${getEventPrefix(entity)}, ${entity.summary!.noun}, ${entity.summary!.key}, ${entity.summary!.unit})`))}`
-    : sql`SELECT NULL, NULL, NULL, NULL WHERE 0`;
-const order = sql`(version IS NULL) DESC, COALESCE(version, local_sequence) DESC, id DESC`;
+/** Every feature an action can belong to, plus '~' for events of no feature (see `features` in the index). */
+const featureKeys = sql.join([...new Set(['~', ...FEATURES.map((feature) => feature.id), ...ENTITY_DEFINITIONS.map((entity) => entity.feature)])]
+    .map((feature) => sql`(${feature})`));
+const order = sql`action.pending DESC, action.position DESC, action.id DESC`;
 
 /**
- * The newest name a record had at this event, read from its earlier events. Events carry their record as
- * `entity_id`, so matching on it plainly lets SQLite look the record's events up instead of scanning the whole log
- * once per event; only an event without one falls back to the payload's `id`.
+ * Log history reads. Actions come from the action index (`history/action-index.ts`), built on first use and kept
+ * current as events change, so a page costs what it shows. Whether an action needs attention is read live from the
+ * outbox, which can change without its events changing.
  */
-function recordLabel(sameRecord: RawBuilder<unknown>): RawBuilder<unknown> {
-    return sql`(SELECT CAST(value AS TEXT) FROM raw_events AS prior, json_each(prior.payload)
-                    WHERE ${sameRecord}
-                      AND key IN ('title', 'name', 'invoiceNumber', 'number', 'description', 'label', 'filename', 'fileName')
-                      AND json_each.type = 'text' AND trim(CAST(value AS TEXT)) != ''
-                      AND (prior.id = raw_events.id OR (prior.projection_state IN ('effective', 'restored_out')
-                        AND prior.is_tombstoned = 0 AND (
-                            (raw_events.log_version IS NOT NULL AND prior.log_version <= raw_events.log_version)
-                            OR (raw_events.log_version IS NULL AND prior.local_sequence <= raw_events.local_sequence))))
-                    ORDER BY (prior.id = raw_events.id) DESC, prior.log_version DESC, prior.local_sequence DESC,
-                        CASE key WHEN 'title' THEN 0 WHEN 'name' THEN 1 WHEN 'invoiceNumber' THEN 2 WHEN 'number' THEN 3
-                            WHEN 'description' THEN 4 ELSE 5 END
-                    LIMIT 1)`;
-}
-
 export function createHistoryRepository(session: ReadModelSession) {
-    const baseFor = (eventIds?: readonly string[]) => sql`
-        WITH raw_events AS (SELECT * FROM ${session.table('raw_events')}),
-        metadata(prefix, feature, entity_label, plural_label) AS (VALUES ${metadata}),
-        feature_labels(feature, label) AS (VALUES ${featureLabels}),
-        summaries(prefix, noun, key, unit) AS (${summaries}),
-        enriched AS (
-            SELECT raw_events.*, COALESCE(action_id, id) AS group_id,
-                metadata.feature, metadata.entity_label, metadata.plural_label,
-                CASE WHEN ${visibleEventCondition()} THEN 1 ELSE 0 END AS visible,
-                CASE WHEN log_version IS NOT NULL AND projection_state IN ('effective', 'restored_out')
-                    AND ${completeActionBoundary} THEN 1 ELSE 0 END AS complete,
-                CASE WHEN raw_events.entity_id IS NOT NULL
-                    THEN ${recordLabel(sql`prior.entity_id = raw_events.entity_id`)}
-                    ELSE ${recordLabel(sql`COALESCE(prior.entity_id, json_extract(prior.payload, '$.id'), prior.id)
-                        = COALESCE(raw_events.entity_id, json_extract(raw_events.payload, '$.id'), raw_events.id)`)} END AS record_label,
-                (SELECT noun || ' ' || printf('%g', json_extract(raw_events.payload, '$.' || key)) || unit FROM summaries
-                    WHERE substr(raw_events.type, 1, length(prefix)) = prefix
-                      AND json_type(raw_events.payload, '$.' || key) IN ('integer', 'real')) AS summary_label,
-                (SELECT lower(noun) FROM summaries WHERE substr(raw_events.type, 1, length(prefix)) = prefix) AS summary_noun,
-                (SELECT operation.last_error_message FROM outbox_operation_items AS item
-                    JOIN ${session.table('outbox_operations')} AS operation ON operation.id = item.operation_id
-                    WHERE item.event_id = raw_events.id AND operation.status = 'needs_attention'
-                    ORDER BY operation.updated_at DESC LIMIT 1) AS sync_error
-            FROM raw_events LEFT JOIN metadata ON substr(raw_events.type, 1, length(prefix)) = prefix
-            ${eventIds ? sql`WHERE raw_events.id IN (SELECT value FROM json_each(${JSON.stringify(eventIds)}))` : sql``}
-        ), ranked AS (
-            SELECT *, ROW_NUMBER() OVER (PARTITION BY group_id
-                    ORDER BY log_version DESC, action_index DESC, local_sequence DESC, id DESC) AS rank,
-                COUNT(*) OVER (PARTITION BY group_id) AS member_count,
-                MAX(visible) OVER (PARTITION BY group_id) AS has_visible,
-                MAX(CASE WHEN sync_state IN ('conflicted', 'rejected') OR projection_state = 'excluded'
-                    OR sync_error IS NOT NULL THEN 1 ELSE 0 END) OVER (PARTITION BY group_id) AS attention,
-                MAX(COALESCE(rejection_detail, rejection_code, sync_error)) OVER (PARTITION BY group_id) AS issue,
-                MIN(log_version) OVER (PARTITION BY group_id) AS first_version
-            FROM enriched
-        ), actions AS (
-            SELECT id, group_id, type, timestamp, log_version AS version, local_sequence, feature, actor,
-                COALESCE(action_size, member_count) AS eventCount,
-                COALESCE(first_version - 1, 0) AS previousVersion,
-                CASE WHEN attention = 1 THEN 'attention' WHEN complete = 1 THEN 'ready' ELSE 'waiting' END AS status,
-                CASE WHEN attention = 1 THEN COALESCE(issue, 'Open sync issues to review this action.')
-                    WHEN complete = 1 THEN NULL
-                    WHEN log_version IS NULL THEN 'Saved on this device. Waiting to sync.'
-                    ELSE 'This action is still arriving. Wait for sync to finish.' END AS reason,
-                CASE WHEN COALESCE(action_size, member_count) > 1 THEN
-                    CASE WHEN record_label IS NOT NULL AND (
-                        SELECT COUNT(DISTINCT COALESCE(entity_id, json_extract(payload, '$.id'), id))
-                        FROM enriched AS member WHERE member.group_id = ranked.group_id
-                    ) = 1 THEN 'Edited ' || record_label
-                    WHEN (SELECT COUNT(DISTINCT type) FROM enriched AS member WHERE member.group_id = ranked.group_id) = 1
-                        THEN CASE WHEN type LIKE '%_ADDED' THEN 'Added ' WHEN type LIKE '%_REMOVED' THEN 'Removed ' ELSE 'Edited ' END
-                            || member_count || ' ' || COALESCE(plural_label, 'records')
-                    ELSE COALESCE((SELECT label FROM feature_labels WHERE feature_labels.feature = ranked.feature), 'Log') || ' action' END
-                WHEN type = 'WORKSPACE_RESTORED' THEN 'Restored log'
-                WHEN type = 'EVENTS_EXCISED' THEN 'Removed events'
-                WHEN type = 'EVENT_TOMBSTONED' THEN 'Undid a change'
-                ELSE CASE WHEN type LIKE '%_ADDED' THEN 'Added '
-                    WHEN type LIKE '%_UPDATED' THEN 'Edited '
-                    WHEN type LIKE '%_REMOVED' OR type LIKE '%_DELETED' THEN 'Removed '
-                    ELSE 'Changed ' END || COALESCE(record_label, summary_label, summary_noun, entity_label, lower(replace(type, '_', ' '))) END AS label
-            FROM ranked WHERE rank = 1 AND has_visible = 1
-        )`;
-    const base = baseFor();
+    const { tenantId, logId } = session.scope;
+    const run: SqlRunner = (query) => session.execute(query);
+    const scoped = sql`action.tenant_id = ${tenantId} AND action.log_id = ${logId}`;
+    // Actions with an operation that failed for good; there are few, whatever the size of the log.
+    const blocked = sql`blocked AS (
+        SELECT COALESCE(event.action_id, event.id) AS group_id, MAX(operation.last_error_message) AS message
+        FROM outbox_operations AS operation
+        JOIN outbox_operation_items AS item ON item.operation_id = operation.id
+        JOIN main.raw_events AS event ON event.tenant_id = operation.tenant_id AND event.log_id = operation.log_id
+            AND event.id = item.event_id
+        WHERE operation.tenant_id = ${tenantId} AND operation.log_id = ${logId}
+          AND operation.status = 'needs_attention' AND operation.last_error_message IS NOT NULL
+        GROUP BY 1)`;
+    const attention = sql`(action.settled_attention = 1 OR blocked.message IS NOT NULL)`;
+    const entry = sql`action.id, action.type, action.timestamp, action.version, action.local_sequence, action.feature,
+        action.actor, action.event_count AS eventCount, action.label, action.pending, action.position,
+        COALESCE(action.first_version - 1, 0) AS previousVersion,
+        CASE WHEN ${attention} THEN 'attention' WHEN action.complete = 1 THEN 'ready' ELSE 'waiting' END AS status,
+        CASE WHEN ${attention} THEN COALESCE(CASE WHEN action.issue IS NULL THEN blocked.message
+                WHEN blocked.message IS NULL OR action.issue > blocked.message THEN action.issue ELSE blocked.message END,
+                'Open sync issues to review this action.')
+            WHEN action.complete = 1 THEN NULL
+            WHEN action.version IS NULL THEN 'Saved on this device. Waiting to sync.'
+            ELSE 'This action is still arriving. Wait for sync to finish.' END AS reason`;
+    const actions = sql`main.history_actions AS action LEFT JOIN blocked ON blocked.group_id = action.group_id`;
 
-    function execute<T>(query: import('kysely').RawBuilder<T>) {
+    async function execute<T>(query: RawBuilder<T>) {
+        // Building a log's index the first time is not part of the read's time limit.
+        await ensureHistoryIndex(run, session.scope);
         return withTimeout(session.execute(query), 15_000, 'History could not be loaded. Try again.');
+    }
+
+    function listFilter(options: HistoryListOptions, search: string, feature: string): RawBuilder<unknown> {
+        const filters = [scoped, sql`action.visible = 1`];
+        if (feature) filters.push(sql`instr(action.features, ${`,${feature},`}) > 0`);
+        if (search) {
+            filters.push(options.searchValues
+                ? sql`(instr(action.search_text, ${search}) > 0 OR EXISTS (
+                    SELECT 1 FROM main.raw_events AS member WHERE member.tenant_id = action.tenant_id AND member.log_id = action.log_id
+                      AND (member.action_id = action.group_id OR (member.action_id IS NULL AND member.id = action.group_id))
+                      AND instr(lower(member.payload), ${search}) > 0))`
+                : sql`instr(action.search_text, ${search}) > 0`);
+        }
+        if (options.eventIds) {
+            filters.push(sql`action.group_id IN (SELECT DISTINCT COALESCE(action_id, id) FROM main.raw_events
+                WHERE tenant_id = ${tenantId} AND log_id = ${logId}
+                  AND id IN (SELECT value FROM json_each(${JSON.stringify(options.eventIds)})))`);
+        }
+        return sql.join(filters, sql` AND `);
+    }
+
+    /** How many listed actions come before this one, or null when it is not in the list. */
+    async function actionsAhead(where: RawBuilder<unknown>, id: string): Promise<number | null> {
+        const { rows } = await execute<{ ahead: number | null }>(sql`
+            SELECT (SELECT COUNT(*) FROM main.history_actions AS action WHERE ${where}
+                AND (action.pending > target.pending OR (action.pending = target.pending AND (action.position > target.position
+                    OR (action.position = target.position AND action.id > target.id))))) AS ahead
+            FROM main.history_actions AS target
+            WHERE target.tenant_id = ${tenantId} AND target.log_id = ${logId} AND target.id = ${id}`);
+        return rows[0]?.ahead ?? null;
     }
 
     return {
@@ -116,91 +92,119 @@ export function createHistoryRepository(session: ReadModelSession) {
             return withTimeout(readActionChanges(entry.previousVersion, entry.version, session.scope), 30_000, 'Could not inspect this action. Try again.');
         },
         async list(options: HistoryListOptions = {}): Promise<HistoryItem[]> {
-            const search = options.search?.trim() ?? '';
+            const search = options.search?.trim().toLowerCase() ?? '';
             const feature = options.feature ?? '';
             const markers = search || feature ? [] : options.markers ?? [];
+            const limit = options.limit ?? 60;
+            const where = listFilter(options, search, feature);
+            // Read only as many actions from the top as the window needs.
+            let fetch = limit;
+            for (const anchor of [options.through, options.around]) {
+                if (!anchor) continue;
+                const ahead = await actionsAhead(where, anchor);
+                if (ahead !== null) fetch = Math.max(fetch, ahead + limit + 21);
+            }
             const marks = markers.length
                 ? sql`VALUES ${sql.join(markers.map(marker => sql`(${marker.key}, ${marker.version})`))}`
                 : sql`SELECT NULL, NULL WHERE 0`;
-            const { rows } = await execute<(Omit<HistoryEntry, 'copied'> & { kind: 'action'; copied: number })
-                | Extract<HistoryItem, { kind: 'marker' }>>(sql`${baseFor(options.eventIds)}, filtered AS (
-                SELECT *, CASE WHEN date(timestamp / 1000, 'unixepoch', 'localtime') IS
-                        LAG(date(timestamp / 1000, 'unixepoch', 'localtime')) OVER (ORDER BY ${order})
-                        THEN 0 ELSE 1 END AS startsDay
-                FROM actions WHERE (${feature} = '' OR EXISTS (
-                    SELECT 1 FROM enriched AS member WHERE member.group_id = actions.group_id AND member.feature = ${feature}
-                )) AND (${search} = '' OR instr(lower(label), lower(${search})) > 0
-                    OR EXISTS (SELECT 1 FROM enriched AS member WHERE member.group_id = actions.group_id
-                        AND instr(lower(member.payload || ' ' || member.type), lower(${search})) > 0))
-            ), marks(marker_key, version) AS (${marks}),
-            items AS (
-                SELECT 'action' AS kind, id, NULL AS markerKey, label, timestamp, version, previousVersion, eventCount,
-                    feature, actor, status, reason, startsDay,
-                    CASE WHEN version IS NOT NULL AND version <= ${options.sourceVersion ?? -1} THEN 1 ELSE 0 END AS copied,
-                    CASE WHEN version IS NULL THEN 1 ELSE 0 END AS pending,
-                    COALESCE(version, local_sequence) * 2 AS position
-                FROM filtered
-                UNION ALL
-                -- A log that shares version v sits between action v and the one after it.
-                SELECT 'marker', 'marker:' || marker_key, marker_key, NULL, NULL, version, NULL, NULL,
-                    NULL, NULL, NULL, NULL, 0, 0, 0, version * 2 + 1 FROM marks
-            ), numbered AS (
-                SELECT *, ROW_NUMBER() OVER (ORDER BY pending DESC, position DESC, id DESC) AS row_number,
-                    COUNT(*) OVER () AS total
-                FROM items
-            ) SELECT * FROM numbered
-            WHERE row_number <= MAX(${options.limit ?? 60},
-                COALESCE((SELECT row_number FROM numbered WHERE id = ${options.through ?? ''}), 0) + 20)
-            ORDER BY row_number`);
-            return rows.map(row => row.kind === 'action' ? { ...row, copied: Boolean(row.copied) } : row);
+            const { rows } = await execute<((Omit<HistoryEntry, 'copied'> & { kind: 'action'; copied: number })
+                | Omit<Extract<HistoryItem, { kind: 'marker' }>, 'row'>) & { row_index: number }>(sql`
+                WITH ${blocked},
+                top AS (SELECT * FROM (SELECT ${entry} FROM ${actions} WHERE ${where} ORDER BY ${order} LIMIT ${fetch})),
+                dated AS (
+                    SELECT *, CASE WHEN date(timestamp / 1000, 'unixepoch', 'localtime') IS
+                            LAG(date(timestamp / 1000, 'unixepoch', 'localtime')) OVER (ORDER BY pending DESC, position DESC, id DESC)
+                            THEN 0 ELSE 1 END AS startsDay
+                    FROM top
+                ), marks(marker_key, version) AS (${marks}),
+                items AS (
+                    SELECT 'action' AS kind, id, NULL AS markerKey, label, timestamp, version, previousVersion, eventCount,
+                        feature, actor, status, reason, startsDay,
+                        CASE WHEN version IS NOT NULL AND version <= ${options.sourceVersion ?? -1} THEN 1 ELSE 0 END AS copied,
+                        pending, position * 2 AS sort
+                    FROM dated
+                    UNION ALL
+                    -- A log that shares version v sits between action v and the one after it.
+                    SELECT 'marker', 'marker:' || marker_key, marker_key, NULL, NULL, version, NULL, NULL,
+                        NULL, NULL, NULL, NULL, 0, 0, 0, version * 2 + 1 FROM marks
+                ), numbered AS (
+                    SELECT *, ROW_NUMBER() OVER (ORDER BY pending DESC, sort DESC, id DESC) AS row_index FROM items
+                ), bounds AS (
+                    SELECT MAX(0, COALESCE((SELECT row_index FROM numbered WHERE id = ${options.around ?? ''}), 1) - 21) AS start
+                )
+                SELECT numbered.*, (SELECT COUNT(*) FROM main.history_actions AS action WHERE ${where}) + ${markers.length} AS total
+                FROM numbered, bounds
+                WHERE row_index > bounds.start
+                  AND row_index <= MAX(bounds.start + ${limit}, COALESCE((SELECT row_index FROM numbered WHERE id = ${options.through ?? ''}), 0) + 20)
+                ORDER BY row_index`);
+            return rows.map(({ row_index: row, ...item }) => item.kind === 'action'
+                ? { ...item, row, copied: Boolean(item.copied) }
+                : { ...item, row });
         },
         /** The newest synced action, where Copy this log starts. */
         async latest(): Promise<HistoryEntry | null> {
-            const { rows } = await execute<HistoryEntry>(sql`${base} SELECT *, 0 AS total, 0 AS startsDay FROM actions
-                WHERE status = 'ready' ORDER BY version DESC LIMIT 1`);
+            const { rows } = await execute<HistoryEntry>(sql`WITH ${blocked}
+                SELECT ${entry}, 0 AS total, 0 AS startsDay FROM ${actions}
+                WHERE ${scoped} AND action.visible = 1 AND action.complete = 1 AND NOT ${attention}
+                ORDER BY action.version DESC LIMIT 1`);
             return rows[0] ?? null;
         },
         /** When the newest action happened, so the log map can end there. */
         async newest(): Promise<number | null> {
-            const { rows } = await execute<{ newest: number | null }>(sql`${base} SELECT MAX(timestamp) AS newest FROM actions`);
+            const { rows } = await execute<{ newest: number | null }>(sql`SELECT action.timestamp AS newest
+                FROM main.history_actions AS action WHERE ${scoped} AND action.visible = 1
+                ORDER BY action.timestamp DESC LIMIT 1`);
             return rows[0]?.newest ?? null;
         },
         /** Actions within a time span, newest first, for the log map's points. */
         async points(since: number, until: number, limit = 3000): Promise<HistoryPoint[]> {
-            const { rows } = await execute<HistoryPoint>(sql`${base}
-                SELECT id, label, timestamp, version FROM actions WHERE timestamp >= ${since} AND timestamp <= ${until}
-                ORDER BY timestamp DESC, id DESC LIMIT ${limit}`);
+            const { rows } = await execute<HistoryPoint>(sql`SELECT action.id, action.label, action.timestamp, action.version
+                FROM main.history_actions AS action
+                WHERE ${scoped} AND action.visible = 1 AND action.timestamp >= ${since} AND action.timestamp <= ${until}
+                ORDER BY action.timestamp DESC, action.id DESC LIMIT ${limit}`);
             return rows;
         },
         async get(selection: { id?: string; version?: number }): Promise<HistoryEntry | null> {
-            const { rows } = await execute<HistoryEntry>(sql`${base} SELECT *, 0 AS total, 0 AS startsDay FROM actions
-                WHERE ${selection.id ? sql`id = ${selection.id}` : sql`version = ${selection.version ?? -1}`} LIMIT 1`);
+            const { rows } = await execute<HistoryEntry>(sql`WITH ${blocked}
+                SELECT ${entry}, 0 AS total, 0 AS startsDay FROM ${actions}
+                WHERE ${scoped} AND action.visible = 1
+                  AND ${selection.id ? sql`action.id = ${selection.id}` : sql`action.version = ${selection.version ?? -1}`}
+                LIMIT 1`);
             return rows[0] ?? null;
         },
         async review(targetVersion: number): Promise<ForkReview> {
-            const { rows } = await execute<ForkReview>(sql`${base}, later AS (
-                SELECT DISTINCT group_id FROM enriched WHERE log_version > ${targetVersion}
-                    AND projection_state IN ('effective', 'restored_out')
-            ), kept AS (
-                SELECT DISTINCT group_id FROM enriched WHERE log_version <= ${targetVersion}
-                    AND projection_state IN ('effective', 'restored_out')
-            ) SELECT (SELECT COUNT(*) FROM kept) AS keptActions, (SELECT COUNT(*) FROM later) AS laterActions,
-                COALESCE((SELECT group_concat(label, ', ') FROM (
-                    SELECT DISTINCT COALESCE(feature_labels.label, 'Other changes') AS label
-                    FROM enriched LEFT JOIN feature_labels ON feature_labels.feature = enriched.feature
-                    WHERE log_version > ${targetVersion} AND projection_state IN ('effective', 'restored_out') ORDER BY label
-                )), '') AS features,
-                COALESCE((SELECT MAX(log_version) FROM raw_events), 0) AS localHead`);
+            const { rows } = await execute<ForkReview>(sql`
+                WITH feature_labels(feature, label) AS (VALUES ${historyFeatureLabels}),
+                feature_keys(feature) AS (VALUES ${featureKeys}),
+                later AS (SELECT action.features FROM main.history_actions AS action
+                    WHERE ${scoped} AND action.accepted = 1 AND action.version > ${targetVersion})
+                SELECT (SELECT COUNT(*) FROM main.history_actions AS action
+                        WHERE ${scoped} AND action.accepted = 1 AND action.first_version <= ${targetVersion}) AS keptActions,
+                    (SELECT COUNT(*) FROM later) AS laterActions,
+                    COALESCE((SELECT group_concat(label, ', ') FROM (
+                        SELECT DISTINCT COALESCE(feature_labels.label, 'Other changes') AS label
+                        FROM feature_keys LEFT JOIN feature_labels ON feature_labels.feature = feature_keys.feature
+                        WHERE EXISTS (SELECT 1 FROM later WHERE instr(later.features, ',' || feature_keys.feature || ',') > 0)
+                        ORDER BY label
+                    )), '') AS features,
+                    COALESCE((SELECT MAX(log_version) FROM main.raw_events
+                        WHERE tenant_id = ${tenantId} AND log_id = ${logId}), 0) AS localHead`);
             return rows[0];
         },
         async savedValues(id: string): Promise<HistoryRecord[]> {
-            const { rows } = await execute<{ key: string; label: string; fields: string }>(sql`${base}
-                SELECT member.id AS key, COALESCE(member.record_label, member.entity_label, member.type) AS label,
+            const { rows } = await execute<{ key: string; label: string; fields: string }>(sql`
+                WITH metadata(prefix, feature, entity_label, plural_label) AS (VALUES ${historyMetadata}),
+                target AS (SELECT group_id FROM main.history_actions AS action WHERE ${scoped} AND action.id = ${id})
+                SELECT raw_events.id AS key,
+                    COALESCE(${historyEventLabel}, metadata.entity_label, raw_events.type) AS label,
                     (SELECT json_group_array(json_object('key', key, 'label', replace(key, '_', ' '), 'after', value))
-                        FROM (SELECT key, value FROM json_each(member.payload)
+                        FROM (SELECT key, value FROM json_each(raw_events.payload)
                             WHERE key NOT IN ('id', 'tenant_id', 'log_id', 'created_at', 'updated_at') ORDER BY key)) AS fields
-                FROM enriched AS member WHERE member.group_id = (SELECT group_id FROM actions WHERE id = ${id})
-                ORDER BY member.action_index, member.local_sequence, member.id`);
+                FROM main.raw_events AS raw_events, target
+                LEFT JOIN metadata ON substr(raw_events.type, 1, length(metadata.prefix)) = metadata.prefix
+                WHERE raw_events.tenant_id = ${tenantId} AND raw_events.log_id = ${logId}
+                  AND (raw_events.action_id = target.group_id OR (raw_events.action_id IS NULL AND raw_events.id = target.group_id))
+                ORDER BY raw_events.action_index, raw_events.local_sequence, raw_events.id`);
             return rows.map(row => ({ ...row, kind: 'saved', fields: JSON.parse(row.fields) }));
         },
     };

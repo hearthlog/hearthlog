@@ -3,6 +3,7 @@ import { DatabaseSync, type SQLInputValue, type StatementSync } from 'node:sqlit
 import { Kysely, SqliteDialect } from 'kysely';
 import { createReadModelSession, type ReadModelDatabase } from './read-session.js';
 import { createHistoryRepository } from './history.js';
+import { HISTORY_INDEX_DDL } from './history-index-schema.js';
 
 /**
  * The history list names every action after the latest title of its record. That lookup must stay proportional to
@@ -59,6 +60,7 @@ function fixture(seed: Seed) {
             PRIMARY KEY (operation_id, ordinal)
         );
     `);
+    for (const ddl of HISTORY_INDEX_DDL) sqlite.exec(ddl);
     const insert = sqlite.prepare(`INSERT INTO raw_events
         (id, tenant_id, log_id, local_batch_id, local_sequence, action_id, action_index, action_size, type, timestamp,
          payload, entity_id, entity_version, log_version, sync_state)
@@ -119,6 +121,8 @@ describe('history list', () => {
         const { history, sqlite } = fixture({ records: 1300, updatesPerRecord: 4, importEvery: 5 });
         const ids = sqlite.prepare("SELECT id FROM raw_events WHERE entity_id = ? ORDER BY log_version")
             .all('calendar_event:00000000-0000-4000-8000-000000000700').map((row) => String(row.id));
+        // In the app the action index is already built when a save names itself (in the background after sync).
+        await history.newest();
         const started = performance.now();
         const rows = await history.list({ limit: 1, eventIds: ids });
         const elapsed = performance.now() - started;

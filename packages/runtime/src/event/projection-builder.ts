@@ -298,6 +298,16 @@ export function buildSingleEntityProjectionSQL(
     return buildProjectionSQL(config, context, options, entityId);
 }
 
+/** Projection SQL for a set of records of one type, e.g. the records one history action touched. */
+export function buildEntitySetProjectionSQL(
+    config: EntityProjectionConfig,
+    entityIds: readonly string[],
+    context: Pick<ActiveContext, 'tenantId' | 'logId'>,
+    options: ProjectionBuildOptions = {},
+): RawBuilder<unknown> {
+    return buildProjectionSQL(config, context, options, entityIds);
+}
+
 /**
  * Generates a projection SQL query for all entities of a type
  * Used during full rebuild

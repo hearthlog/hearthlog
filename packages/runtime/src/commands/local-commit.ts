@@ -5,6 +5,7 @@ import type { ExtendedAppEvent } from '../event/types.js';
 import { isMetaEntityEvent } from '../event/meta-entity-types.js';
 import { reconcileRestoredEvents } from '../history/legacy-replay.js';
 import { EVENTS_EXCISED, WORKSPACE_RESTORED } from '@hearthlog/contracts/history/replay-selection';
+import { indexIngestedActions } from '../history/action-index.js';
 import type { Kysely, Transaction } from 'kysely';
 
 export type ProjectEntity = (
@@ -172,6 +173,7 @@ export async function commitLocalEventBatch(
         for (const entityId of affectedEntityIds) {
             await projectEntity(entityId, tx, context);
         }
+        await indexIngestedActions((query) => query.execute(tx), context, events.map((event) => ({ id: event.id, type: event.type })));
     });
 
     return {

@@ -4,12 +4,14 @@ import { pageVisible } from '../runtime/visibility.js';
 import { announceInvalidation } from '../runtime/invalidation.js';
 import { measurementMetadata } from '../utils/perf.js';
 import { invalidate } from '$app/navigation';
-import { db, requireActiveContext } from '../db/index.js';
+import { db, refreshQueryStatistics, requireActiveContext } from '../db/index.js';
 import {
     clearActiveProjections,
     handleIncomingStoredEvents,
     rebuildReadModel,
 } from '../event/index.js';
+import { projectionsCurrent } from '../event/rebuild.js';
+import { seedForkFromSource } from './fork-seed.js';
 import {
     AuthenticationError,
     EntityVersionChainError,
@@ -37,9 +39,10 @@ import {
     getReadyOperation,
     markOperationFailed,
     parkOperationForConflict,
-    markOperationSynced,
+    markOperationSyncedIn,
     markOperationSyncing,
     persistOperation,
+    pruneSettledLocalState,
     prepareAppendRequest,
     rejectBatch,
     supersedeOperation,
@@ -80,6 +83,7 @@ import {
     type TabChangeKind,
 } from './tab-coordination.js';
 import { loadDynamicEntityTypes } from '../event/dynamic-entities.js';
+import { ensureHistoryIndex } from '../history/action-index.js';
 const UPLOAD_DEBOUNCE_MS = 100;
 const REALTIME_INVALIDATION_DEBOUNCE_MS = 150;
 const REALTIME_HEALTH_RECOVERY_MS = 5_000;
@@ -154,6 +158,8 @@ const pendingRealtimeEvents: StoredEvent[] = [];
 const SYNC_LOG_PAGE_SIZE = 50;
 /** The persisted sync log is a diagnostic trail, not history: keep the newest entries. */
 const SYNC_LOG_RETAINED_ENTRIES = 1_000;
+const SYNC_LOG_TRIM_EVERY = 100;
+let syncLogWrites = 0;
 
 export { getLedgerClient };
 
@@ -243,10 +249,13 @@ export async function addSyncLogEntry(
             message,
             details: details ?? null,
         }).execute();
-        await db.deleteFrom('sync_logs')
-            .where('id', 'in', db.selectFrom('sync_logs').select('id')
-                .orderBy('timestamp', 'desc').limit(-1).offset(SYNC_LOG_RETAINED_ENTRIES))
-            .execute();
+        // Trim now and then rather than on every entry: the log may run a little over its size between trims.
+        if (syncLogWrites++ % SYNC_LOG_TRIM_EVERY === 0) {
+            await db.deleteFrom('sync_logs')
+                .where('id', 'in', db.selectFrom('sync_logs').select('id')
+                    .orderBy('timestamp', 'desc').limit(-1).offset(SYNC_LOG_RETAINED_ENTRIES))
+                .execute();
+        }
     } catch (error) {
         console.error('[SyncLog] Failed to persist entry', error);
     }
@@ -357,7 +366,29 @@ async function getLocalHeadVersion(): Promise<number> {
     return row?.downloaded_head_version ?? 0;
 }
 
-async function updatePendingCount(): Promise<void> {
+let pendingCountRun: Promise<void> | null = null;
+let pendingCountRequested = false;
+
+/**
+ * Saves, uploads, refreshes and the end of each cycle all ask for fresh counts, often at once. Callers that arrive
+ * while a refresh runs share it and get one more pass after it, so every caller still sees counts read after its call.
+ */
+function updatePendingCount(): Promise<void> {
+    pendingCountRequested = true;
+    pendingCountRun ??= (async () => {
+        try {
+            while (pendingCountRequested) {
+                pendingCountRequested = false;
+                await readPendingCount();
+            }
+        } finally {
+            pendingCountRun = null;
+        }
+    })();
+    return pendingCountRun;
+}
+
+async function readPendingCount(): Promise<void> {
     try {
         syncStatus.pendingUploads = await getPendingCount();
         const context = await requireActiveContext();
@@ -459,8 +490,17 @@ export async function loadStoredLogSnapshot(
     await activateLogContext(logId);
     syncStatus.hasCompletedSync = false;
     syncStatus.isLedgerReachable = null;
+    const context = await requireActiveContext();
     if (storedEvents.length > 0) await handleIncomingStoredEvents(storedEvents);
-    await rebuildReadModel();
+    // A new fork copies its shared history from the source on this device instead of downloading it again.
+    const seeded = storedEvents.length === 0 && await seedForkFromSource(context);
+    // A log whose projections are current (rebuilt under this build, kept up by ingestion since) opens as it is.
+    if (seeded || storedEvents.length > 0 || !await projectionsCurrent(context)) {
+        await rebuildReadModel();
+    } else {
+        // The registry of runtime-defined entities is per tab and per log.
+        await loadDynamicEntityTypes();
+    }
     // Route invalidation reads through the active target. Activate the rebuilt
     // log first so a guarded log transition cannot deadlock waiting on itself.
     await activateCurrentReadTarget();
@@ -472,6 +512,8 @@ export async function loadStoredLogSnapshot(
 
 /** Fewer retained local facts than this are not worth a baseline install on an up-to-date device. */
 const ADOPT_MIN_SURPLUS = 256;
+/** A download at least this large refreshes the query planner's statistics afterwards. */
+const LARGE_DOWNLOAD_EVENTS = 2_048;
 
 async function coveredSurplus(context: { tenantId: string; logId: string }, through: number): Promise<number> {
     const row = await db.selectFrom('raw_events').select(eb => eb.fn.countAll<number>().as('count'))
@@ -525,6 +567,11 @@ async function download(): Promise<number> {
         }
         catchUpRevision += 1;
         caughtUpScope = scopeKey({ tenantId: context.tenantId, logId });
+        // A large catch-up changes table sizes the most; give the planner current statistics.
+        if (installedBaseline || downloaded >= LARGE_DOWNLOAD_EVENTS) await refreshQueryStatistics();
+        // Build Log history's index in the background, so opening the panel does not wait for it.
+        void ensureHistoryIndex((query) => query.execute(db), context)
+            .catch((error) => console.warn('[Sync] Could not prepare Log history', error));
         if (downloaded === 0 && !installedBaseline) return 0;
         await addSyncLogEntry('download', installedBaseline ? `Loaded snapshot and ${downloaded} events` : `Downloaded ${downloaded} events`, `Through version ${cursor}`);
         await syncRefreshQueue.flush();
@@ -589,8 +636,11 @@ async function executeOperation(operation: DurableOperation): Promise<OperationR
         accepted = true;
         // An append response contains only this request's events, not intervening
         // writes from other devices. Ingest/re-project it, then catch up any gap.
-        await handleIncomingStoredEvents(response.events);
-        await markOperationSynced(operation, response.events);
+        // The accepted events, their projection and the operation's synced state commit in one transaction.
+        const context = await requireActiveContext();
+        await handleIncomingStoredEvents(response.events, {
+            inTransaction: (tx) => markOperationSyncedIn(tx, context, operation),
+        });
         applied = true;
         const through = await getLocalHeadVersion();
         eventSocket?.acknowledge(through);
@@ -700,7 +750,7 @@ async function drainDurableOutbox(): Promise<void> {
             }
         },
     );
-    await updatePendingCount();
+    // The cycle refreshes pending counts once when it ends (sync()).
     await scheduleRetryWakeup();
     if (!acquired && !retryWakeupTimeout && syncStatus.isOnline) {
         retryWakeupTimeout = setTimeout(() => {
@@ -946,7 +996,22 @@ export async function sync(trigger: SyncTrigger = 'manual'): Promise<void> {
         if (!synchronizationSuspended) {
             await updatePendingCount();
             await scheduleRetryWakeup();
+            await pruneSettledStateNowAndThen();
         }
+    }
+}
+
+const PRUNE_INTERVAL_MS = 60 * 60 * 1000;
+let lastPrunedAt = 0;
+
+/** At most hourly, after a sync cycle: drop settled bookkeeping (see pruneSettledLocalState). */
+async function pruneSettledStateNowAndThen(): Promise<void> {
+    if (Date.now() - lastPrunedAt < PRUNE_INTERVAL_MS) return;
+    lastPrunedAt = Date.now();
+    try {
+        await pruneSettledLocalState();
+    } catch (error) {
+        console.warn('[Sync] Could not prune settled local state', error);
     }
 }
 

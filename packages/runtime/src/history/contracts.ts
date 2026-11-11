@@ -16,10 +16,10 @@ export interface HistoryEntry {
     total: number;
 }
 
-/** A row of the history list: an action, or a place where a log starts. */
+/** A row of the history list: an action, or a place where a log starts. `row` is its 1-based place in the whole list. */
 export type HistoryItem =
-    | (HistoryEntry & { kind: 'action'; copied: boolean })
-    | { kind: 'marker'; id: string; markerKey: string; total: number };
+    | (HistoryEntry & { kind: 'action'; copied: boolean; row: number })
+    | { kind: 'marker'; id: string; markerKey: string; total: number; row: number };
 
 /** An action as a point on the log map. */
 export interface HistoryPoint {
@@ -35,6 +35,10 @@ export interface HistoryListOptions {
     limit?: number;
     /** Keep loading until this action is in the list. */
     through?: string | null;
+    /** Start the window a little above this action instead of at the newest one (a jump into older history). */
+    around?: string | null;
+    /** Also match the saved values of each action's events, not only its name; slower on large logs. */
+    searchValues?: boolean;
     /** Actions at or below this version were copied from the source log. */
     sourceVersion?: number | null;
     /** Fork points to place between actions; left out while searching or filtering. */

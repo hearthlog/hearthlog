@@ -2,6 +2,8 @@ import { baselineVersion, directivesReachBehind, loadArchivedHistory, REPLAY_DIR
 import { hasReplayDirectives } from '../history/legacy-replay.js';
 import { EVENTS_EXCISED, WORKSPACE_RESTORED } from '@hearthlog/contracts/history/replay-selection';
 import { recordIngestedProgress } from '../store/sync-progress.js';
+import { writeEntityVersions } from '../ledger/version-tracker.js';
+import { indexIngestedActions, markHistoryIndexStale } from '../history/action-index.js';
 /**
  * Event Handlers
  * 
@@ -13,7 +15,7 @@ import { db as readModelDB, requireActiveContext } from '../db/index.js';
 import type { ActiveContext, Database } from '../db/index.js';
 import { sql, type Transaction } from 'kysely';
 import type { StoredEvent } from '../ledger/types.js';
-import { versionTracker, rebuildReadModel } from './rebuild.js';
+import { versionTracker, rebuildReadModel, forgetProjections } from './rebuild.js';
 import { schemaTombstoneIds } from './schema-effects.js';
 import { entityRegistry, getAllEntityTables, clearDynamicRegistry } from './registry.js';
 import { createEntityProjector, projectEntitySet } from './projection-builder.js';
@@ -112,9 +114,13 @@ function compareStoredEvents(a: StoredEvent, b: StoredEvent): number {
     return a.version - b.version || a.timestamp - b.timestamp || a.id.localeCompare(b.id);
 }
 
-// Twenty raw-event columns keep 40 rows below SQLite's conservative 999-bind
-// limit. Projection sets need far fewer bindings and can contain 100 entities.
-const EVENT_WRITE_BATCH_SIZE = 40;
+/**
+ * Downloaded events carry this batch id: a short constant instead of one id per event, so the batch index takes
+ * sequential appends and no `local_batches` row is created per event. Local batches keep their own ids.
+ */
+export const SERVER_BATCH_ID = 'server';
+/** A whole download page is written by one statement; tombstones still split it (see below). */
+const EVENT_WRITE_BATCH_SIZE = 512;
 const PROJECTION_BATCH_SIZE = 100;
 
 async function storeIncomingBatch(
@@ -122,63 +128,69 @@ async function storeIncomingBatch(
     tx: Transaction<Database>,
     context: ActiveContext,
 ): Promise<void> {
-    await tx.insertInto('raw_events').values(events.map(event => ({
+    // One statement for the whole batch: the rows travel as one JSON array, and payloads as the exact text
+    // stored before (never re-serialized by SQLite).
+    const rows = JSON.stringify(events.map(event => ({
         id: event.id,
-        tenant_id: context.tenantId,
-        log_id: context.logId,
-        local_batch_id: `server:${context.tenantId}:${context.logId}:${event.id}`,
-        local_sequence: event.version,
-        action_id: event.action?.id ?? null,
-        action_index: event.action?.index ?? null,
-        action_size: event.action?.size ?? null,
+        version: event.version,
+        actionId: event.action?.id ?? null,
+        actionIndex: event.action?.index ?? null,
+        actionSize: event.action?.size ?? null,
         actor: event.actor ?? null,
         type: event.type,
         timestamp: event.timestamp,
         payload: JSON.stringify(event.payload),
-        entity_id: event.entityId,
-        entity_version: event.entityVersion,
-        log_version: event.version,
-        sync_state: 'synced',
-        projection_state: 'effective',
-        rejection_code: null,
-        rejection_detail: null,
-        is_tombstoned: 0,
-    }))).onConflict(oc => oc.columns(['tenant_id', 'log_id', 'id']).doUpdateSet(eb => ({
-        log_version: eb.ref('excluded.log_version'),
-        action_id: sql`COALESCE(excluded.action_id, raw_events.action_id)`,
-        action_index: sql`CASE WHEN excluded.action_id IS NOT NULL THEN excluded.action_index ELSE raw_events.action_index END`,
-        action_size: sql`CASE WHEN excluded.action_id IS NOT NULL THEN excluded.action_size ELSE raw_events.action_size END`,
-        actor: sql`CASE WHEN excluded.actor IS NOT NULL AND excluded.actor <> '' THEN excluded.actor ELSE raw_events.actor END`,
-        entity_version: eb.ref('excluded.entity_version'),
-        entity_id: eb.ref('excluded.entity_id'),
-        sync_state: 'synced',
-        // Never rewrite payloads/local batch identities or revive hidden history.
-        projection_state: sql`CASE WHEN raw_events.projection_state = 'restored_out' THEN 'restored_out' ELSE 'effective' END`,
-        rejection_code: null,
-        rejection_detail: null,
-    }))).execute();
-
-    // Derive status from all events in each original local batch, not just this
-    // download page. Keep its creation/replacement metadata on acknowledgement.
+        entityId: event.entityId,
+        entityVersion: event.entityVersion,
+    })));
     await sql`
-        INSERT INTO local_batches (id, tenant_id, log_id, status, replacement_for, updated_at)
-        SELECT DISTINCT accepted.local_batch_id, ${context.tenantId}, ${context.logId},
-            CASE WHEN EXISTS (
+        INSERT INTO raw_events (id, tenant_id, log_id, local_batch_id, local_sequence, action_id, action_index,
+            action_size, actor, type, timestamp, payload, entity_id, entity_version, log_version, sync_state,
+            projection_state, rejection_code, rejection_detail, is_tombstoned)
+        SELECT json_extract(value, '$.id'), ${context.tenantId}, ${context.logId}, ${SERVER_BATCH_ID},
+            json_extract(value, '$.version'), json_extract(value, '$.actionId'), json_extract(value, '$.actionIndex'),
+            json_extract(value, '$.actionSize'), json_extract(value, '$.actor'), json_extract(value, '$.type'),
+            json_extract(value, '$.timestamp'), json_extract(value, '$.payload'), json_extract(value, '$.entityId'),
+            json_extract(value, '$.entityVersion'), json_extract(value, '$.version'), 'synced', 'effective', NULL, NULL, 0
+        FROM json_each(${rows}) WHERE true
+        ON CONFLICT (tenant_id, log_id, id) DO UPDATE SET
+            log_version = excluded.log_version,
+            action_id = COALESCE(excluded.action_id, raw_events.action_id),
+            action_index = CASE WHEN excluded.action_id IS NOT NULL THEN excluded.action_index ELSE raw_events.action_index END,
+            action_size = CASE WHEN excluded.action_id IS NOT NULL THEN excluded.action_size ELSE raw_events.action_size END,
+            actor = CASE WHEN excluded.actor IS NOT NULL AND excluded.actor <> '' THEN excluded.actor ELSE raw_events.actor END,
+            entity_version = excluded.entity_version,
+            entity_id = excluded.entity_id,
+            sync_state = 'synced',
+            -- Never rewrite payloads/local batch identities or revive hidden history.
+            projection_state = CASE WHEN raw_events.projection_state = 'restored_out' THEN 'restored_out' ELSE 'effective' END,
+            rejection_code = NULL,
+            rejection_detail = NULL
+    `.execute(tx);
+
+    // An accepted event of this device's own batch updates that batch's status, derived from all its events, not
+    // just this page. Downloaded events have no batch row to update. CROSS JOIN keeps the event ids as the outer
+    // loop, so each is a primary-key lookup.
+    await sql`
+        UPDATE local_batches SET
+            status = CASE WHEN EXISTS (
                 SELECT 1 FROM raw_events pending
-                WHERE pending.tenant_id = accepted.tenant_id
-                  AND pending.log_id = accepted.log_id
-                  AND pending.local_batch_id = accepted.local_batch_id
+                WHERE pending.tenant_id = local_batches.tenant_id
+                  AND pending.log_id = local_batches.log_id
+                  AND pending.local_batch_id = local_batches.id
                   AND pending.log_version IS NULL
             ) THEN 'pending' ELSE 'synced' END,
-            NULL, ${new Date().toISOString()}
-        FROM raw_events accepted
-        WHERE accepted.tenant_id = ${context.tenantId}
-          AND accepted.log_id = ${context.logId}
-          AND accepted.id IN (${sql.join(events.map(event => event.id))})
-        ON CONFLICT (id) DO UPDATE SET
-            status = excluded.status, updated_at = excluded.updated_at
-        WHERE local_batches.tenant_id = excluded.tenant_id
-          AND local_batches.log_id = excluded.log_id
+            updated_at = ${new Date().toISOString()}
+        WHERE tenant_id = ${context.tenantId} AND log_id = ${context.logId}
+          AND id IN (
+            SELECT DISTINCT accepted.local_batch_id
+            FROM json_each(${JSON.stringify(events.map(event => event.id))}) AS wanted
+            CROSS JOIN raw_events accepted
+            WHERE accepted.tenant_id = ${context.tenantId}
+              AND accepted.log_id = ${context.logId}
+              AND accepted.id = wanted.value
+              AND accepted.local_batch_id <> ${SERVER_BATCH_ID}
+          )
     `.execute(tx);
 }
 
@@ -307,6 +319,7 @@ export async function clearActiveProjections(): Promise<void> {
         });
         clearDynamicRegistry();
         clearEventCache();
+        await forgetProjections(context);
         console.log('[Event] Active projections cleared');
     } catch (error) {
         console.error('[Event] Failed to clear read model:', error);
@@ -346,6 +359,7 @@ async function deleteActiveLogData(): Promise<void> {
             .where('tenant_id', '=', context.tenantId)
             .where('log_id', '=', context.logId)
             .execute();
+        await markHistoryIndexStale((query) => query.execute(tx), context);
     });
     await clearActiveProjections();
 }
@@ -403,12 +417,36 @@ async function fillsDeferredReplay(context: ActiveContext): Promise<boolean> {
 }
 
 /**
+ * Whether these events only acknowledge this device's own uploads, already projected while they waited, with no other
+ * device's events in between. Waiting events project ahead of accepted ones, and with nothing accepted in between
+ * the order (and so every projected value) is the same after they are accepted, so they need no reprojection.
+ */
+async function acknowledgesProjectedEvents(
+    context: ActiveContext,
+    events: readonly StoredEvent[],
+    existing: ReadonlyArray<{ id: string; log_version: number | null }>,
+): Promise<boolean> {
+    if (events.length === 0 || existing.length !== events.length) return false;
+    if (existing.some(row => row.log_version !== null)) return false;
+    if (events.some((event, index) => event.type === 'EVENT_TOMBSTONED' || event.version !== events[0]!.version + index)) return false;
+    const progress = await readModelDB.selectFrom('log_sync_state').select('projected_head_version')
+        .where('tenant_id', '=', context.tenantId).where('log_id', '=', context.logId).executeTakeFirst();
+    return (progress?.projected_head_version ?? 0) === events[0]!.version - 1;
+}
+
+/**
  * Handles incoming StoredEvents from the Ledger Service (via HTTP or WebSocket).
  * Preserves server-assigned entity versions.
  * @returns Object indicating whether new events were processed (vs just metadata updates)
  */
+export interface IngestOptions {
+    /** Runs inside the transaction that stores the events, e.g. marking the upload that produced them as synced. */
+    inTransaction?: (tx: Transaction<Database>) => Promise<void>;
+}
+
 export async function handleIncomingStoredEvents(
-    storedEvents: StoredEvent[]
+    storedEvents: StoredEvent[],
+    options: IngestOptions = {},
 ): Promise<{ hasNewEvents: boolean; newCount: number }> {
     console.log(
         '[Event] handleIncomingStoredEvents called with',
@@ -416,7 +454,10 @@ export async function handleIncomingStoredEvents(
         'events'
     );
 
-    if (storedEvents.length === 0) return { hasNewEvents: false, newCount: 0 };
+    if (storedEvents.length === 0) {
+        if (options.inTransaction) await readModelDB.transaction().execute(options.inTransaction);
+        return { hasNewEvents: false, newCount: 0 };
+    }
 
     return withTiming('projection', 'handleIncomingStoredEvents', async () => {
         storedEvents.sort(compareStoredEvents);
@@ -445,13 +486,15 @@ export async function handleIncomingStoredEvents(
                         .where('tenant_id', '=', context.tenantId).where('log_id', '=', context.logId).where('id', 'in', batch.map(event => event.id)).execute();
                 }
                 await projectAffectedEntities(new Set(covered.map(event => event.entityId)), tx, context);
+                await indexIngestedActions((query) => query.execute(tx), context, covered);
+                if (covered.length === storedEvents.length) await options.inTransaction?.(tx);
             });
+            if (covered.length === storedEvents.length) return { hasNewEvents: true, newCount: 0 };
             storedEvents = storedEvents.filter(event => event.version > coveredThrough);
-            if (!storedEvents.length) return { hasNewEvents: true, newCount: 0 };
         }
 
         const existingRows = await readModelDB.selectFrom('raw_events')
-            .select('id')
+            .select(['id', 'log_version'])
             .where('tenant_id', '=', context.tenantId)
             .where('log_id', '=', context.logId)
             .where('id', 'in', storedEvents.map((event) => event.id))
@@ -470,6 +513,7 @@ export async function handleIncomingStoredEvents(
             || (await schemaTombstoneIds(readModelDB, context, storedEvents)).size > 0
             || await undoesReplayDirective(context, storedEvents)
             || await fillsDeferredReplay(context);
+        const projectionCurrent = !hasDdl && await acknowledgesProjectedEvents(context, storedEvents, existingRows);
 
         if (storedEvents.length > 0) {
             await withTiming('db', 'eventTransaction', async () => {
@@ -500,21 +544,25 @@ export async function handleIncomingStoredEvents(
                             }
                         }
                     }
-                    if (!hasDdl) {
+                    if (!hasDdl && !projectionCurrent) {
                         await projectAffectedEntities(affectedEntityIds, tx, context);
                     }
+                    await indexIngestedActions((query) => query.execute(tx), context, storedEvents);
+                    // Ordinary pages commit their versions and progress with the events, in this one transaction.
+                    if (!hasDdl) {
+                        await writeEntityVersions(tx, context, storedEvents);
+                        await recordIngestedProgress(tx, context, storedEvents.map(event => event.version));
+                    }
+                    await options.inTransaction?.(tx);
                 });
             });
         }
 
-        if (hasDdl) await rebuildReadModel();
-
-        // Update version tracker for ALL events (cached and uncached need version updates)
-        await withTiming('db', 'updateVersionTracker', async () => {
+        if (hasDdl) {
+            await rebuildReadModel();
             await versionTracker.updateVersionsFromEvents(storedEvents);
-        });
-
-        await recordIngestedProgress(readModelDB, context, storedEvents.map(event => event.version));
+            await recordIngestedProgress(readModelDB, context, storedEvents.map(event => event.version));
+        }
 
         console.log(`[Event] handleIncomingStoredEvents completed: ${uncachedEvents.length} inserted, ${cachedEvents.length} skipped`);
         return { hasNewEvents: uncachedEvents.length > 0, newCount: uncachedEvents.length };
