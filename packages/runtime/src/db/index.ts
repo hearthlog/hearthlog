@@ -1,5 +1,5 @@
 import { repairStoredProgress } from "../store/sync-progress.js";
-import { HISTORY_INDEX_DDL } from "./history-index-schema.js";
+import { HISTORY_INDEX_ADDED_COLUMNS, HISTORY_INDEX_DDL } from "./history-index-schema.js";
 /**
  * Database Configuration
  *
@@ -685,7 +685,13 @@ async function createQueryIndexes(database: Kysely<Database>): Promise<void> {
     // A batch's operations: finding the next batch to send checks it has none in flight.
     await sql`CREATE INDEX IF NOT EXISTS idx_outbox_operations_batch ON outbox_operations (batch_id, status)`.execute(database);
     // Log history's action index (history/action-index.ts); each log fills its rows on first use.
-    for (const ddl of HISTORY_INDEX_DDL) await sql.raw(ddl).execute(database);
+    const [table, ...rest] = HISTORY_INDEX_DDL;
+    await sql.raw(table!).execute(database);
+    const { rows: columns } = await sql<{ name: string }>`SELECT name FROM pragma_table_info('history_actions')`.execute(database);
+    for (const [name, type] of HISTORY_INDEX_ADDED_COLUMNS) {
+        if (!columns.some((column) => column.name === name)) await sql.raw(`ALTER TABLE history_actions ADD COLUMN ${name} ${type}`).execute(database);
+    }
+    for (const ddl of rest) await sql.raw(ddl).execute(database);
 }
 
 /**

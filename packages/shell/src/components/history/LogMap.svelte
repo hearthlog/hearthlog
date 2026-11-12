@@ -58,7 +58,10 @@
                 const shown = log ? rowY.get(log.id) : undefined;
                 if (shown !== undefined) y = shown;
             }
-            return { ...point, x: model.x(point.timestamp), y, copied: y !== currentRow.y };
+            const count = point.count ?? 1;
+            // A slice standing for many actions draws a little larger, never more than twice the size.
+            const r = count > 1 ? Math.min(4.6, 2.3 + Math.log2(count) * 0.35) : 2.3;
+            return { ...point, count, r, x: model.x(point.timestamp), y, copied: y !== currentRow.y };
         });
     });
 
@@ -190,7 +193,8 @@
     $effect(() => () => { if (frame) cancelAnimationFrame(frame); });
 
     /** Other actions drawn on the same spot, which the label can only count. */
-    const nearby = $derived(hover ? marks.filter(mark => mark.id !== hover!.id && mark.y === hover!.y && Math.abs(mark.x - hover!.x) < 2.5).length : 0);
+    const nearby = $derived(hover ? hover.count - 1 + marks.filter(mark => mark.id !== hover!.id && mark.y === hover!.y && Math.abs(mark.x - hover!.x) < 2.5)
+        .reduce((sum, mark) => sum + mark.count, 0) : 0);
 
     const tooltip = $derived(hover ? {
         left: (hover.x / model.width) * 100,
@@ -251,10 +255,10 @@
             {/each}
             <g aria-hidden="true">
                 {#each marks as mark (mark.id)}
-                    <circle class="mark" class:copied={mark.copied} cx={mark.x} cy={mark.y} r="2.3" />
+                    <circle class="mark" class:copied={mark.copied} cx={mark.x} cy={mark.y} r={mark.r} />
                 {/each}
                 {#each marks.filter(mark => mark.id === openActionId || mark.id === hover?.id) as mark (mark.id)}
-                    <circle class="mark-on" cx={mark.x} cy={mark.y} r="4.2" />
+                    <circle class="mark-on" cx={mark.x} cy={mark.y} r={Math.max(4.2, mark.r + 1.9)} />
                 {/each}
             </g>
         </svg>

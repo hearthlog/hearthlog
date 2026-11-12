@@ -128,12 +128,52 @@ async function materialize(run: SqlRunner, scope: HistoryScope, keys: readonly s
         )
         INSERT OR REPLACE INTO history_actions (tenant_id, log_id, group_id, id, label, type, timestamp, version,
             local_sequence, first_version, event_count, feature, features, actor, visible, complete, settled_attention,
-            issue, accepted, search_text, pending, position)
+            issue, accepted, search_text, pending, position, run_start)
         SELECT tenant_id, log_id, group_id, id, label, type, timestamp, log_version, local_sequence, first_version,
             COALESCE(action_size, member_count), feature, features, actor, has_visible, complete, settled_attention,
             issue, accepted, lower(label) || ' ' || COALESCE(types, ''),
-            CASE WHEN log_version IS NULL THEN 1 ELSE 0 END, COALESCE(log_version, local_sequence)
+            CASE WHEN log_version IS NULL THEN 1 ELSE 0 END, COALESCE(log_version, local_sequence),
+            COALESCE(log_version, local_sequence)
         FROM labelled
+    `);
+}
+
+/** Two actions this close in time, of the same kind, section and author, belong to one burst. */
+const BURST_GAP_MS = 2 * 60 * 1000;
+
+/**
+ * Group consecutive accepted actions into bursts (an import, a bulk edit, a run of saves to one record): each action's
+ * `run_start` becomes the position of the oldest action of its burst, so the list pages bursts as one row from the
+ * index. Actions on their own, waiting ones, and ones set aside keep their own position. Only actions from `from` up
+ * are reconsidered, continuing the burst of the action just below; new actions arrive at the top, so this is cheap.
+ */
+async function refreshRuns(run: SqlRunner, scope: HistoryScope, from: number): Promise<void> {
+    const rewriting = sql.join(HISTORY_REWRITING_TYPES.map((type) => sql`${type}`));
+    await run(sql`
+        WITH below AS (
+            SELECT position, run_start, type, feature, actor, timestamp, 1 AS anchored FROM history_actions
+            WHERE tenant_id = ${scope.tenantId} AND log_id = ${scope.logId} AND visible = 1 AND pending = 0 AND position < ${from}
+            ORDER BY position DESC LIMIT 1
+        ), chain AS (
+            SELECT * FROM below
+            UNION ALL
+            SELECT position, run_start, type, feature, actor, timestamp, 0 FROM history_actions
+            WHERE tenant_id = ${scope.tenantId} AND log_id = ${scope.logId} AND visible = 1 AND pending = 0 AND position >= ${from}
+        ), marked AS (
+            SELECT position, anchored, CASE
+                WHEN anchored = 1 THEN COALESCE(run_start, position)
+                WHEN type NOT IN (${rewriting}) AND LAG(type) OVER ordered = type AND LAG(feature) OVER ordered IS feature
+                    AND LAG(actor) OVER ordered IS actor AND abs(timestamp - LAG(timestamp) OVER ordered) <= ${BURST_GAP_MS}
+                    THEN NULL
+                ELSE position END AS starts
+            FROM chain WINDOW ordered AS (ORDER BY position)
+        ), runs AS (
+            SELECT position, MAX(starts) OVER (ORDER BY position ROWS UNBOUNDED PRECEDING) AS run_start FROM marked
+        )
+        UPDATE history_actions SET run_start = runs.run_start FROM runs
+        WHERE history_actions.tenant_id = ${scope.tenantId} AND history_actions.log_id = ${scope.logId}
+          AND history_actions.pending = 0 AND history_actions.visible = 1 AND history_actions.position = runs.position
+          AND history_actions.position >= ${from} AND history_actions.run_start IS NOT runs.run_start
     `);
 }
 
@@ -161,6 +201,10 @@ export async function indexActions(run: SqlRunner, scope: HistoryScope, eventIds
         WHERE tenant_id = ${scope.tenantId} AND log_id = ${scope.logId}`);
     if (state?.built === 1 && state.format === HISTORY_INDEX_FORMAT && eventIds.length <= DEFER_ABOVE_EVENTS) {
         await materialize(run, scope, keys);
+        const { rows: [lowest] } = await run(sql<{ position: number | null }>`SELECT MIN(position) AS position FROM history_actions
+            WHERE tenant_id = ${scope.tenantId} AND log_id = ${scope.logId} AND pending = 0
+              AND group_id IN (SELECT value FROM json_each(${JSON.stringify(keys)}))`);
+        if (lowest?.position != null) await refreshRuns(run, scope, lowest.position);
     } else if (state?.built === 1) {
         await run(sql`UPDATE history_index_state SET built = 0 WHERE tenant_id = ${scope.tenantId} AND log_id = ${scope.logId}`);
     }
@@ -225,6 +269,7 @@ export function ensureHistoryIndex(run: SqlRunner, scope: HistoryScope): Promise
                 await new Promise((resolve) => setTimeout(resolve, 0));
             }
         }
+        await refreshRuns(run, scope, 0);
         await run(sql`INSERT OR REPLACE INTO history_index_state (tenant_id, log_id, format, built)
             VALUES (${scope.tenantId}, ${scope.logId}, ${HISTORY_INDEX_FORMAT}, 1)`);
     })().finally(() => building.delete(key));

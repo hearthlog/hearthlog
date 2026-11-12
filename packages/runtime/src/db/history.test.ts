@@ -4,6 +4,7 @@ import { Kysely, SqliteDialect } from 'kysely';
 import { createReadModelSession, type ReadModelDatabase } from './read-session.js';
 import { createHistoryRepository } from './history.js';
 import { HISTORY_INDEX_DDL } from './history-index-schema.js';
+import { indexActions } from '../history/action-index.js';
 
 /**
  * The history list names every action after the latest title of its record. That lookup must stay proportional to
@@ -93,7 +94,7 @@ function fixture(seed: Seed) {
     });
     databases.push(db);
     const session = createReadModelSession(db, { schema: 'main', scope: SCOPE, view: { effectiveNow: '2026-10-25T12:00:00.000Z' } });
-    return { history: createHistoryRepository(session), events: version, sqlite };
+    return { history: createHistoryRepository(session), events: version, sqlite, db };
 }
 
 describe('history list', () => {
@@ -150,4 +151,69 @@ describe('history list', () => {
         expect(points.length).toBeGreaterThan(0);
         expect(performance.now() - started).toBeLessThan(2000);
     }, 120_000);
+});
+
+describe('history timeline', () => {
+    // Record 0 is one imported action; every later record is added, then edited three times in a row (a burst).
+    const seed = { records: 30, updatesPerRecord: 3, importEvery: 1000 };
+
+    it('pages bursts as one row each, in order, and lists a burst\'s actions on demand', async () => {
+        const { history } = fixture(seed);
+        const rows = [];
+        let next = null;
+        do {
+            const page = await history.timeline({ limit: 20, before: next });
+            rows.push(...page.rows);
+            next = page.next;
+        } while (next);
+        expect(rows).toHaveLength(1 + 29 * 2);
+        expect(rows.reduce((sum, row) => sum + row.runCount, 0)).toBe(1 + 29 * 4);
+        expect(rows[0]).toMatchObject({ label: 'Edited Dentist 29', runCount: 3 });
+        expect(rows[1]).toMatchObject({ label: 'Added Dentist 29', runCount: 1 });
+        expect(new Set(rows.map((row) => row.id)).size).toBe(rows.length);
+
+        const first = await history.members({ pending: rows[0].pending, run: rows[0].runStart }, { limit: 2 });
+        expect(first.rows.map((row) => row.id)[0]).toBe(rows[0].id);
+        expect(first.next).not.toBeNull();
+        const rest = await history.members({ pending: rows[0].pending, run: rows[0].runStart }, { limit: 2, beforePosition: first.next });
+        expect([...first.rows, ...rest.rows].map((row) => row.version)).toEqual([120, 119, 118]);
+        expect(rest.next).toBeNull();
+
+        const through = await history.timeline({ through: { pending: rows[30].pending, run: rows[30].runStart } });
+        expect(through.rows.map((row) => row.id)).toEqual(rows.slice(0, 31).map((row) => row.id));
+        expect(await history.locate(first.rows[1].id)).toMatchObject({ runStart: rows[0].runStart, runTop: rows[0].id });
+    });
+
+    it('reads only what changed at the top after a save, and keeps the count below it', async () => {
+        const { history, sqlite, db } = fixture(seed);
+        const [top] = (await history.timeline({ limit: 5 })).rows;
+        const cursor = { pending: top.pending, run: top.runStart };
+        const below = await history.countBelow(cursor);
+        expect(below).toBe(1 + 29 * 4 - 3);
+        sqlite.prepare(`INSERT INTO raw_events (id, tenant_id, log_id, local_batch_id, local_sequence, type, timestamp, payload,
+            entity_id, entity_version, log_version, sync_state) VALUES ('event-121', 'tenant', 'log', 'batch', 121,
+            'CALENDAR_EVENT_UPDATED', ?, ?, ?, 5, 121, 'synced')`).run(1_700_000_000_000 + 121_000,
+            JSON.stringify({ id: '00000000-0000-4000-8000-000000000029', notes: 'later' }), 'calendar_event:00000000-0000-4000-8000-000000000029');
+        await indexActions((query) => query.execute(db), SCOPE, ['event-121']);
+        const delta = await history.timeline({ through: cursor });
+        expect(delta.rows).toHaveLength(1);
+        expect(delta.rows[0]).toMatchObject({ version: 121, runStart: top.runStart, runCount: 4 });
+        expect(await history.countBelow(cursor)).toBe(below);
+    });
+
+    it('folds older history by month and day, and draws a busy span as slices', async () => {
+        const { history } = fixture(seed);
+        expect(await history.foldStart()).toBeNull(); // small enough to list whole
+        const months = await history.folds('month', { until: Date.now() });
+        expect(months).toHaveLength(1);
+        expect(months[0]).toMatchObject({ count: 117, firstVersion: 1, lastVersion: 120 });
+        expect(months[0].features.length).toBeGreaterThan(0);
+        const days = await history.folds('day', { since: months[0].from, until: months[0].to + 1 });
+        expect(days.reduce((sum, day) => sum + day.count, 0)).toBe(117);
+
+        const { history: busy } = fixture({ records: 200, updatesPerRecord: 2, importEvery: 1000 });
+        const points = await busy.points(0, Date.now());
+        expect(points.length).toBeLessThanOrEqual(240);
+        expect(points.reduce((sum, point) => sum + (point.count ?? 1), 0)).toBe(1 + 199 * 3);
+    });
 });
