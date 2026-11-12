@@ -102,6 +102,7 @@ export class LedgerClient {
         return this.request({ method: 'GET', path: `/logs/${encodeURIComponent(logId)}/checkpoint`, queryParams: { page } });
     }
     private supportsActionMetadata = false;
+    private supportsAppendBatches = false;
     private capabilitiesChecked = false;
     private supportsWorkspaceRestore = false;
     private supportsEventExcision = false;
@@ -123,6 +124,11 @@ export class LedgerClient {
         return 0;
     }
 
+    async getAppendBatchSupport(): Promise<boolean> {
+        if (!this.capabilitiesChecked) await this.getSession();
+        return this.supportsAppendBatches;
+    }
+
     async getActionMetadataSupport(): Promise<boolean> {
         if (!this.capabilitiesChecked) await this.getSession();
         return this.supportsActionMetadata;
@@ -135,6 +141,7 @@ export class LedgerClient {
                 this.supportsActionMetadata = session.capabilities?.includes('action-metadata-v1') ?? false;
                 this.supportsWorkspaceRestore = session.capabilities?.includes('workspace-restore-v1') ?? false;
                 this.supportsEventExcision = session.capabilities?.includes('event-excision-v1') ?? false;
+                this.supportsAppendBatches = session.capabilities?.includes('append-batch-v1') ?? false;
                 this.capabilitiesChecked = true;
                 return session;
             })
@@ -300,50 +307,53 @@ export class LedgerClient {
         }
 
         this.logResponse(response.status, errorData);
+        throw this.errorFor(response.status, response.statusText, errorData);
+    }
+
+    /** The typed error for a Ledger error answer (an HTTP response, or one request of a batched append). */
+    private errorFor(status: number, statusText: string, errorData: unknown): Error {
         const errorResponse = errorData && typeof errorData === "object"
             ? errorData as Partial<ErrorResponse>
             : null;
-
-        // Handle specific error status codes
-        switch (response.status) {
+        switch (status) {
             case 401:
             case 403:
-                throw new AuthenticationError(
-                    `Authentication failed: ${response.statusText}`,
-                    response.status,
+                return new AuthenticationError(
+                    `Authentication failed: ${statusText}`,
+                    status,
                     errorResponse?.code ?? "unauthorized",
                 );
 
             case 404:
-                throw new NotFoundError(
-                    `Resource not found: ${response.statusText}`,
+                return new NotFoundError(
+                    `Resource not found: ${statusText}`,
                     errorResponse?.code ?? "not_found",
                 );
 
             case 409:
                 if (errorResponse?.code === "entity_conflict") {
-                    throw new VersionConflictError(
+                    return new VersionConflictError(
                         "Version conflict detected",
                         errorData as ConflictResponse,
                     );
                 }
                 if (errorResponse?.code === "invalid_entity_version_chain") {
-                    throw new EntityVersionChainError(
+                    return new EntityVersionChainError(
                         errorData as EntityVersionChainErrorResponse,
                     );
                 }
                 if (errorResponse?.code === "idempotency_mismatch") {
-                    throw new IdempotencyMismatchError(errorData);
+                    return new IdempotencyMismatchError(errorData);
                 }
-                throw new LedgerServiceError(
-                    `Conflict: ${response.statusText}`,
+                return new LedgerServiceError(
+                    `Conflict: ${statusText}`,
                     409,
                     errorData,
                     errorResponse?.code,
                 );
 
             case 400:
-                throw new LedgerServiceError(
+                return new LedgerServiceError(
                     `Bad request: ${JSON.stringify(errorData)}`,
                     400,
                     errorData,
@@ -353,8 +363,8 @@ export class LedgerClient {
             case 422:
                 // Ledger names the offending event and key, which is the reason
                 // shown for a rejected batch.
-                throw new LedgerServiceError(
-                    errorResponse?.message ?? `Rejected: ${response.statusText}`,
+                return new LedgerServiceError(
+                    errorResponse?.message ?? `Rejected: ${statusText}`,
                     422,
                     errorData,
                     errorResponse?.code,
@@ -364,17 +374,17 @@ export class LedgerClient {
             case 502:
             case 503:
             case 504:
-                throw new LedgerServiceError(
-                    `Server error: ${response.statusText}`,
-                    response.status,
+                return new LedgerServiceError(
+                    `Server error: ${statusText}`,
+                    status,
                     errorData,
                     errorResponse?.code,
                 );
 
             default:
-                throw new LedgerServiceError(
-                    `HTTP ${response.status}: ${response.statusText}`,
-                    response.status,
+                return new LedgerServiceError(
+                    `HTTP ${status}: ${statusText}`,
+                    status,
                     errorData,
                     errorResponse?.code,
                 );
@@ -520,6 +530,26 @@ export class LedgerClient {
             path: `/logs/${encodeURIComponent(logId)}/events`,
             body: request,
         });
+    }
+
+    /**
+     * Several appends in one round trip (POST /logs/{logId}/appends). Ledger applies them in order and stops at the
+     * first failure; each result is the response, or the error, that request would have had alone. Requests after a
+     * failure have no result: they were not tried.
+     */
+    async appendEventBatches(
+        logId: string,
+        requests: AppendEventsRequest[],
+    ): Promise<Array<{ ok: true; response: AppendEventsResponse } | { ok: false; error: Error }>> {
+        await this.getWorkspaceRestoreSupport();
+        const { results } = await this.request<{ results: Array<{ status: number; body: unknown }> }>({
+            method: "POST",
+            path: `/logs/${encodeURIComponent(logId)}/appends`,
+            body: { requests },
+        });
+        return results.map((result) => result.status >= 200 && result.status < 300
+            ? { ok: true as const, response: result.body as AppendEventsResponse }
+            : { ok: false as const, error: this.errorFor(result.status, "", result.body) });
     }
 
     // ============================================================================

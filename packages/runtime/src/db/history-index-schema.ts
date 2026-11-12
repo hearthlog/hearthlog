@@ -5,7 +5,10 @@
  *
  * Raise the format when the derivation changes; every log then rebuilds its index on the next history read.
  */
-export const HISTORY_INDEX_FORMAT = 1;
+export const HISTORY_INDEX_FORMAT = 2;
+
+/** Columns added after the table first shipped, added in place to an existing table before the indexes are created. */
+export const HISTORY_INDEX_ADDED_COLUMNS: ReadonlyArray<readonly [name: string, type: string]> = [['run_start', 'INTEGER']];
 
 export const HISTORY_INDEX_DDL: readonly string[] = [
     `CREATE TABLE IF NOT EXISTS history_actions (
@@ -31,12 +34,15 @@ export const HISTORY_INDEX_DDL: readonly string[] = [
         search_text TEXT NOT NULL,
         pending INTEGER NOT NULL,
         position INTEGER NOT NULL,
+        run_start INTEGER,
         PRIMARY KEY (tenant_id, log_id, group_id)
     )`,
     `CREATE UNIQUE INDEX IF NOT EXISTS history_actions_id ON history_actions (tenant_id, log_id, id)`,
     `CREATE INDEX IF NOT EXISTS history_actions_order ON history_actions (tenant_id, log_id, visible, pending DESC, position DESC, id DESC)`,
     `CREATE INDEX IF NOT EXISTS history_actions_version ON history_actions (tenant_id, log_id, version)`,
     `CREATE INDEX IF NOT EXISTS history_actions_time ON history_actions (tenant_id, log_id, timestamp)`,
+    // The list pages by burst (see `refreshRuns` in history/action-index.ts), newest first.
+    `CREATE INDEX IF NOT EXISTS history_actions_runs ON history_actions (tenant_id, log_id, visible, pending DESC, run_start DESC)`,
     `CREATE TABLE IF NOT EXISTS history_index_state (
         tenant_id TEXT NOT NULL,
         log_id TEXT NOT NULL,

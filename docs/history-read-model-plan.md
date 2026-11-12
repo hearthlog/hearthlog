@@ -1,6 +1,7 @@
 # Log history as a read model
 
-Status: proposed. Nothing in this plan is implemented, measured, published, or deployed.
+Status: deliveries 1 and 2 released in core 0.13.7. Delivery 4 (the view) implemented on `perf/deliveries-4-7` without
+the mockup round (delivery 3), and not yet looked at in a browser; see section 4 for what differs from the direction.
 
 Date: 2026-11-10.
 
@@ -132,6 +133,13 @@ Design direction, to be confirmed with mockups before any of it is built:
 - **Delta refresh.** New actions are prepended from `version > top`; the list is not reloaded on sync.
 - **Record history** (optional): opened from a record, the same panel filtered to that record's actions through
   `idx_raw_events_scope_entity`.
+
+As built (delivery 4): the list pages bursts by cursor (`timeline`, `members`, `countBelow` in `db/history.ts`);
+bursts are consecutive accepted actions of the same type, section and author within two minutes (`run_start`,
+index format 2); history folds into months once a log has more than 400 actions, below the newest 300 actions and
+14 days; fork points inside folded history sit above their month; the map draws at most 400 points, else 240
+slices. Not built: virtualisation on `EndlessList` (the folds and bursts bound what is on screen instead), and record
+history.
 
 ## Deliveries
 

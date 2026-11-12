@@ -89,13 +89,16 @@
     $effect(() => {
         const scope = currentLogId;
         const nodes = shown;
+        // Busy spans draw slices of time; copied and own actions stay in separate slices.
+        const current = logs.find(log => log.id === scope);
+        const splitAt = current?.sourceLogId ? current.sourceVersion ?? 0 : null;
         void events.updatedAt;
         if (!show || !scope || view.tab !== 'history') return;
         let cancelled = false;
         void queryDatabase(async r => {
             const now = Date.now();
             const next = mapSpan(nodes, now, await r.history.newest());
-            return { next, rows: await r.history.points(next.start, next.end) };
+            return { next, rows: await r.history.points(next.start, next.end, splitAt) };
         }).then(({ next, rows }) => { if (!cancelled) { span = next; points = rows; } })
             .catch(() => { if (!cancelled) points = []; });
         return () => { cancelled = true; };

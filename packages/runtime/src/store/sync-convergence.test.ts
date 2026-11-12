@@ -13,6 +13,9 @@ const state = vi.hoisted(() => ({
     /** Runs as a conflict is raised: the other device's edit lands first. */
     onConflict: null as null | (() => void),
     rebuilds: 0,
+    /** Whether the fake Ledger accepts batched appends, and how many it received. */
+    appendBatches: false,
+    batchRequests: 0,
     maintenance: null as LogMaintenance | null,
     notifications: 0,
     realtimeEnabled: false,
@@ -93,6 +96,20 @@ vi.mock('../ledger/index.js', async () => {
                 resetAfterVersion(version: number) { recorded.cursor = version; },
             };
         }
+        async getAppendBatchSupport() { return state.appendBatches; }
+        async appendEventBatches(log: string, requests: AppendEventsRequest[]) {
+            state.batchRequests += 1;
+            const results: Array<{ ok: true; response: { newVersion: number; events: StoredEvent[] } } | { ok: false; error: Error }> = [];
+            for (const request of requests) {
+                try {
+                    results.push({ ok: true, response: await this.appendEvents(log, request) });
+                } catch (error) {
+                    results.push({ ok: false, error: error as Error });
+                    break;
+                }
+            }
+            return results;
+        }
         async appendEvents(_log: string, request: AppendEventsRequest) {
             const appendError = state.appendError;
             state.appendError = null;
@@ -162,15 +179,19 @@ describe('real local persistence and sync convergence', () => {
             state.maintenance = checkpoint(count);
             return c;
         }
+        let clock = Date.now();
         async function syncOnce() {
             const baseline = await import('../history/baseline.js');
             const install = vi.spyOn(baseline, 'installBaseline').mockImplementation(async () => {});
+            // A caught-up device asks about maintenance at most hourly; each case stands for the next hourly check.
+            clock += 2 * 60 * 60 * 1000;
+            const now = vi.spyOn(Date, 'now').mockReturnValue(clock);
             try {
                 const { sync, syncStatus } = await import('./sync.svelte.js');
                 syncStatus.isOnline = true;
                 await sync();
                 return install.mock.calls.length;
-            } finally { install.mockRestore(); }
+            } finally { install.mockRestore(); now.mockRestore(); }
         }
         afterEach(() => { state.maintenance = null; });
 
@@ -320,6 +341,45 @@ describe('real local persistence and sync convergence', () => {
         state.database = fresh.database;
         await handleIncomingStoredEvents([...state.events]);
         const read = (c: ReturnType<typeof client>) => c.sqlite.prepare('SELECT id, title, notes, updated_at FROM calendar_events ORDER BY id').all();
+        expect(read(a)).toEqual(read(fresh));
+    });
+    it('drains several queued saves in one batched append and converges', async () => {
+        const { handleIncomingStoredEvents, projectEntityById } = await import('../event/handlers.js');
+        const { commitLocalEventBatch } = await import('../commands/local-commit.js');
+        const { sync, syncStatus } = await import('./sync.svelte.js');
+        const a = client();
+        state.events = [event(1)];
+        state.database = a.database;
+        await handleIncomingStoredEvents([...state.events]);
+        // Two saves of the same record and one new record, queued while offline.
+        const saves = [
+            { id: 'q1', type: 'CALENDAR_EVENT_UPDATED', timestamp: 2, entityId: 'calendar_event:ce-1', payload: { id: 'ce-1', notes: 'first' } },
+            { id: 'q2', type: 'CALENDAR_EVENT_UPDATED', timestamp: 3, entityId: 'calendar_event:ce-1', payload: { id: 'ce-1', notes: 'second' } },
+            { ...event(3), id: 'q3', timestamp: 4 },
+        ];
+        for (const [index, save] of saves.entries()) {
+            await commitLocalEventBatch({ database: a.database, context: state.context,
+                events: [save as never], submissionId: `queued-${index}`, projectEntity: projectEntityById });
+        }
+        state.appendBatches = true;
+        state.batchRequests = 0;
+        syncStatus.isOnline = true;
+        try {
+            await sync();
+        } finally {
+            state.appendBatches = false;
+        }
+        expect(syncStatus.hasError).toBe(false);
+        expect(state.batchRequests).toBe(1);
+        // The second save of ce-1 was prepared on the version the first one left.
+        expect(state.events.map(stored => [stored.id, stored.version, stored.entityVersion])).toEqual([
+            ['event-1', 1, 1], ['q1', 2, 2], ['q2', 3, 3], ['q3', 4, 1]]);
+        expect(a.sqlite.prepare("SELECT status FROM outbox_operations ORDER BY created_at").all().map(row => row.status))
+            .toEqual(['synced', 'synced', 'synced']);
+        const fresh = client();
+        state.database = fresh.database;
+        await handleIncomingStoredEvents([...state.events]);
+        const read = (c: ReturnType<typeof client>) => c.sqlite.prepare('SELECT id, title, notes FROM calendar_events ORDER BY id').all();
         expect(read(a)).toEqual(read(fresh));
     });
     it('parks an already-accepted upload without blocking later batches', async () => {

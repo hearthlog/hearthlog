@@ -81,6 +81,8 @@ export interface SiteDefinition {
     entitiesNavVisible?: boolean;
     /** Whether the site may create dynamic entity types (meta-entities). */
     dynamicEntities?: boolean;
+    /** Whether Ledger snapshots the site's logs by itself as they grow (off by default). */
+    autoSnapshots?: boolean;
     theme?: SiteTheme;
     hostname?: string;
     /** Module settings for this site only; they override the deployment's and the shared ones key by key. */
@@ -182,6 +184,7 @@ export interface ResolvedSite {
     developerNavVisible: boolean;
     entitiesNavVisible: boolean;
     dynamicEntities: boolean;
+    autoSnapshots: boolean;
     theme: SiteTheme;
     admin: boolean;
     /** Deduplicated case-insensitively, in declaration order. */
@@ -220,6 +223,7 @@ const SITE_KEYS = [
     "developerNavVisible",
     "entitiesNavVisible",
     "dynamicEntities",
+    "autoSnapshots",
     "theme",
     "hostname",
     "moduleSettings",
@@ -732,6 +736,7 @@ export function resolveSite(
         developerNavVisible,
         entitiesNavVisible,
         dynamicEntities,
+        autoSnapshots: site.autoSnapshots ?? false,
         theme,
         admin: site.admin ?? false,
         authorizedEmails,

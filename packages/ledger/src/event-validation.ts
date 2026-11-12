@@ -44,6 +44,8 @@ export interface EventPolicy {
     dynamicEvents: boolean;
     /** Null follows the deployment's `EVENT_VALIDATION`. */
     validation: EventValidationMode | null;
+    /** Start a snapshot job by itself once the log grows `AUTO_SNAPSHOT_EVENTS` past the last snapshot. Off when absent. */
+    autoSnapshots?: boolean;
 }
 
 /** What an application created without an explicit policy gets: modules unrestricted, nothing undeclared, violations rejected. */
@@ -57,6 +59,7 @@ export function parseEventPolicy(value: unknown): EventPolicy | null {
             contracts: Array.isArray(parsed.contracts) ? parsed.contracts.filter((id): id is string => typeof id === "string") : null,
             dynamicEvents: parsed.dynamicEvents !== false,
             validation: parsed.validation === "enforce" || parsed.validation === "report" ? parsed.validation : null,
+            ...(parsed.autoSnapshots === true ? { autoSnapshots: true } : {}),
         };
     } catch {
         return null;

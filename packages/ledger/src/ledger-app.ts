@@ -37,6 +37,7 @@ import {
     LedgerError,
     normalizeError,
     validationError,
+    type ErrorBody,
 } from "./errors";
 import { type RpcResult, rpcCall, rpcSuccess } from "./rpc";
 import { fenceError, parseFence, validateFenceRequest, type Fence, type FenceRequest } from "./fence";
@@ -55,6 +56,7 @@ import {
 } from "./transfer";
 import { sqliteExport } from "./sqlite-export";
 import {
+    appendBatchBody,
     applicationSummary,
     appendEventsBody,
     type ApplicationSummary,
@@ -110,6 +112,19 @@ interface LogRow extends Record<string, SqlStorageValue> {
     source_timestamp: string | null;
     status: 'ready' | 'preparing';
     hidden_at: string | null;
+}
+
+/** One request's outcome in a batched append: its accepted response, or the error it would have answered alone. */
+export interface AppendBatchResult {
+    status: number;
+    body: AppendEventsResponse | ErrorBody;
+}
+
+/** What one delivery round shares between the sockets of a log. */
+interface DeliveryCache {
+    head?: number;
+    archived?: number;
+    pages: Map<number, Array<{ version: number; text: string }>>;
 }
 
 interface EventRow extends Record<string, SqlStorageValue> {
@@ -245,6 +260,34 @@ export class LedgerApp extends DurableObject<Env> {
         if (!objects.truncated) this.ctx.storage.sql.exec('DELETE FROM log_archive_deletions WHERE log_id = ?', job.log_id);
     }
 
+    /**
+     * Start a snapshot job by itself when the application's policy allows it and the log has grown
+     * `AUTO_SNAPSHOT_EVENTS` (default 5,000) past its last verified snapshot. The job runs under the usual budgets and
+     * pauses; compaction stays manual. Best effort: an append never fails because of it. A job that failed is not
+     * retried for a day, so a log that cannot be snapshotted does not start one on every append.
+     */
+    private async considerAutoSnapshot(logId: string): Promise<void> {
+        try {
+            if (!this.env.LEDGER_ARCHIVE || this.eventPolicy()?.autoSnapshots !== true) return;
+            const threshold = Math.max(500, Math.min(1_000_000, Number(this.env.AUTO_SNAPSHOT_EVENTS) || 5000));
+            const head = this.log(logId)?.version ?? 0;
+            const store = this.maintenance(() => this.assertApplicationWritable());
+            const state = store.state(logId);
+            if (head - (state.checkpoint?.throughVersion ?? 0) < threshold) return;
+            const job = state.job;
+            if (job && job.status !== 'complete') {
+                if (job.status !== 'failed' || Date.now() - Date.parse(job.updatedAt) < 24 * 60 * 60 * 1000) return;
+            }
+            store.start(logId, crypto.randomUUID(), 'snapshot');
+            console.log(JSON.stringify({ event: 'ledger_auto_snapshot_started', logId, head, throughVersion: state.checkpoint?.throughVersion ?? 0 }));
+            await this.scheduleAlarm();
+        } catch (cause) {
+            // An unfinished action at the head, a job on another log of the same request, or a fence: try after a later append.
+            const error = normalizeError(cause);
+            if (!(error instanceof LedgerError)) console.error('ledger_auto_snapshot_failed', error.message);
+        }
+    }
+
     /** Run due maintenance steps for a few seconds, so a job finishes without any caller. */
     private async advanceMaintenance(): Promise<void> {
         if (this.metadataOptional() === undefined) return;
@@ -355,7 +398,7 @@ export class LedgerApp extends DurableObject<Env> {
             return rpcSuccess({
                 appId: claims.appId,
                 principalId: claims.principalId,
-                capabilities: ["snapshot-baseline-v1", "action-metadata-v1", "workspace-restore-v1", "event-excision-v1"],
+                capabilities: ["snapshot-baseline-v1", "action-metadata-v1", "workspace-restore-v1", "event-excision-v1", "append-batch-v1"],
                 ...(fence ? { fence } : {}),
             });
         });
@@ -780,6 +823,69 @@ export class LedgerApp extends DurableObject<Env> {
             const events = await this.hydrateEvents(id, batch.events);
             this.currentAccess(access);
             return rpcSuccess({ events });
+        });
+    }
+
+    /**
+     * Apply several append requests in order, each exactly as appendEvents would (its own request id, hash, receipt
+     * and transaction), stopping at the first that fails. One result per attempted request; the rest are not tried,
+     * so the caller can resend them. Sockets get one delivery for the whole batch.
+     */
+    async appendEventBatches(
+        access: AccessClaims,
+        logId: string,
+        payload: unknown,
+        replayVersion = 0,
+        actor: string | null = null,
+    ): Promise<RpcResult<{ results: AppendBatchResult[] }>> {
+        return rpcCall(async () => {
+            const claims = this.writableAccess(access);
+            const id = parseUuid(logId, "logId");
+            const { requests } = decodeRpc(appendBatchBody, payload, "append batch request");
+            const results: AppendBatchResult[] = [];
+            try {
+                for (const request of requests) {
+                    const outcome = await rpcCall(async () => rpcSuccess(
+                        await this.append(id, request, claims, replayVersion, normalizeActor(actor), { deliver: false })));
+                    results.push({ status: outcome.status, body: outcome.body });
+                    if (!outcome.ok) break;
+                }
+            } finally {
+                if (results.some((result) => result.status < 300)) {
+                    try {
+                        this.deliver(id);
+                    } catch (cause) {
+                        console.error(JSON.stringify({ message: "Ledger socket delivery failed", error: normalizeError(cause).message }));
+                    }
+                }
+            }
+            return rpcSuccess({ results });
+        });
+    }
+
+    /**
+     * The same page as listEvents, as the response's JSON text. Stored payloads are already JSON, so they are spliced
+     * in as they are instead of being parsed here, cloned through RPC and serialized again by the Worker. A page that
+     * reaches archived rows takes the object path, which reads their payloads from the archive.
+     */
+    async listEventsText(
+        access: AccessClaims,
+        logId: string,
+        afterVersion: number | undefined,
+        limit: number | undefined,
+        replayVersion = 0,
+    ): Promise<RpcResult<string>> {
+        return rpcCall(async () => {
+            this.currentAccess(access);
+            const id = parseUuid(logId, "logId");
+            this.assertReplayCompatible(id, replayVersion);
+            this.assertReadableLog(id);
+            const rows = this.eventRowsAfter(id, Math.max(0, afterVersion ?? 0), clamp(limit ?? MAX_CATCH_UP, 1, MAX_CATCH_UP));
+            const text = rows.some((row) => row.archive_key !== null)
+                ? JSON.stringify({ events: await this.hydrateEvents(id, rows.map(storedEvent)) })
+                : `{"events":[${rows.map(storedEventText).join(",")}]}`;
+            this.currentAccess(access);
+            return rpcSuccess(text);
         });
     }
 
@@ -1247,11 +1353,7 @@ export class LedgerApp extends DurableObject<Env> {
         this.closeLogSockets(logId, 1008, "log_deleted");
     }
 
-    private getEventsValue(
-        logId: string,
-        afterVersion: number | undefined,
-        limit: number | undefined,
-    ): { events: StoredEvent[] } {
+    private assertReadableLog(logId: string): void {
         const log = this.log(logId);
         if (!log) {
             throw new LedgerError(404, {
@@ -1262,6 +1364,14 @@ export class LedgerApp extends DurableObject<Env> {
         if (log.status !== 'ready') throw new LedgerError(409, {
             error: 'Fork preparing', code: 'fork_preparing',
         });
+    }
+
+    private getEventsValue(
+        logId: string,
+        afterVersion: number | undefined,
+        limit: number | undefined,
+    ): { events: StoredEvent[] } {
+        this.assertReadableLog(logId);
         return {
             events: this.eventsAfter(
                 logId,
@@ -1277,6 +1387,7 @@ export class LedgerApp extends DurableObject<Env> {
         access: AccessClaims,
         replayVersion: number,
         actor: string | null,
+        options: { deliver?: boolean } = {},
     ): Promise<AppendEventsResponse> {
         if (request.events.length === 0) {
             throw validationError("events must not be empty");
@@ -1309,7 +1420,9 @@ export class LedgerApp extends DurableObject<Env> {
         });
         // The append is committed. Realtime delivery is best effort: sockets
         // recover through HTTP replay, and a delivery fault must never turn an
-        // accepted append into an error response.
+        // accepted append into an error response. A batch delivers once at its end.
+        await this.considerAutoSnapshot(logId);
+        if (options.deliver === false) return response;
         try {
             this.deliver(logId);
         } catch (cause) {
@@ -1465,11 +1578,9 @@ export class LedgerApp extends DurableObject<Env> {
             stored.push(event);
         }
 
-        // The idempotency record stores the whole response in one SQLite row.
-        // Reject what can never fit instead of failing inside the transaction.
+        // One append's accepted events must fit one response (and, for Workers before migration 9, one stored
+        // receipt row); reject what never could before writing anything.
         const response = { newVersion: logVersion, events: stored };
-        // The stored copy keeps the pre-authorship shape: a rolled-back Worker
-        // validates it strictly, and replays read log_events anyway.
         const result = JSON.stringify({
             newVersion: logVersion,
             events: stored.map(({ actor: _actor, ...event }) => event),
@@ -1546,9 +1657,9 @@ export class LedgerApp extends DurableObject<Env> {
             request.requestId,
             logId,
             requestHash,
-            // Still written so a rolled-back Worker can replay this request;
-            // replays read the version range.
-            result,
+            // Replays read the version range (stored since migration 9, which every deployable Worker has); a copy
+            // of every accepted event here only doubled the log's size.
+            "{}",
             new Date().toISOString(),
             stored[0]!.version,
             logVersion,
@@ -1654,6 +1765,7 @@ export class LedgerApp extends DurableObject<Env> {
         ws: WebSocket,
         attachment: SocketAttachment,
         sendReady: boolean,
+        shared?: DeliveryCache,
     ): void {
         try { this.assertReplayCompatible(attachment.logId, attachment.replayVersion ?? 0); }
         catch {
@@ -1661,8 +1773,9 @@ export class LedgerApp extends DurableObject<Env> {
             ws.close(1008, "client upgrade required");
             return;
         }
-        const head = this.logHead(attachment.logId);
-        const archived = this.ctx.storage.sql.exec<{ archived_through: number }>('SELECT archived_through FROM log_storage WHERE log_id = ?', attachment.logId).toArray()[0]?.archived_through ?? 0;
+        const head = shared?.head ?? this.logHead(attachment.logId);
+        const archived = shared?.archived ?? this.ctx.storage.sql.exec<{ archived_through: number }>('SELECT archived_through FROM log_storage WHERE log_id = ?', attachment.logId).toArray()[0]?.archived_through ?? 0;
+        if (shared) { shared.head = head; shared.archived = archived; }
         if (attachment.cursor < archived) {
             this.sendFrame(ws, { type: 'resync_required', headVersion: head, reason: 'gap_too_large' });
             ws.close(1008, 'baseline resync required');
@@ -1686,18 +1799,19 @@ export class LedgerApp extends DurableObject<Env> {
             ws.close(1008, "resync required");
             return;
         }
-        for (const event of this.eventsAfter(
-            attachment.logId,
-            attachment.cursor,
-            MAX_CATCH_UP,
-        )) {
-            this.sendFrame(ws, { type: "event", event });
-            attachment.cursor = event.version;
-            attachment.lastSentAt = new Date().toISOString();
-            ws.serializeAttachment(attachment);
+        // Sockets at the same cursor share one read and one serialization of their frames.
+        let frames = shared?.pages.get(attachment.cursor);
+        if (!frames) {
+            frames = this.eventsAfter(attachment.logId, attachment.cursor, MAX_CATCH_UP)
+                .map((event) => ({ version: event.version, text: JSON.stringify({ type: "event", event } satisfies SocketFrame) }));
+            shared?.pages.set(attachment.cursor, frames);
         }
-        if (sendReady) {
-            this.sendFrame(ws, { type: "ready", headVersion: head });
+        for (const frame of frames) {
+            ws.send(frame.text);
+            attachment.cursor = frame.version;
+        }
+        if (sendReady) this.sendFrame(ws, { type: "ready", headVersion: head });
+        if (frames.length > 0 || sendReady) {
             attachment.lastSentAt = new Date().toISOString();
             ws.serializeAttachment(attachment);
         }
@@ -1705,6 +1819,7 @@ export class LedgerApp extends DurableObject<Env> {
 
     private deliver(logId: string): void {
         const metadata = this.metadata();
+        const shared: DeliveryCache = { pages: new Map() };
         for (const ws of this.ctx.getWebSockets(socketTag(logId))) {
             let attachment: SocketAttachment;
             try {
@@ -1722,7 +1837,7 @@ export class LedgerApp extends DurableObject<Env> {
                 continue;
             }
             try {
-                this.sendCatchUp(ws, attachment, false);
+                this.sendCatchUp(ws, attachment, false, shared);
             } catch (cause) {
                 console.error(
                     JSON.stringify({
@@ -2028,6 +2143,22 @@ export class LedgerApp extends DurableObject<Env> {
         return events.map(event => ({ ...event, payload: byId.get(event.id)!.payload as StoredEvent['payload'] }));
     }
 
+    private eventRowsAfter(logId: string, after: number, limit: number): Array<EventRow & { archive_key: string | null }> {
+        return this.ctx.storage.sql
+            .exec<EventRow & { archive_key: string | null }>(
+                `SELECT version, event_id, event_type, entity_id, entity_version,
+                        event_timestamp, payload, action_id, action_index, action_size, actor, archive_key
+                 FROM log_events
+                 WHERE log_id = ? AND version > ?
+                 ORDER BY version
+                 LIMIT ?`,
+                logId,
+                Math.max(0, after),
+                clamp(limit, 1, MAX_CATCH_UP),
+            )
+            .toArray();
+    }
+
     private eventsAfter(
         logId: string,
         after: number,
@@ -2134,6 +2265,14 @@ export class LedgerApp extends DurableObject<Env> {
             ws.close(code, reason);
         }
     }
+}
+
+/** A stored event as JSON text, its payload spliced in from storage unparsed (it was written by JSON.stringify). */
+function storedEventText(row: EventRow): string {
+    if (!row.payload.startsWith("{")) throw new Error("invalid stored event payload");
+    const { payload: _payload, ...envelope } = storedEvent({ ...row, payload: "{}" });
+    const head = JSON.stringify(envelope);
+    return `${head.slice(0, -1)},"payload":${row.payload}}`;
 }
 
 function storedEvent(row: EventRow): StoredEvent {

@@ -2,7 +2,20 @@ import { sql, type RawBuilder } from 'kysely';
 import type { ReadModelSession } from './read-session.js';
 import { ENTITY_DEFINITIONS } from '@hearthlog/contracts/event/entity-definitions';
 import { FEATURES } from '@hearthlog/contracts/features/registry';
-import type { ForkReview, HistoryEntry, HistoryItem, HistoryListOptions, HistoryPoint, HistoryRecord } from '../history/contracts.js';
+import type {
+    ForkReview,
+    HistoryCursor,
+    HistoryEntry,
+    HistoryFold,
+    HistoryItem,
+    HistoryListOptions,
+    HistoryLocation,
+    HistoryPoint,
+    HistoryRecord,
+    HistoryTimelineOptions,
+    HistoryTimelinePage,
+    HistoryTimelineRow,
+} from '../history/contracts.js';
 import {
     ensureHistoryIndex,
     historyEventLabel,
@@ -16,6 +29,24 @@ import { withTimeout } from '../utils/async.js';
 const featureKeys = sql.join([...new Set(['~', ...FEATURES.map((feature) => feature.id), ...ENTITY_DEFINITIONS.map((entity) => entity.feature)])]
     .map((feature) => sql`(${feature})`));
 const order = sql`action.pending DESC, action.position DESC, action.id DESC`;
+/** The newest actions always list one by one; older history folds into months once the log holds more than this. */
+const UNFOLDED_ACTIONS = 300;
+const UNFOLDED_DAYS = 14;
+/** At most this many points on the log map; a busier span draws slices of time instead. */
+const MAP_POINTS = 400;
+const MAP_SLICES = 240;
+
+/** Rows at or after a cursor (`>=`), or strictly after it in list order (`<`, the next page). */
+function cursorFilter(cursor: HistoryCursor, inclusive: boolean): RawBuilder<unknown> {
+    return inclusive
+        ? sql`(action.pending > ${cursor.pending} OR (action.pending = ${cursor.pending} AND action.run_start >= ${cursor.run}))`
+        : sql`(action.pending < ${cursor.pending} OR (action.pending = ${cursor.pending} AND action.run_start < ${cursor.run}))`;
+}
+
+function startOfDay(timestamp: number): number {
+    const date = new Date(timestamp);
+    return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+}
 
 /**
  * Log history reads. Actions come from the action index (`history/action-index.ts`), built on first use and kept
@@ -55,8 +86,10 @@ export function createHistoryRepository(session: ReadModelSession) {
         return withTimeout(session.execute(query), 15_000, 'History could not be loaded. Try again.');
     }
 
-    function listFilter(options: HistoryListOptions, search: string, feature: string): RawBuilder<unknown> {
+    function listFilter(options: HistoryListOptions & Pick<HistoryTimelineOptions, 'since' | 'until'>, search: string, feature: string): RawBuilder<unknown> {
         const filters = [scoped, sql`action.visible = 1`];
+        if (options.since != null) filters.push(sql`action.timestamp >= ${options.since}`);
+        if (options.until != null) filters.push(sql`action.timestamp < ${options.until}`);
         if (feature) filters.push(sql`instr(action.features, ${`,${feature},`}) > 0`);
         if (search) {
             filters.push(options.searchValues
@@ -85,7 +118,124 @@ export function createHistoryRepository(session: ReadModelSession) {
         return rows[0]?.ahead ?? null;
     }
 
+    function timelineFilter(options: HistoryTimelineOptions): RawBuilder<unknown> {
+        const { search, feature, searchValues, since, until } = options;
+        return listFilter({ searchValues, since, until }, search?.trim().toLowerCase() ?? '', feature ?? '');
+    }
+
+    type TimelineSqlRow = Omit<HistoryTimelineRow, 'copied'> & { copied: number };
+    function timelineRows(rows: TimelineSqlRow[]): HistoryTimelineRow[] {
+        return rows.map((row) => ({ ...row, kind: 'action', copied: Boolean(row.copied), startsDay: false, total: 0 }));
+    }
+    const copied = (sourceVersion: number | null | undefined) =>
+        sql`CASE WHEN action.version IS NOT NULL AND action.version <= ${sourceVersion ?? -1} THEN 1 ELSE 0 END AS copied`;
+
     return {
+        /**
+         * One page of the timeline, newest first, a burst of similar actions as one row (its newest action). Pages by
+         * cursor through the index in burst order, so a page costs what it shows wherever it is in the log.
+         */
+        async timeline(options: HistoryTimelineOptions = {}): Promise<HistoryTimelinePage> {
+            const limit = Math.max(1, options.limit ?? 60);
+            const filters = [timelineFilter(options)];
+            if (options.before) filters.push(cursorFilter(options.before, false));
+            if (options.through) filters.push(cursorFilter(options.through, true));
+            const where = sql.join(filters, sql` AND `);
+            const take = options.through ? 100_000 : limit + 1;
+            const { rows } = await execute<TimelineSqlRow>(sql`
+                WITH ${blocked},
+                runs AS (
+                    SELECT action.pending AS run_pending, action.run_start AS run, COUNT(*) AS run_count,
+                        MAX(action.position) AS top_position, MIN(action.timestamp) AS run_from
+                    FROM main.history_actions AS action WHERE ${where}
+                    GROUP BY action.pending, action.run_start
+                    ORDER BY action.pending DESC, action.run_start DESC LIMIT ${take}
+                )
+                SELECT ${entry}, ${copied(options.sourceVersion)}, runs.run AS runStart, runs.run_count AS runCount,
+                    runs.run_from AS runFrom
+                FROM runs
+                JOIN main.history_actions AS action ON ${scoped} AND action.visible = 1
+                    AND action.pending = runs.run_pending AND action.position = runs.top_position
+                LEFT JOIN blocked ON blocked.group_id = action.group_id
+                ORDER BY runs.run_pending DESC, runs.run DESC`);
+            const page = timelineRows(rows);
+            if (options.through) {
+                const last = page.at(-1);
+                return { rows: page, next: last ? { pending: last.pending, run: last.runStart } : null };
+            }
+            const more = page.length > limit;
+            if (more) page.length = limit;
+            const last = page.at(-1);
+            return { rows: page, next: more && last ? { pending: last.pending, run: last.runStart } : null };
+        },
+        /** The actions of one burst, newest first; `before` is the position to continue below. */
+        async members(run: HistoryCursor, options: HistoryTimelineOptions & { beforePosition?: number | null } = {}): Promise<{ rows: HistoryTimelineRow[]; next: number | null }> {
+            const limit = Math.max(1, options.limit ?? 60);
+            const { rows } = await execute<TimelineSqlRow>(sql`WITH ${blocked}
+                SELECT ${entry}, ${copied(options.sourceVersion)}, action.run_start AS runStart, 1 AS runCount, action.timestamp AS runFrom
+                FROM ${actions}
+                WHERE ${timelineFilter(options)} AND action.pending = ${run.pending} AND action.run_start = ${run.run}
+                  ${options.beforePosition != null ? sql`AND action.position < ${options.beforePosition}` : sql``}
+                ORDER BY action.position DESC LIMIT ${limit + 1}`);
+            const page = timelineRows(rows);
+            const more = page.length > limit;
+            if (more) page.length = limit;
+            const last = rows[Math.min(rows.length, limit) - 1] as (TimelineSqlRow & { position: number }) | undefined;
+            return { rows: page, next: more && last ? last.position : null };
+        },
+        /** How many listed actions lie below a row; unchanged unless older history itself changed. */
+        async countBelow(cursor: HistoryCursor, options: HistoryTimelineOptions = {}): Promise<number> {
+            const { rows } = await execute<{ count: number }>(sql`SELECT COUNT(*) AS count FROM main.history_actions AS action
+                WHERE ${timelineFilter(options)} AND ${cursorFilter(cursor, false)}`);
+            return Number(rows[0]?.count ?? 0);
+        },
+        /**
+         * Where older history starts folding into months: before the newest ${UNFOLDED_DAYS} days and the newest
+         * ${UNFOLDED_ACTIONS} actions, whichever reaches further back. Null while the log is small enough to list whole.
+         */
+        async foldStart(): Promise<number | null> {
+            const { rows } = await execute<{ total: number; newest: number | null; nth: number | null }>(sql`
+                SELECT (SELECT COUNT(*) FROM main.history_actions AS action WHERE ${scoped} AND action.visible = 1) AS total,
+                    (SELECT MAX(action.timestamp) FROM main.history_actions AS action WHERE ${scoped} AND action.visible = 1) AS newest,
+                    (SELECT action.timestamp FROM main.history_actions AS action WHERE ${scoped} AND action.visible = 1
+                        ORDER BY action.timestamp DESC LIMIT 1 OFFSET ${UNFOLDED_ACTIONS - 1}) AS nth`);
+            const row = rows[0];
+            if (!row || Number(row.total) <= UNFOLDED_ACTIONS + 100 || row.newest === null || row.nth === null) return null;
+            const recent = new Date(row.newest);
+            recent.setDate(recent.getDate() - (UNFOLDED_DAYS - 1));
+            return Math.min(startOfDay(recent.getTime()), startOfDay(row.nth));
+        },
+        /** Older history by month, or by day within a span, newest first, aggregated from the index. */
+        async folds(unit: 'month' | 'day', span: { since?: number | null; until: number }): Promise<HistoryFold[]> {
+            const format = unit === 'month' ? '%Y-%m' : '%Y-%m-%d';
+            const { rows } = await execute<{ key: string; count: number; from: number; to: number; features: string;
+                firstVersion: number | null; lastVersion: number | null }>(sql`
+                WITH grouped AS (
+                    SELECT strftime(${format}, action.timestamp / 1000, 'unixepoch', 'localtime') AS key, action.feature,
+                        COUNT(*) AS count, MIN(action.timestamp) AS first_at, MAX(action.timestamp) AS last_at,
+                        MIN(action.first_version) AS first_version, MAX(action.version) AS last_version
+                    FROM main.history_actions AS action
+                    WHERE ${scoped} AND action.visible = 1 AND action.timestamp < ${span.until}
+                      ${span.since != null ? sql`AND action.timestamp >= ${span.since}` : sql``}
+                    GROUP BY 1, 2
+                )
+                SELECT key, SUM(count) AS count, MIN(first_at) AS "from", MAX(last_at) AS "to",
+                    MIN(first_version) AS firstVersion, MAX(last_version) AS lastVersion,
+                    (SELECT json_group_array(feature) FROM (SELECT feature FROM grouped AS inner_group
+                        WHERE inner_group.key = grouped.key AND feature IS NOT NULL ORDER BY count DESC, feature LIMIT 4)) AS features
+                FROM grouped GROUP BY key ORDER BY key DESC`);
+            return rows.map((row) => ({ ...row, count: Number(row.count), features: JSON.parse(row.features) as string[] }));
+        },
+        /** Where an action sits, to bring it into view. */
+        async locate(id: string): Promise<HistoryLocation | null> {
+            const { rows } = await execute<HistoryLocation>(sql`
+                SELECT action.id, action.timestamp, action.pending, action.run_start AS runStart,
+                    (SELECT top.id FROM main.history_actions AS top WHERE top.tenant_id = action.tenant_id
+                        AND top.log_id = action.log_id AND top.visible = 1 AND top.pending = action.pending
+                        AND top.run_start = action.run_start ORDER BY top.position DESC LIMIT 1) AS runTop
+                FROM main.history_actions AS action WHERE ${scoped} AND action.visible = 1 AND action.id = ${id}`);
+            return rows[0] ?? null;
+        },
         async changes(entry: HistoryEntry): Promise<HistoryRecord[]> {
             if (entry.status !== 'ready' || entry.version === null) throw new Error('Choose a complete synced action.');
             const { readActionChanges } = await import('../history/point-snapshot.js');
@@ -156,13 +306,30 @@ export function createHistoryRepository(session: ReadModelSession) {
                 ORDER BY action.timestamp DESC LIMIT 1`);
             return rows[0]?.newest ?? null;
         },
-        /** Actions within a time span, newest first, for the log map's points. */
-        async points(since: number, until: number, limit = 3000): Promise<HistoryPoint[]> {
-            const { rows } = await execute<HistoryPoint>(sql`SELECT action.id, action.label, action.timestamp, action.version
-                FROM main.history_actions AS action
-                WHERE ${scoped} AND action.visible = 1 AND action.timestamp >= ${since} AND action.timestamp <= ${until}
-                ORDER BY action.timestamp DESC, action.id DESC LIMIT ${limit}`);
-            return rows;
+        /**
+         * Actions within a time span, newest first, for the log map's points. A span with more than ${MAP_POINTS}
+         * draws one point per slice of time instead (its newest action, with how many it stands for), kept apart on
+         * either side of `splitAt` so copied and own actions stay on their lines.
+         */
+        async points(since: number, until: number, splitAt: number | null = null): Promise<HistoryPoint[]> {
+            const span = sql`${scoped} AND action.visible = 1 AND action.timestamp >= ${since} AND action.timestamp <= ${until}`;
+            const { rows: [counted] } = await execute<{ count: number }>(sql`SELECT COUNT(*) AS count
+                FROM main.history_actions AS action WHERE ${span}`);
+            if (Number(counted?.count ?? 0) <= MAP_POINTS) {
+                const { rows } = await execute<HistoryPoint>(sql`SELECT action.id, action.label, action.timestamp, action.version
+                    FROM main.history_actions AS action WHERE ${span}
+                    ORDER BY action.timestamp DESC, action.id DESC`);
+                return rows;
+            }
+            const width = Math.max(1, (until - since) / MAP_SLICES);
+            // With one MAX() aggregate SQLite takes the other columns from the row holding the maximum.
+            const { rows } = await execute<HistoryPoint>(sql`SELECT action.id, action.label, MAX(action.timestamp) AS timestamp,
+                    action.version, COUNT(*) AS count
+                FROM main.history_actions AS action WHERE ${span}
+                GROUP BY CAST((action.timestamp - ${since}) / ${width} AS INTEGER),
+                    COALESCE(action.version, ${Number.MAX_SAFE_INTEGER}) <= ${splitAt ?? -1}
+                ORDER BY timestamp DESC`);
+            return rows.map((row) => ({ ...row, count: Number(row.count) }));
         },
         async get(selection: { id?: string; version?: number }): Promise<HistoryEntry | null> {
             const { rows } = await execute<HistoryEntry>(sql`WITH ${blocked}

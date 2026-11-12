@@ -43,6 +43,7 @@ export const eventPolicyBody = t.Object(
         contracts: t.Union([t.Array(t.String({ pattern: "^(core|[a-z0-9]+(\\.[a-z0-9-]+)+)$" }), { maxItems: 64 }), t.Null()]),
         dynamicEvents: t.Boolean(),
         validation: t.Union([t.Literal("report"), t.Literal("enforce"), t.Null()]),
+        autoSnapshots: t.Optional(t.Boolean()),
     },
     strictObject,
 );
@@ -270,6 +271,15 @@ export const appendEventsBody = t.Object(
         actionId: t.Optional(uuid("actionId")),
         expectedLogVersion: t.Optional(t.Integer({ minimum: 0 })),
         events: t.Array(incomingEvent, { maxItems: 512 }),
+    },
+    strictObject,
+);
+
+/** Several append requests in one round trip, applied in order; each keeps its own request id and receipt. */
+export const MAX_APPEND_BATCH_REQUESTS = 64;
+export const appendBatchBody = t.Object(
+    {
+        requests: t.Array(appendEventsBody, { minItems: 1, maxItems: MAX_APPEND_BATCH_REQUESTS }),
     },
     strictObject,
 );

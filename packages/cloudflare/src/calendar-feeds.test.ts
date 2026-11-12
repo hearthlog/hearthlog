@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { feedTokenKey, hashFeedToken, parseFeedPointer } from '@hearthlog/contracts/calendar/feed-contract';
 import {
+    buildCheckpointEvents,
+    checkpointDigest,
+    type CheckpointChunk,
+    type CheckpointEvent,
+    type CheckpointManifest,
+} from '@hearthlog/contracts/history/checkpoint';
+import {
     handleCalendarFeedManagementRequest,
     renderCalendarFeed,
     type CalendarFeedEnv,
@@ -74,6 +81,92 @@ function renderEnv(store = bucket(), overrides: Partial<CalendarFeedRenderEnv> =
         ...overrides,
     } as unknown as CalendarFeedRenderEnv;
 }
+
+/** A Ledger serving `history`, optionally with a verified snapshot through `through`; records each events read. */
+async function snapshotLedger(history: CheckpointEvent[], through: number | null) {
+    const reads: number[] = [];
+    const head = history.length;
+    let manifest: CheckpointManifest | null = null;
+    let chunk: CheckpointChunk | null = null;
+    if (through !== null) {
+        chunk = { events: buildCheckpointEvents(history.filter((event) => event.version <= through), through), claims: [] };
+        const text = JSON.stringify(chunk);
+        const pages = [{ key: 'p0', sha256: await checkpointDigest(text), count: chunk.events.length, bytes: text.length }];
+        manifest = { format: 1, appId: APP, logId: LOG, id: 'checkpoint', throughVersion: through, createdAt: '2026-11-01T00:00:00Z',
+            pages, eventCount: chunk.events.length, sourceEventCount: through, sha256: await checkpointDigest(JSON.stringify(pages)) };
+    }
+    return {
+        reads,
+        fetch: async (request: Request) => {
+            const url = new URL(request.url);
+            if (url.pathname === '/session') return Response.json({ appId: APP, capabilities: manifest ? ['snapshot-baseline-v1'] : [] });
+            if (url.pathname === `/logs/${LOG}`) return Response.json({ id: LOG, name: 'Home', headVersion: head });
+            if (url.pathname === `/logs/${LOG}/maintenance`) return Response.json({ checkpoint: manifest });
+            if (url.pathname === `/logs/${LOG}/checkpoint`) return Response.json(chunk);
+            if (url.pathname === `/logs/${LOG}/events`) {
+                const after = Number(url.searchParams.get('afterVersion'));
+                reads.push(after);
+                return Response.json({ events: history.filter((event) => event.version > after) });
+            }
+            return new Response('{}', { status: 404 });
+        },
+    };
+}
+
+function calendarHistory(): CheckpointEvent[] {
+    const ids = ['11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222', '33333333-3333-4333-8333-333333333333'];
+    const facts: Array<[number, string, Record<string, unknown>]> = [
+        [0, 'CALENDAR_EVENT_ADDED', { title: 'Dentist', eventDate: today, startTime: '09:30', notes: '' }],
+        [1, 'CALENDAR_EVENT_ADDED', { title: 'Gym', eventDate: today, startTime: '18:00', notes: '' }],
+        [0, 'CALENDAR_EVENT_UPDATED', { title: 'Dentist (moved)', startTime: '10:00' }],
+        [2, 'CALENDAR_EVENT_ADDED', { title: 'Dinner', eventDate: today, startTime: '20:00', notes: '' }],
+        [1, 'CALENDAR_EVENT_REMOVED', {}],
+        [2, 'CALENDAR_EVENT_UPDATED', { title: 'Dinner with Ana' }],
+        [0, 'CALENDAR_EVENT_UPDATED', { notes: 'bring card' }],
+        [2, 'CALENDAR_EVENT_UPDATED', { startTime: '19:30' }],
+    ];
+    const versions = new Map<string, number>();
+    const records = new Map<string, Record<string, unknown>>();
+    return facts.map(([index, type, fields], position) => {
+        const id = ids[index]!;
+        const entityVersion = (versions.get(id) ?? 0) + 1;
+        versions.set(id, entityVersion);
+        // Saves carry the whole record, as the app sends them.
+        const payload = type.endsWith('_REMOVED') ? { id } : { ...records.get(id), id, ...fields };
+        records.set(id, payload);
+        return { id: `e${position + 1}`, version: position + 1, type, entityId: `calendar_event:${id}`, entityVersion,
+            timestamp: position + 1, payload };
+    });
+}
+
+async function renderWith(fetcher: { fetch: (request: Request) => Promise<Response> }) {
+    const store = bucket();
+    await seed(store);
+    return (await renderCalendarFeed(TOKEN, false, renderEnv(store, { LEDGER: fetcher as never }))).body;
+}
+
+describe('rendering a feed from a snapshot', () => {
+    it('folds the snapshot plus the events after it into the same calendar as the whole log', async () => {
+        const history = calendarHistory();
+        const full = await snapshotLedger(history, null);
+        const expected = await renderWith(full);
+        expect(expected).toContain('Dinner with Ana');
+        expect(full.reads).toEqual([0]);
+        const snapshot = await snapshotLedger(history, 5);
+        expect(await renderWith(snapshot)).toBe(expected);
+        expect(snapshot.reads).toEqual([5]);
+    });
+
+    it('reads the whole log when an undo after the snapshot reaches back into it', async () => {
+        const history = calendarHistory();
+        history.push({ id: 'e9', version: 9, type: 'EVENT_TOMBSTONED', entityId: 'calendar_event:11111111-1111-4111-8111-111111111111',
+            entityVersion: 5, timestamp: 9, payload: { eventId: 'e3' } });
+        const expected = await renderWith(await snapshotLedger(history, null));
+        const snapshot = await snapshotLedger(history, 5);
+        expect(await renderWith(snapshot)).toBe(expected);
+        expect(snapshot.reads).toEqual([5, 0]);
+    });
+});
 
 describe('rendering a feed', () => {
     it('names events after the site, never the host that serves the feed', async () => {

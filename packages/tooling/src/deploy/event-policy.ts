@@ -12,12 +12,15 @@ export interface EventPolicy {
     contracts: string[];
     dynamicEvents: boolean;
     validation: "enforce";
+    /** Sent only when on, so Ledgers that predate automatic snapshots still take the policy. */
+    autoSnapshots?: true;
 }
 
-export function siteEventPolicy(site: Pick<ResolvedSite, "features" | "dynamicEntities">): EventPolicy {
+export function siteEventPolicy(site: Pick<ResolvedSite, "features" | "dynamicEntities"> & { autoSnapshots?: boolean }): EventPolicy {
     return {
         contracts: modulesForFeatures(loadModules(), site.features).map(({ manifest }) => manifest.id).sort(),
         dynamicEvents: site.dynamicEntities,
         validation: "enforce",
+        ...(site.autoSnapshots ? { autoSnapshots: true as const } : {}),
     };
 }

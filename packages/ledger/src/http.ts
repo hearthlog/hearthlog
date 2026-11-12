@@ -23,6 +23,7 @@ import type { RpcResult } from "./rpc";
 import {
     apiModels,
     appendEventsBody,
+    appendBatchBody,
     applicationParams,
     createApplicationBody,
     createLogBody,
@@ -516,8 +517,8 @@ const app = new Elysia({
             .get(
                 "/logs/:logId/events",
                 async ({ access, params, query, request }) =>
-                    rpcResponse(
-                        await ledger(access).listEvents(
+                    textResponse(
+                        await ledger(access).listEventsText(
                             access,
                             params.logId,
                             query.afterVersion,
@@ -531,6 +532,21 @@ const app = new Elysia({
                     query: eventsQuery,
                     response: { 200: "EventBatchResponse" },
                 },
+            )
+            .post(
+                "/logs/:logId/appends",
+                async ({ access, body, params, request }) =>
+                    rpcResponse(
+                        await ledger(access).appendEventBatches(
+                            access,
+                            params.logId,
+                            body,
+                            Number(request.headers.get("X-Ledger-Replay-Version") ?? 0),
+                            request.headers.get("X-Ledger-Actor"),
+                        ),
+                        requestOrigin(request),
+                    ),
+                { body: appendBatchBody, params: logParams },
             )
             .post(
                 "/logs/:logId/events",
@@ -640,6 +656,15 @@ function rpcResponse<T>(result: RpcResult<T>, origin: string | null): Response {
         response.headers.set("Retry-After", String(RETRY_AFTER_SECONDS));
     }
     return withCors(response, origin);
+}
+
+/** A successful body that is already JSON text (an event page) goes out as it is. */
+function textResponse(result: RpcResult<string>, origin: string | null): Response {
+    if (!result.ok) return rpcResponse(result, origin);
+    return withCors(new Response(result.body, {
+        status: result.status,
+        headers: { "Content-Type": "application/json" },
+    }), origin);
 }
 
 function preflight(origin: string | null): Response {

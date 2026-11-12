@@ -5,9 +5,9 @@ import { verifyAccess } from "../src/auth";
 import { MAX_ATTEMPTS } from "../src/log-maintenance";
 import type { RpcResult, RpcSuccess } from "../src/rpc";
 
-async function provision(label: string) {
+async function provision(label: string, autoSnapshots = false) {
     const result = await env.APP_REGISTRY.getByName("registry-v1").createApplication({
-        name: `${label}-${crypto.randomUUID()}`, policy: { contracts: null, dynamicEvents: true, validation: null },
+        name: `${label}-${crypto.randomUUID()}`, policy: { contracts: null, dynamicEvents: true, validation: null, autoSnapshots },
     });
     expectSuccess(result);
     return { appId: result.body.app.id, claims: await verifyAccess(env, result.body.token) };
@@ -18,8 +18,8 @@ function expectSuccess<T>(result: RpcResult<T>): asserts result is RpcSuccess<T>
 }
 
 /** A log with `entities` records edited `edits` times each, one append per edit round. */
-async function seedLog(label: string, entities: number, edits: number) {
-    const app = await provision(label);
+async function seedLog(label: string, entities: number, edits: number, autoSnapshots = false) {
+    const app = await provision(label, autoSnapshots);
     const stub = env.LEDGER_APP.getByName(app.appId);
     const created = await stub.createLog(app.claims, { name: label });
     expectSuccess(created);
@@ -75,6 +75,29 @@ describe("server-driven log maintenance", () => {
         const compacted = await stub.logMaintenance(app.claims, logId);
         expectSuccess(compacted);
         expect(compacted.body).toMatchObject({ compactedThroughVersion: 720 });
+    });
+
+    it("starts a snapshot by itself once the log grows past the threshold, only when the policy allows it", async () => {
+        // The test deployment sets AUTO_SNAPSHOT_EVENTS to 500.
+        const { app, stub, logId, editAll } = await seedLog("auto-snapshot", 12, 41, true); // 492 events
+        const state = async () => {
+            const result = await stub.logMaintenance(app.claims, logId);
+            expectSuccess(result);
+            return result.body;
+        };
+        expect((await state()).job).toBeNull();
+        await editAll(41); // 504 events
+        const started = (await state()).job;
+        expect(started).toMatchObject({ kind: "snapshot", throughVersion: 504 });
+        expect(await alarmsUntilDone(stub, async () => (await state()).job)).toBe("complete");
+        expect((await state()).checkpoint).toMatchObject({ throughVersion: 504 });
+        await editAll(42); // 12 past the snapshot: nothing new
+        expect((await state()).job?.id).toBe(started!.id);
+
+        const off = await seedLog("auto-snapshot-off", 12, 43); // 516 events, policy off
+        const offState = await off.stub.logMaintenance(off.app.claims, off.logId);
+        expectSuccess(offState);
+        expect(offState.body.job).toBeNull();
     });
 
     it("keeps snapshot writes per step, not per entity, and archives with about one write per event", async () => {

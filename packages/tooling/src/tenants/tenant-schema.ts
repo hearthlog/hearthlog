@@ -136,6 +136,10 @@ export function buildTenantSchema(): Record<string, unknown> {
                             },
                         },
                         dynamicEntities: { type: "boolean" },
+                        autoSnapshots: {
+                            type: "boolean",
+                            description: "Let Ledger snapshot this site's logs by itself as they grow; turn on after one manual snapshot. Applied with ensure:tenant --apply-policy.",
+                        },
                         theme: {
                             type: "object",
                             additionalProperties: false,
