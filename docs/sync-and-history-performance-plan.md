@@ -1,6 +1,7 @@
 # Sync and history performance plan
 
-Status: proposed. Nothing in this plan is implemented, measured, published, or deployed.
+Status: deliveries 0–3 released in core 0.13.7 and deployed to JST; deliveries 4–7 implemented on `perf/deliveries-4-7`,
+not released or deployed. Budgets after delivery 1 were not measured (the machine was not fit for benchmarks).
 
 Date: 2026-11-10.
 
@@ -276,10 +277,10 @@ was added after the baseline: small fixes with the largest measured effect, ahea
 | 1b | H1 (action index, reads on it) and H2 (targeted diff, no implicit archive load). | Runtime, shell | Implemented 2026-11-11 (`68aadd0`); equivalence tests pass. Measured once on the 50k log: a page in 6–7 ms, lookups 1–2 ms; first index build 37 s before it moved to the background, not re-measured. |
 | 2 | S1 (ingestion) and S2 (save path). | Runtime | Implemented 2026-11-11 (`2bbdc56`); convergence suite passes with a new acknowledgement case. Budgets not measured. |
 | 3 | S5.2, S5.3 (device pruning and indexes) and S6 (switch and fork seeding). | Runtime, shell | Implemented 2026-11-11 (`0177807`); a seeded fork equals the download row for row in tests. Budgets not measured. |
-| 4 | S4 (read path) and S5.1 (receipt copy). | Ledger, then runtime for S4.3 | Byte-identical event pages against the current route on fixtures; Ledger worker suite passes. |
-| 5 | S3 (batched appends). | Ledger first, runtime after the capability is live | Lost-response and mid-batch-failure tests pass; old clients unaffected. |
-| 6 | H3 (view mockups), then H4 (the approved view). | Shell | Feedback on mockups; browser journey passes. |
-| 7 | S7 (automatic snapshots, calendar feed). | Ledger, cloudflare, tooling | One manual snapshot observed per site before its switch is turned on. |
+| 4 | S4 (read path) and S5.1 (receipt copy). | Ledger, then runtime for S4.3 | Implemented 2026-11-12 (`99d235f`): text pages equal object pages in the contract test; receipts store `{}` and replay. A caught-up device checks maintenance at most hourly. |
+| 5 | S3 (batched appends). | Ledger first, runtime after the capability is live | Implemented 2026-11-12 (`2cc86fd`): `POST /appends` (≤ 64 requests, own receipts, stops at the first failure, replays); runtime drains ≤ 32 saves per request behind `append-batch-v1`. Ledger must deploy before the runtime uses it. |
+| 6 | H3 (view mockups), then H4 (the approved view). | Shell | H4 implemented 2026-11-12 (`bb0ccda`) without the mockup round and without a browser run: cursor pages, bursts, month/day folds, bucketed map, delta refresh. Not virtualised on `EndlessList`. Needs a look in the app before release. |
+| 7 | S7 (automatic snapshots, calendar feed). | Ledger, cloudflare, tooling | Implemented 2026-11-12 (`b3a0c8f`): policy `autoSnapshots` (off), `AUTO_SNAPSHOT_EVENTS` 5000; calendar feed folds checkpoint plus suffix. Switch stays off everywhere. |
 | 8 | S8 design note; H5 (record history, archived action listing) if wanted. | Docs; Ledger, runtime | Separate go-ahead for each. |
 
 Release order follows the existing rule: Ledger and gateway changes deploy before the runtime that uses them, and a
