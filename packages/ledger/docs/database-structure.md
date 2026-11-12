@@ -126,11 +126,11 @@ removing a photo event does not immediately delete recoverable original bytes.
 ### `append_requests`
 
 Stores `(request_id, log_id)`, a canonical request hash, the first and last log
-version the request accepted, a serialized copy of the successful response, and
-creation time. Exact retries rebuild the response from `log_events` through that
-version range, so they report the original author. Rows written before the range
-columns existed replay the validated stored copy. The copy keeps its
-pre-authorship shape (no `actor`) so a rolled-back Worker can still replay it.
+version the request accepted, and creation time. Exact retries rebuild the response
+from `log_events` through that version range, so they report the original author.
+Rows written before the range columns existed (migration 9) replay the validated
+copy of the response they stored in `result`; newer rows store `{}` there, since a
+full copy of every accepted event only doubled the log's size.
 Reusing a request ID with different content returns
 `409 idempotency_mismatch`. Because the response is one SQLite row, an append
 whose accepted events serialize to more than 1,900,000 bytes is rejected with

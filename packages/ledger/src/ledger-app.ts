@@ -112,6 +112,13 @@ interface LogRow extends Record<string, SqlStorageValue> {
     hidden_at: string | null;
 }
 
+/** What one delivery round shares between the sockets of a log. */
+interface DeliveryCache {
+    head?: number;
+    archived?: number;
+    pages: Map<number, Array<{ version: number; text: string }>>;
+}
+
 interface EventRow extends Record<string, SqlStorageValue> {
     version: number;
     event_id: string;
@@ -783,6 +790,32 @@ export class LedgerApp extends DurableObject<Env> {
         });
     }
 
+    /**
+     * The same page as listEvents, as the response's JSON text. Stored payloads are already JSON, so they are spliced
+     * in as they are instead of being parsed here, cloned through RPC and serialized again by the Worker. A page that
+     * reaches archived rows takes the object path, which reads their payloads from the archive.
+     */
+    async listEventsText(
+        access: AccessClaims,
+        logId: string,
+        afterVersion: number | undefined,
+        limit: number | undefined,
+        replayVersion = 0,
+    ): Promise<RpcResult<string>> {
+        return rpcCall(async () => {
+            this.currentAccess(access);
+            const id = parseUuid(logId, "logId");
+            this.assertReplayCompatible(id, replayVersion);
+            this.assertReadableLog(id);
+            const rows = this.eventRowsAfter(id, Math.max(0, afterVersion ?? 0), clamp(limit ?? MAX_CATCH_UP, 1, MAX_CATCH_UP));
+            const text = rows.some((row) => row.archive_key !== null)
+                ? JSON.stringify({ events: await this.hydrateEvents(id, rows.map(storedEvent)) })
+                : `{"events":[${rows.map(storedEventText).join(",")}]}`;
+            this.currentAccess(access);
+            return rpcSuccess(text);
+        });
+    }
+
     async appendEvents(
         access: AccessClaims,
         logId: string,
@@ -1247,11 +1280,7 @@ export class LedgerApp extends DurableObject<Env> {
         this.closeLogSockets(logId, 1008, "log_deleted");
     }
 
-    private getEventsValue(
-        logId: string,
-        afterVersion: number | undefined,
-        limit: number | undefined,
-    ): { events: StoredEvent[] } {
+    private assertReadableLog(logId: string): void {
         const log = this.log(logId);
         if (!log) {
             throw new LedgerError(404, {
@@ -1262,6 +1291,14 @@ export class LedgerApp extends DurableObject<Env> {
         if (log.status !== 'ready') throw new LedgerError(409, {
             error: 'Fork preparing', code: 'fork_preparing',
         });
+    }
+
+    private getEventsValue(
+        logId: string,
+        afterVersion: number | undefined,
+        limit: number | undefined,
+    ): { events: StoredEvent[] } {
+        this.assertReadableLog(logId);
         return {
             events: this.eventsAfter(
                 logId,
@@ -1465,11 +1502,9 @@ export class LedgerApp extends DurableObject<Env> {
             stored.push(event);
         }
 
-        // The idempotency record stores the whole response in one SQLite row.
-        // Reject what can never fit instead of failing inside the transaction.
+        // One append's accepted events must fit one response (and, for Workers before migration 9, one stored
+        // receipt row); reject what never could before writing anything.
         const response = { newVersion: logVersion, events: stored };
-        // The stored copy keeps the pre-authorship shape: a rolled-back Worker
-        // validates it strictly, and replays read log_events anyway.
         const result = JSON.stringify({
             newVersion: logVersion,
             events: stored.map(({ actor: _actor, ...event }) => event),
@@ -1546,9 +1581,9 @@ export class LedgerApp extends DurableObject<Env> {
             request.requestId,
             logId,
             requestHash,
-            // Still written so a rolled-back Worker can replay this request;
-            // replays read the version range.
-            result,
+            // Replays read the version range (stored since migration 9, which every deployable Worker has); a copy
+            // of every accepted event here only doubled the log's size.
+            "{}",
             new Date().toISOString(),
             stored[0]!.version,
             logVersion,
@@ -1654,6 +1689,7 @@ export class LedgerApp extends DurableObject<Env> {
         ws: WebSocket,
         attachment: SocketAttachment,
         sendReady: boolean,
+        shared?: DeliveryCache,
     ): void {
         try { this.assertReplayCompatible(attachment.logId, attachment.replayVersion ?? 0); }
         catch {
@@ -1661,8 +1697,9 @@ export class LedgerApp extends DurableObject<Env> {
             ws.close(1008, "client upgrade required");
             return;
         }
-        const head = this.logHead(attachment.logId);
-        const archived = this.ctx.storage.sql.exec<{ archived_through: number }>('SELECT archived_through FROM log_storage WHERE log_id = ?', attachment.logId).toArray()[0]?.archived_through ?? 0;
+        const head = shared?.head ?? this.logHead(attachment.logId);
+        const archived = shared?.archived ?? this.ctx.storage.sql.exec<{ archived_through: number }>('SELECT archived_through FROM log_storage WHERE log_id = ?', attachment.logId).toArray()[0]?.archived_through ?? 0;
+        if (shared) { shared.head = head; shared.archived = archived; }
         if (attachment.cursor < archived) {
             this.sendFrame(ws, { type: 'resync_required', headVersion: head, reason: 'gap_too_large' });
             ws.close(1008, 'baseline resync required');
@@ -1686,18 +1723,19 @@ export class LedgerApp extends DurableObject<Env> {
             ws.close(1008, "resync required");
             return;
         }
-        for (const event of this.eventsAfter(
-            attachment.logId,
-            attachment.cursor,
-            MAX_CATCH_UP,
-        )) {
-            this.sendFrame(ws, { type: "event", event });
-            attachment.cursor = event.version;
-            attachment.lastSentAt = new Date().toISOString();
-            ws.serializeAttachment(attachment);
+        // Sockets at the same cursor share one read and one serialization of their frames.
+        let frames = shared?.pages.get(attachment.cursor);
+        if (!frames) {
+            frames = this.eventsAfter(attachment.logId, attachment.cursor, MAX_CATCH_UP)
+                .map((event) => ({ version: event.version, text: JSON.stringify({ type: "event", event } satisfies SocketFrame) }));
+            shared?.pages.set(attachment.cursor, frames);
         }
-        if (sendReady) {
-            this.sendFrame(ws, { type: "ready", headVersion: head });
+        for (const frame of frames) {
+            ws.send(frame.text);
+            attachment.cursor = frame.version;
+        }
+        if (sendReady) this.sendFrame(ws, { type: "ready", headVersion: head });
+        if (frames.length > 0 || sendReady) {
             attachment.lastSentAt = new Date().toISOString();
             ws.serializeAttachment(attachment);
         }
@@ -1705,6 +1743,7 @@ export class LedgerApp extends DurableObject<Env> {
 
     private deliver(logId: string): void {
         const metadata = this.metadata();
+        const shared: DeliveryCache = { pages: new Map() };
         for (const ws of this.ctx.getWebSockets(socketTag(logId))) {
             let attachment: SocketAttachment;
             try {
@@ -1722,7 +1761,7 @@ export class LedgerApp extends DurableObject<Env> {
                 continue;
             }
             try {
-                this.sendCatchUp(ws, attachment, false);
+                this.sendCatchUp(ws, attachment, false, shared);
             } catch (cause) {
                 console.error(
                     JSON.stringify({
@@ -2028,6 +2067,22 @@ export class LedgerApp extends DurableObject<Env> {
         return events.map(event => ({ ...event, payload: byId.get(event.id)!.payload as StoredEvent['payload'] }));
     }
 
+    private eventRowsAfter(logId: string, after: number, limit: number): Array<EventRow & { archive_key: string | null }> {
+        return this.ctx.storage.sql
+            .exec<EventRow & { archive_key: string | null }>(
+                `SELECT version, event_id, event_type, entity_id, entity_version,
+                        event_timestamp, payload, action_id, action_index, action_size, actor, archive_key
+                 FROM log_events
+                 WHERE log_id = ? AND version > ?
+                 ORDER BY version
+                 LIMIT ?`,
+                logId,
+                Math.max(0, after),
+                clamp(limit, 1, MAX_CATCH_UP),
+            )
+            .toArray();
+    }
+
     private eventsAfter(
         logId: string,
         after: number,
@@ -2134,6 +2189,14 @@ export class LedgerApp extends DurableObject<Env> {
             ws.close(code, reason);
         }
     }
+}
+
+/** A stored event as JSON text, its payload spliced in from storage unparsed (it was written by JSON.stringify). */
+function storedEventText(row: EventRow): string {
+    if (!row.payload.startsWith("{")) throw new Error("invalid stored event payload");
+    const { payload: _payload, ...envelope } = storedEvent({ ...row, payload: "{}" });
+    const head = JSON.stringify(envelope);
+    return `${head.slice(0, -1)},"payload":${row.payload}}`;
 }
 
 function storedEvent(row: EventRow): StoredEvent {

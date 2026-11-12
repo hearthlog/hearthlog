@@ -536,12 +536,21 @@ async function localDirectivesBlockBaseline(context: { tenantId: string; logId: 
     return rows.length > 0 && await directivesReachBehind(context, through, rows);
 }
 
-async function download(): Promise<number> {
+/** Ledger's maintenance state (snapshots) changes rarely; ask for it at most this often per log. */
+const MAINTENANCE_CHECK_INTERVAL_MS = 60 * 60 * 1000;
+const maintenanceCheckedAt = new Map<string, number>();
+
+async function download(options: { checkMaintenance?: boolean } = {}): Promise<number> {
     return withTiming('sync', 'download', async () => {
         const logId = await ensureSelectedContext();
         const context = await requireActiveContext();
         let cursor = await getLocalHeadVersion();
-        const maintenance = await getLedgerClient().getLogMaintenance(logId);
+        // A new device, a socket sent back to HTTP (possibly below an archived prefix), or an hour since the last
+        // look: only then does a download ask whether a newer snapshot exists.
+        const due = options.checkMaintenance || cursor === 0
+            || Date.now() - (maintenanceCheckedAt.get(logId) ?? 0) >= MAINTENANCE_CHECK_INTERVAL_MS;
+        const maintenance = due ? await getLedgerClient().getLogMaintenance(logId) : null;
+        if (due) maintenanceCheckedAt.set(logId, Date.now());
         let installedBaseline = false;
         const checkpoint = maintenance?.checkpoint;
         // Adopt a newer snapshot even when this device is already caught up, so its accepted prefix shrinks to the
@@ -838,7 +847,7 @@ async function resynchronizeRealtime(
     const socket = eventSocket;
     socket?.pause();
     await addSyncLogEntry('ws_resync', `Resynchronizing through version ${headVersion}`, reason);
-    await download();
+    await download({ checkMaintenance: true });
     const localHead = await getLocalHeadVersion();
     socket?.resetAfterVersion(localHead);
     if (

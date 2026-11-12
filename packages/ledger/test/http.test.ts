@@ -778,11 +778,37 @@ describe("Ledger Durable Object RPC", () => {
         expectSuccess(replay);
         expect(replay.body).toEqual(firstBody);
 
+        // A second append with action metadata and an author, so every optional field appears in a page.
+        const second = await stub.appendEvents(application.claims, logId, {
+            requestId: crypto.randomUUID(),
+            actionId: crypto.randomUUID(),
+            events: [
+                { id: crypto.randomUUID(), type: "CONTRACT_UPDATED", entityId, baseEntityVersion: 1, payload: { text: "a \"quoted\" é", list: [1, 2.5, null] } },
+                { id: crypto.randomUUID(), type: "CONTRACT_UPDATED", entityId, baseEntityVersion: 2, payload: {} },
+            ],
+        }, 0, "author@example.com");
+        expectSuccess(second);
+
         const page = await stub.listEvents(application.claims, logId, 0, 512);
         expectSuccess(page);
         expect(page.body).toMatchObject({
-            events: [{ version: 1, entityVersion: 1 }],
+            events: [{ version: 1, entityVersion: 1 }, { version: 2, actor: "author@example.com" }, { version: 3 }],
         });
+        // The text page is the same page: payloads spliced in from storage read exactly as parsed ones.
+        const text = await stub.listEventsText(application.claims, logId, 0, 512);
+        expectSuccess(text);
+        expect(JSON.parse(text.body)).toEqual(page.body);
+        const tail = await stub.listEventsText(application.claims, logId, 1, 1);
+        expectSuccess(tail);
+        expect(JSON.parse(tail.body)).toEqual({ events: [page.body.events[1]] });
+
+        // Receipts keep only the version range; a retried append still answers with its original response.
+        const stored = await runInDurableObject(stub, async (_instance, state) =>
+            state.storage.sql.exec<{ result: string }>("SELECT result FROM append_requests WHERE request_id = ?", requestId).one().result);
+        expect(stored).toBe("{}");
+        const retried = await stub.appendEvents(application.claims, logId, { requestId, events: [event] });
+        expectSuccess(retried);
+        expect(retried.body).toEqual(firstBody);
 
         const mismatch = await stub.appendEvents(application.claims, logId, {
             requestId,
