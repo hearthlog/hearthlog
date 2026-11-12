@@ -30,6 +30,8 @@ export const LEDGER_BASE = {
         EVENT_VALIDATION: "report",
         MAINTENANCE_DAILY_WRITES: "10000",
         MAINTENANCE_DAILY_READS: "1000000",
+        // Applications whose policy turns on automatic snapshots get one once the log grows this far past the last.
+        AUTO_SNAPSHOT_EVENTS: "5000",
     },
     observability: {
         enabled: true,

@@ -260,6 +260,34 @@ export class LedgerApp extends DurableObject<Env> {
         if (!objects.truncated) this.ctx.storage.sql.exec('DELETE FROM log_archive_deletions WHERE log_id = ?', job.log_id);
     }
 
+    /**
+     * Start a snapshot job by itself when the application's policy allows it and the log has grown
+     * `AUTO_SNAPSHOT_EVENTS` (default 5,000) past its last verified snapshot. The job runs under the usual budgets and
+     * pauses; compaction stays manual. Best effort: an append never fails because of it. A job that failed is not
+     * retried for a day, so a log that cannot be snapshotted does not start one on every append.
+     */
+    private async considerAutoSnapshot(logId: string): Promise<void> {
+        try {
+            if (!this.env.LEDGER_ARCHIVE || this.eventPolicy()?.autoSnapshots !== true) return;
+            const threshold = Math.max(500, Math.min(1_000_000, Number(this.env.AUTO_SNAPSHOT_EVENTS) || 5000));
+            const head = this.log(logId)?.version ?? 0;
+            const store = this.maintenance(() => this.assertApplicationWritable());
+            const state = store.state(logId);
+            if (head - (state.checkpoint?.throughVersion ?? 0) < threshold) return;
+            const job = state.job;
+            if (job && job.status !== 'complete') {
+                if (job.status !== 'failed' || Date.now() - Date.parse(job.updatedAt) < 24 * 60 * 60 * 1000) return;
+            }
+            store.start(logId, crypto.randomUUID(), 'snapshot');
+            console.log(JSON.stringify({ event: 'ledger_auto_snapshot_started', logId, head, throughVersion: state.checkpoint?.throughVersion ?? 0 }));
+            await this.scheduleAlarm();
+        } catch (cause) {
+            // An unfinished action at the head, a job on another log of the same request, or a fence: try after a later append.
+            const error = normalizeError(cause);
+            if (!(error instanceof LedgerError)) console.error('ledger_auto_snapshot_failed', error.message);
+        }
+    }
+
     /** Run due maintenance steps for a few seconds, so a job finishes without any caller. */
     private async advanceMaintenance(): Promise<void> {
         if (this.metadataOptional() === undefined) return;
@@ -1393,6 +1421,7 @@ export class LedgerApp extends DurableObject<Env> {
         // The append is committed. Realtime delivery is best effort: sockets
         // recover through HTTP replay, and a delivery fault must never turn an
         // accepted append into an error response. A batch delivers once at its end.
+        await this.considerAutoSnapshot(logId);
         if (options.deliver === false) return response;
         try {
             this.deliver(logId);

@@ -43,6 +43,7 @@ export const eventPolicyBody = t.Object(
         contracts: t.Union([t.Array(t.String({ pattern: "^(core|[a-z0-9]+(\\.[a-z0-9-]+)+)$" }), { maxItems: 64 }), t.Null()]),
         dynamicEvents: t.Boolean(),
         validation: t.Union([t.Literal("report"), t.Literal("enforce"), t.Null()]),
+        autoSnapshots: t.Optional(t.Boolean()),
     },
     strictObject,
 );

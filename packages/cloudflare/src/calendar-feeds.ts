@@ -35,6 +35,7 @@ import {
     type FeedPointer,
     type RenderedFeed,
 } from "@hearthlog/contracts/calendar/feed-contract";
+import { readLedgerCheckpoint } from "./checkpoint-reader";
 import { LedgerScopeError, verifyLogAppId } from "./ledger-scope";
 import { readBodyCapped } from "./request-body";
 
@@ -48,8 +49,10 @@ const MAX_FUTURE_DAYS = 1825;
 const DEFAULT_PAST_DAYS = 183;
 const DEFAULT_FUTURE_DAYS = 548;
 const EVENT_PAGE_SIZE = 512;
-/** ~10k events; larger logs fall back to "too large" instead of stalling. */
+/** ~10k events; a log without a snapshot beyond this falls back to "too large" instead of stalling. */
 const MAX_EVENT_PAGES = 20;
+/** Events after a snapshot: generous, since automatic snapshots keep the suffix short; only a guard. */
+const MAX_SUFFIX_PAGES = 200;
 const FEED_TOUCH_INTERVAL_MS = 60 * 60 * 1000;
 
 const UUID_PATTERN =
@@ -345,7 +348,7 @@ export async function renderCalendarFeed(
         return icsFeed(await cached.text(), log.headVersion, headOnly);
     }
 
-    const events = await fetchAcceptedEvents(env, record.logId, log.headVersion);
+    const events = await fetchFeedEvents(env, record.appId, record.logId, log.headVersion);
     if (events === null) {
         return feedFailure(503, "ledger_unavailable", "The calendar is temporarily unavailable");
     }
@@ -394,18 +397,93 @@ async function fetchLog(env: CalendarFeedRenderEnv, logId: string): Promise<Ledg
 }
 
 /**
- * Fetch accepted events up to the head version, page by page. Returns
- * `"too-large"` when the log exceeds the page budget, and null on transport
- * failure.
+ * The events to fold: the log's verified snapshot plus the events after it when Ledger has one and nothing after it
+ * reaches back into it, else the whole log within the page budget. Folding either gives the same calendar.
+ */
+async function fetchFeedEvents(
+    env: CalendarFeedRenderEnv,
+    appId: string,
+    logId: string,
+    headVersion: number,
+): Promise<AcceptedCalendarEvent[] | "too-large" | null> {
+    const checkpoint = await readCheckpoint(env, appId, logId, headVersion);
+    if (checkpoint) {
+        const suffix = await fetchAcceptedEvents(env, logId, headVersion, checkpoint.throughVersion, MAX_SUFFIX_PAGES);
+        if (suffix === null) return null;
+        if (suffix !== "too-large" && staysAfter(suffix, checkpoint.throughVersion)) {
+            return [...checkpoint.events, ...suffix];
+        }
+    }
+    return fetchAcceptedEvents(env, logId, headVersion);
+}
+
+/** The verified snapshot as fold events; null when Ledger has none (or an older Ledger) or it cannot be read. */
+async function readCheckpoint(
+    env: CalendarFeedRenderEnv,
+    appId: string,
+    logId: string,
+    headVersion: number,
+): Promise<{ throughVersion: number; events: AcceptedCalendarEvent[] } | null> {
+    try {
+        const response = await env.LEDGER.fetch(ledgerRequest(env, "/session"));
+        if (!response.ok) return null;
+        const session = (await response.json()) as { capabilities?: unknown };
+        const capabilities = Array.isArray(session.capabilities)
+            ? session.capabilities.filter((value): value is string => typeof value === "string")
+            : [];
+        const checkpoint = await readLedgerCheckpoint(env, logId, headVersion, { appId, capabilities });
+        if (!checkpoint || checkpoint.throughVersion < 1) return null;
+        return {
+            throughVersion: checkpoint.throughVersion,
+            events: checkpoint.events.map(({ id, version, type, entityId, entityVersion, timestamp, payload }) => ({
+                id, version, type, entityId, entityVersion, timestamp, payload,
+            })),
+        };
+    } catch (error) {
+        // A snapshot that fails verification is never used; the full read still answers within its budget.
+        console.warn("calendar_feed_checkpoint_unavailable", error instanceof Error ? error.message : String(error));
+        return null;
+    }
+}
+
+/**
+ * Whether the events after a snapshot leave it whole: a restore must target a version after it, and a removal or undo
+ * may name only events after it. Otherwise the original history is needed and the feed reads the whole log.
+ */
+function staysAfter(suffix: readonly AcceptedCalendarEvent[], throughVersion: number): boolean {
+    const ids = new Set(suffix.map((event) => event.id));
+    return suffix.every((event) => {
+        if (event.type === "WORKSPACE_RESTORED") {
+            const target = event.payload.targetVersion;
+            return typeof target === "number" && target > throughVersion;
+        }
+        if (event.type === "EVENT_TOMBSTONED") {
+            return typeof event.payload.eventId === "string" && ids.has(event.payload.eventId);
+        }
+        if (event.type === "EVENTS_EXCISED") {
+            const targets = event.payload.eventIds;
+            return Array.isArray(targets) && targets.every((target) => typeof target === "string" && ids.has(target));
+        }
+        return true;
+    });
+}
+
+/**
+ * Fetch accepted events after `after` up to the head version, page by page.
+ * Returns `"too-large"` when the log exceeds the page budget, and null on
+ * transport failure.
  */
 async function fetchAcceptedEvents(
     env: CalendarFeedRenderEnv,
     logId: string,
     headVersion: number,
+    from = 0,
+    maxPages = MAX_EVENT_PAGES,
 ): Promise<AcceptedCalendarEvent[] | "too-large" | null> {
     const events: AcceptedCalendarEvent[] = [];
-    let after = 0;
-    for (let page = 0; page < MAX_EVENT_PAGES; page++) {
+    let after = from;
+    if (after >= headVersion) return events;
+    for (let page = 0; page < maxPages; page++) {
         let response: Response;
         try {
             response = await env.LEDGER.fetch(

@@ -82,7 +82,8 @@ Each application also carries an **event policy** (`GET|PUT /admin/v1/apps/<id>/
 `contracts` lists the modules whose event types it accepts (the core's always are;
 `EVENT_OWNERS` in `event-schemas.generated.ts` says which module defines each type),
 `dynamicEvents` says whether runtime-defined entity types are allowed, and
-`validation` (`report` or `enforce`) overrides the deployment's `EVENT_VALIDATION`.
+`validation` (`report` or `enforce`) overrides the deployment's `EVENT_VALIDATION`, and
+`autoSnapshots` (optional, off when absent) lets Ledger snapshot growing logs by itself (see below).
 An application created without a policy gets `{ contracts: null, dynamicEvents: false,
 validation: "enforce" }`; `pnpm -C dev ensure:tenant` creates a site's application with the
 modules the site ships. An application that predates policies has none and behaves
@@ -240,7 +241,14 @@ payload placeholders. The SDK's server checkpoint reader lets Stash seed a cold 
 `MAINTENANCE_DAILY_READS` defaults to `1000000` (bounded to 10000–1000000000). Jobs pause at either budget. Budgets use consumed SQL cursor
 counts and can overrun by one bounded step. Structured step logs include SQL rows, R2 operations/bytes, elapsed
 time and replay counts, without payloads or credentials. Other applications consume account quota too. The browser
-can be closed safely; the job continues on the server. No automatic snapshots or archive expiry run.
+can be closed safely; the job continues on the server. No archive expiry runs, and compaction is always manual.
+
+Snapshots can start by themselves: when an application's policy has `autoSnapshots: true`, an append that leaves the
+log `AUTO_SNAPSHOT_EVENTS` (default `5000`, bounded to 500–1000000) or more past its last verified snapshot starts a
+snapshot job, unless one is already running or the last failed less than a day ago. It runs under the same budgets
+and pauses as one started by hand. The switch is off by default; set `"autoSnapshots": true` on a site in
+`tenants.json` and apply it with `pnpm -C dev ensure:tenant -- --site <id> --apply-policy`, after one manual snapshot
+on that site's data has finished cleanly.
 Deleting a whole log uses bounded background cleanup of that log's private archive objects, after normal
 fork/deletion checks. Individual archived-history deletion is a separate future feature.
 
