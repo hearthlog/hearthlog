@@ -274,6 +274,15 @@ export const appendEventsBody = t.Object(
     strictObject,
 );
 
+/** Several append requests in one round trip, applied in order; each keeps its own request id and receipt. */
+export const MAX_APPEND_BATCH_REQUESTS = 64;
+export const appendBatchBody = t.Object(
+    {
+        requests: t.Array(appendEventsBody, { minItems: 1, maxItems: MAX_APPEND_BATCH_REQUESTS }),
+    },
+    strictObject,
+);
+
 export const storedEvent = t.Object(
     {
         action: t.Optional(t.Object({

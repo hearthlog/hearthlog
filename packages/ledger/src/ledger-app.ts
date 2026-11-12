@@ -37,6 +37,7 @@ import {
     LedgerError,
     normalizeError,
     validationError,
+    type ErrorBody,
 } from "./errors";
 import { type RpcResult, rpcCall, rpcSuccess } from "./rpc";
 import { fenceError, parseFence, validateFenceRequest, type Fence, type FenceRequest } from "./fence";
@@ -55,6 +56,7 @@ import {
 } from "./transfer";
 import { sqliteExport } from "./sqlite-export";
 import {
+    appendBatchBody,
     applicationSummary,
     appendEventsBody,
     type ApplicationSummary,
@@ -110,6 +112,12 @@ interface LogRow extends Record<string, SqlStorageValue> {
     source_timestamp: string | null;
     status: 'ready' | 'preparing';
     hidden_at: string | null;
+}
+
+/** One request's outcome in a batched append: its accepted response, or the error it would have answered alone. */
+export interface AppendBatchResult {
+    status: number;
+    body: AppendEventsResponse | ErrorBody;
 }
 
 /** What one delivery round shares between the sockets of a log. */
@@ -362,7 +370,7 @@ export class LedgerApp extends DurableObject<Env> {
             return rpcSuccess({
                 appId: claims.appId,
                 principalId: claims.principalId,
-                capabilities: ["snapshot-baseline-v1", "action-metadata-v1", "workspace-restore-v1", "event-excision-v1"],
+                capabilities: ["snapshot-baseline-v1", "action-metadata-v1", "workspace-restore-v1", "event-excision-v1", "append-batch-v1"],
                 ...(fence ? { fence } : {}),
             });
         });
@@ -787,6 +795,43 @@ export class LedgerApp extends DurableObject<Env> {
             const events = await this.hydrateEvents(id, batch.events);
             this.currentAccess(access);
             return rpcSuccess({ events });
+        });
+    }
+
+    /**
+     * Apply several append requests in order, each exactly as appendEvents would (its own request id, hash, receipt
+     * and transaction), stopping at the first that fails. One result per attempted request; the rest are not tried,
+     * so the caller can resend them. Sockets get one delivery for the whole batch.
+     */
+    async appendEventBatches(
+        access: AccessClaims,
+        logId: string,
+        payload: unknown,
+        replayVersion = 0,
+        actor: string | null = null,
+    ): Promise<RpcResult<{ results: AppendBatchResult[] }>> {
+        return rpcCall(async () => {
+            const claims = this.writableAccess(access);
+            const id = parseUuid(logId, "logId");
+            const { requests } = decodeRpc(appendBatchBody, payload, "append batch request");
+            const results: AppendBatchResult[] = [];
+            try {
+                for (const request of requests) {
+                    const outcome = await rpcCall(async () => rpcSuccess(
+                        await this.append(id, request, claims, replayVersion, normalizeActor(actor), { deliver: false })));
+                    results.push({ status: outcome.status, body: outcome.body });
+                    if (!outcome.ok) break;
+                }
+            } finally {
+                if (results.some((result) => result.status < 300)) {
+                    try {
+                        this.deliver(id);
+                    } catch (cause) {
+                        console.error(JSON.stringify({ message: "Ledger socket delivery failed", error: normalizeError(cause).message }));
+                    }
+                }
+            }
+            return rpcSuccess({ results });
         });
     }
 
@@ -1314,6 +1359,7 @@ export class LedgerApp extends DurableObject<Env> {
         access: AccessClaims,
         replayVersion: number,
         actor: string | null,
+        options: { deliver?: boolean } = {},
     ): Promise<AppendEventsResponse> {
         if (request.events.length === 0) {
             throw validationError("events must not be empty");
@@ -1346,7 +1392,8 @@ export class LedgerApp extends DurableObject<Env> {
         });
         // The append is committed. Realtime delivery is best effort: sockets
         // recover through HTTP replay, and a delivery fault must never turn an
-        // accepted append into an error response.
+        // accepted append into an error response. A batch delivers once at its end.
+        if (options.deliver === false) return response;
         try {
             this.deliver(logId);
         } catch (cause) {

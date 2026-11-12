@@ -741,7 +741,7 @@ describe("Ledger Durable Object RPC", () => {
         expect(session.body).toEqual({
             appId: application.appId,
             principalId: application.claims.principalId,
-            capabilities: ["snapshot-baseline-v1", "action-metadata-v1", "workspace-restore-v1", "event-excision-v1"],
+            capabilities: ["snapshot-baseline-v1", "action-metadata-v1", "workspace-restore-v1", "event-excision-v1", "append-batch-v1"],
         });
 
         const createdLog = await stub.createLog(application.claims, {
@@ -827,6 +827,41 @@ describe("Ledger Durable Object RPC", () => {
         const deleted = await stub.deleteLog(application.claims, logId);
         expectSuccess(deleted);
         expect(deleted).toMatchObject({ status: 204, body: null });
+    });
+
+    it("applies batched appends in order, each with its own receipt, and stops at the first failure", async () => {
+        const application = await provision("append-batch");
+        const stub = env.LEDGER_APP.getByName(application.appId);
+        const createdLog = await stub.createLog(application.claims, { name: "batch" });
+        expectSuccess(createdLog);
+        const logId = createdLog.body.id;
+        const entityId = `contract:${crypto.randomUUID()}`;
+        const create = { requestId: crypto.randomUUID(), actionId: crypto.randomUUID(),
+            events: [{ id: crypto.randomUUID(), type: "CONTRACT_CREATED", entityId, payload: { value: 1 } }] };
+        const update = { requestId: crypto.randomUUID(), actionId: crypto.randomUUID(),
+            events: [{ id: crypto.randomUUID(), type: "CONTRACT_UPDATED", entityId, baseEntityVersion: 1, payload: { value: 2 } }] };
+        // Based on a version that will not exist: it fails, and what follows it is not tried.
+        const stale = { requestId: crypto.randomUUID(),
+            events: [{ id: crypto.randomUUID(), type: "CONTRACT_UPDATED", entityId, baseEntityVersion: 7, payload: { value: 3 } }] };
+        const later = { requestId: crypto.randomUUID(),
+            events: [{ id: crypto.randomUUID(), type: "CONTRACT_CREATED", entityId: `contract:${crypto.randomUUID()}`, payload: {} }] };
+
+        const batch = await stub.appendEventBatches(application.claims, logId, { requests: [create, update, stale, later] }, 0, "author@example.com");
+        expectSuccess(batch);
+        expect(batch.body.results.map((result) => result.status)).toEqual([200, 200, 409]);
+        expect(batch.body.results[1]!.body).toMatchObject({ newVersion: 2, events: [{ version: 2, entityVersion: 2, actor: "author@example.com" }] });
+        expect(batch.body.results[2]!.body).toMatchObject({ code: "entity_conflict" });
+        const page = await stub.listEvents(application.claims, logId, 0, 512);
+        expectSuccess(page);
+        expect(page.body.events.map((event) => event.version)).toEqual([1, 2]);
+
+        // Resending replays what was accepted, byte for byte, and appends nothing twice.
+        const again = await stub.appendEventBatches(application.claims, logId, { requests: [create, update] }, 0, "author@example.com");
+        expectSuccess(again);
+        expect(again.body.results).toEqual(batch.body.results.slice(0, 2));
+        const single = await stub.appendEvents(application.claims, logId, later);
+        expectSuccess(single);
+        expect(single.body.newVersion).toBe(3);
     });
 
     it("returns serializable known failures and propagates unexpected failures", async () => {

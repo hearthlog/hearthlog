@@ -21,6 +21,8 @@ import {
     NotFoundError,
     VersionConflictError,
     loadLedgerConfig,
+    type AppendEventsRequest,
+    type AppendEventsResponse,
     type StoredEvent,
 } from '../ledger/index.js';
 import {
@@ -598,10 +600,13 @@ async function currentVersionsFor(events: PendingBatchEvent[]): Promise<Map<stri
     return versions;
 }
 
-async function prepareNextOperation(rebaseCount = 0): Promise<DurableOperation | null> {
+async function prepareNextOperation(rebaseCount = 0, chained?: ReadonlyMap<string, number>): Promise<DurableOperation | null> {
     const batch = await getNextPendingBatch();
     if (!batch) return null;
-    const request = prepareAppendRequest(batch.events, await currentVersionsFor(batch.events));
+    const versions = await currentVersionsFor(batch.events);
+    // In a batched append, earlier requests' events count as accepted before this one.
+    for (const [entityId, version] of chained ?? []) versions.set(entityId, version);
+    const request = prepareAppendRequest(batch.events, versions);
     // Existing durable requests are retried byte-for-byte. Only freshly prepared
     // requests gain metadata after the server has advertised support.
     if (await getLedgerClient().getActionMetadataSupport()) request.actionId = batch.events[0]!.id;
@@ -635,13 +640,17 @@ async function findBatchClashes(operation: DurableOperation): Promise<EntityClas
     return clashes;
 }
 
-async function executeOperation(operation: DurableOperation): Promise<OperationResult> {
+/**
+ * Send one operation, or apply the answer a batched append already got for it (`answer`), with the same handling
+ * either way.
+ */
+async function executeOperation(operation: DurableOperation, answer?: Promise<AppendEventsResponse>): Promise<OperationResult> {
     const logId = await ensureSelectedContext();
     await markOperationSyncing(operation.id);
     let accepted = false;
     let applied = false;
     try {
-        const response = await getLedgerClient().appendEvents(logId, operation.request);
+        const response = await (answer ?? getLedgerClient().appendEvents(logId, operation.request));
         accepted = true;
         // An append response contains only this request's events, not intervening
         // writes from other devices. Ingest/re-project it, then catch up any gap.
@@ -741,6 +750,59 @@ export async function preparePendingOperations(): Promise<void> {
     });
 }
 
+/** At most this many operations, and about this many request bytes, go in one batched append. */
+const APPEND_BATCH_OPERATIONS = 32;
+const APPEND_BATCH_BYTES = 512 * 1024;
+
+/** The entity versions an append leaves if Ledger accepts it, added to `versions`. */
+function chainVersions(versions: Map<string, number>, request: AppendEventsRequest): void {
+    for (const event of request.events) {
+        const base = event.baseEntityVersion ?? versions.get(event.entityId);
+        versions.set(event.entityId, (base ?? 0) + 1);
+    }
+}
+
+/**
+ * The operations to send with this one: further waiting batches, prepared now on the versions the earlier ones will
+ * leave. Only when Ledger accepts batched appends, and never with a restore (it needs the log exactly as previewed).
+ */
+async function collectAppendBatch(first: DurableOperation): Promise<DurableOperation[]> {
+    const batch = [first];
+    if (first.request.expectedLogVersion !== undefined) return batch;
+    if (!await getLedgerClient().getAppendBatchSupport()) return batch;
+    const versions = new Map<string, number>();
+    chainVersions(versions, first.request);
+    let bytes = JSON.stringify(first.request).length;
+    while (batch.length < APPEND_BATCH_OPERATIONS && bytes < APPEND_BATCH_BYTES) {
+        const next = await prepareNextOperation(0, versions);
+        if (!next) break;
+        batch.push(next);
+        chainVersions(versions, next.request);
+        bytes += JSON.stringify(next.request).length;
+    }
+    return batch;
+}
+
+/** Send several operations in one request and apply each answer in order; stop where Ledger stopped. */
+async function executeOperationBatch(batch: DurableOperation[]): Promise<OperationResult> {
+    const logId = await ensureSelectedContext();
+    let answers: Awaited<ReturnType<ReturnType<typeof getLedgerClient>['appendEventBatches']>>;
+    try {
+        answers = await getLedgerClient().appendEventBatches(logId, batch.map((operation) => operation.request));
+    } catch (error) {
+        // No answer at all (network, server fault): the first operation takes the failure; the others stay queued
+        // and are resent unchanged, where Ledger replays anything it had accepted.
+        return executeOperation(batch[0]!, Promise.reject(error));
+    }
+    for (const [index, operation] of batch.entries()) {
+        const answer = answers[index];
+        if (!answer) break; // Not tried: it stays queued for the next pass.
+        const result = await executeOperation(operation, answer.ok ? Promise.resolve(answer.response) : Promise.reject(answer.error));
+        if (result !== 'synced') return result;
+    }
+    return 'synced';
+}
+
 async function drainDurableOutbox(): Promise<void> {
     // A moved workspace keeps its queue for export; sending would only repeat the 410.
     if (movedWorkspace.value) return;
@@ -754,7 +816,8 @@ async function drainDurableOutbox(): Promise<void> {
                 if (!operation) break;
                 if (!logged) await addSyncLogEntry('drain', 'Draining durable outbox');
                 logged = true;
-                const result = await executeOperation(operation);
+                const batch = await collectAppendBatch(operation);
+                const result = batch.length > 1 ? await executeOperationBatch(batch) : await executeOperation(operation);
                 if (result === 'retry_later') break;
             }
         },

@@ -133,6 +133,16 @@ tokens, set the old key and ID as `TOKEN_SIGNING_KEY_PREVIOUS` and
 `TOKEN_SIGNING_PREVIOUS_KEY_ID`, deploy the new current key, rotate app tokens,
 then remove the previous key after the coordinated window.
 
+## Batched appends
+
+`POST /logs/{logId}/appends` takes `{ requests: [...] }`, up to 64 ordinary append
+bodies, and applies them in order as if each had been sent alone: each keeps its own
+`requestId` receipt and version checks. It stops at the first request that fails and
+answers `{ results: [{ status, body }] }` with one entry per request it attempted, so a
+resend replays the same results. Sockets receive the accepted events once, after the
+batch. Sessions advertise it with the `append-batch-v1` capability; the frontend sends
+a queue of saves this way and falls back to single appends without it.
+
 ## Realtime protocol
 
 The browser opens
