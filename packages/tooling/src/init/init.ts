@@ -5,7 +5,7 @@
  * Render `templates/tenant/` into a new site: the package.json, the Vite and TypeScript configuration, a
  * `tenants.json` with placeholder infrastructure (it makes the site load and cannot be deployed), the site's
  * `tenant.json`, its module lock, the committed `.generated/package.json`, and the pnpm settings the install needs (the
- * build scripts to allow and the patch to `sqlocal`, which does not travel with a dependency). The modules are named by package
+ * build scripts to allow). The modules are named by package
  * (`@hearthlog/module-calc`), by short name (`calc`), or `none`; their features become the site's features.
  * `--workspace` writes the `@hearthlog` dependencies as `workspace:*` (a site inside a workspace); otherwise
  * they are `^<version of this package>`. `--check` writes nothing and fails when the files on disk differ
@@ -87,7 +87,10 @@ export function renderSite(options: InitOptions): Array<[string, string]> {
         ...modules.map(({ manifest: { package: name }, directory }) => [name, workspace ? own : `^${(JSON.parse(readFileSync(join(directory, "package.json"), "utf8")) as { version: string }).version}`]),
         ["@hearthlog/generated", "link:.generated"],
     ].sort(([a], [b]) => a!.localeCompare(b!)));
-    const devDependencies = Object.fromEntries(Object.entries(tooling.peerDependencies ?? {}).filter(([name]) => !name.startsWith("@hearthlog/")).sort(([a], [b]) => a.localeCompare(b)));
+    const devDependencies = Object.fromEntries([
+        ...Object.entries(tooling.peerDependencies ?? {}).filter(([name]) => !name.startsWith("@hearthlog/")),
+        ["sqlocal", "npm:@hearthlog/sqlocal@^0.19.0"],
+    ].sort(([a], [b]) => a!.localeCompare(b!)));
     const packageJson = { name: id, ...manifest, dependencies, devDependencies };
 
     const values = { id, title, features: JSON.stringify(features) };
@@ -101,7 +104,6 @@ export function renderSite(options: InitOptions): Array<[string, string]> {
         [`tenants/${id}/modules.lock.json`, renderModuleLock(lockFor(modules, features))],
         [".generated/package.json", template("generated-package.json.tmpl")],
         ["pnpm-workspace.yaml", template("pnpm-workspace.yaml.tmpl")],
-        ["patches/sqlocal@0.18.0.patch", template("patches/sqlocal@0.18.0.patch")],
         [".github/workflows/deploy.yml", renderWorkflow(id)],
         [".github/dependabot.yml", template("dependabot.yml.tmpl")],
         [".gitignore", template("gitignore.tmpl")],

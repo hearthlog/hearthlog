@@ -189,6 +189,13 @@ export class Coordinator {
             }
         }
         writeJson(join(path, 'package.json'), manifest);
+        if (manifest.devDependencies?.sqlocal && manifest.devDependencies.sqlocal !== '^0.18.0') {
+            const workspace = join(path, 'pnpm-workspace.yaml');
+            if (existsSync(workspace)) {
+                writeFileSync(workspace, readFileSync(workspace, 'utf8').replace(/\n*patchedDependencies:\n  sqlocal@0\.18\.0: patches\/sqlocal@0\.18\.0\.patch\n?/, '\n'));
+            }
+            rmSync(join(path, 'patches/sqlocal@0.18.0.patch'), { force: true });
+        }
     }
 
     async validateSite(path, plan) {
@@ -482,6 +489,9 @@ export class Coordinator {
         this.setTenantVersions(path, plan);
         await this.shell('pnpm', ['install', '--no-frozen-lockfile', '--strict-peer-dependencies=false'], path);
         await this.validateSite(path, plan);
-        return this.commit(path, `chore(release): update ${plan.tenant} dependencies`, [...new Set(['package.json', 'pnpm-lock.yaml', `tenants/${plan.site}/modules.lock.json`, ...(plan.migrations ?? []).map((migration) => migration.file)])]);
+        const extra = (await this.output('git', ['status', '--porcelain', '--', 'pnpm-workspace.yaml', 'patches/sqlocal@0.18.0.patch'], path))
+            ? ['pnpm-workspace.yaml', 'patches/sqlocal@0.18.0.patch']
+            : [];
+        return this.commit(path, `chore(release): update ${plan.tenant} dependencies`, [...new Set(['package.json', 'pnpm-lock.yaml', `tenants/${plan.site}/modules.lock.json`, ...extra, ...(plan.migrations ?? []).map((migration) => migration.file)])]);
     }
 }

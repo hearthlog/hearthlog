@@ -227,6 +227,7 @@ export const sqlocalDb =
     globalForDb.sqlocalDb ??
     new SQLocalKysely({
         databasePath: import.meta.env.VITE_E2E === "1" ? "session" : "stor",
+        vfs: "opfs-wl",
         onInit: (sql) => {
             // Get entity DDLs from the generated schema, restricted to the
             // entities this tenant is approved for (feature-scoped SQLite):

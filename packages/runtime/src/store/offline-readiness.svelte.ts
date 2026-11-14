@@ -43,7 +43,7 @@ const REQUIRED_CORE_CACHE_ENTRIES: readonly CacheRequirement[] = [
     },
     {
         label: 'SQLite OPFS proxy',
-        path: /\/_app\/immutable\/workers\/sqlite3-opfs-async-proxy-[^/]+\.js$/,
+        path: /\/_app\/immutable\/workers\/(?:assets\/)?sqlite3-opfs-async-proxy-[^/]+\.js$/,
         contentType: /(?:java|ecma)script/i,
     },
     {
