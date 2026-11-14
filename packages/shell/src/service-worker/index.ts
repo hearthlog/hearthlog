@@ -24,7 +24,10 @@ const APP_SHELL_URL = '/index.html';
 
 self.skipWaiting();
 clientsClaim();
-precacheAndRoute(precacheManifest());
+precacheAndRoute(precacheManifest(), {
+    // SQLite WASM's OPFS async proxy worker is spawned with `?vfs=opfs-wl` (or `?vfs=opfs`).
+    ignoreURLParametersMatching: [/^utm_/, /^fbclid$/, /^vfs$/],
+});
 cleanupOutdatedCaches();
 
 // Hashed build output is content-addressed; static files and prerendered pages
