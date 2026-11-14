@@ -43,6 +43,21 @@ test('a manifest cannot point outside its module or declare unknown keys', () =>
     assert.throws(() => validateManifest(manifest({ compatibility: { moduleApi: 2 } })), ManifestError);
 });
 
+test('a service binding is named by one module setting, and nothing else', () => {
+    const server = (bindings: unknown[], vars: NonNullable<ModuleManifest['server']>['vars'] = []) =>
+        manifest({ server: { entry: './src/server/index.ts', bindings: bindings as NonNullable<ModuleManifest['server']>['bindings'], vars } });
+    assert.doesNotThrow(() => validateManifest(server([{ binding: 'CATALOG', type: 'service', setting: 'catalogWorker', optional: true }])));
+    assert.throws(() => validateManifest(server([{ binding: 'CATALOG', type: 'service' }])), ManifestError);
+    assert.throws(() => validateManifest(server([{ binding: 'CATALOG', type: 'service', setting: 'catalogWorker', resource: 'ledgerWorker' }])), ManifestError);
+    assert.throws(() => validateManifest(server([{ binding: 'FILES', type: 'r2', resource: 'filesBucket', optional: true }])), ManifestError);
+    assert.throws(() => validateManifest(server(
+        [{ binding: 'CATALOG', type: 'service', setting: 'catalogWorker' }],
+        [{ name: 'CATALOG_NAME', setting: 'catalogWorker' }],
+    )), ManifestError);
+    assert.equal(moduleSettingProblem({ format: 'worker-name' }, 'kal-api'), null);
+    assert.equal(moduleSettingProblem({ format: 'worker-name' }, 'https://kal.example'), 'must be a Worker name');
+});
+
 test('module SQLite Durable Objects are validated, exported, and cannot claim another module or core export', () => {
     const server: NonNullable<ModuleManifest['server']> = { entry: './src/server/index.ts', bindings: [
         { binding: 'NOTE_INDEX', type: 'durable-object', className: 'NoteIndex' },
@@ -188,7 +203,7 @@ test('module setting formats accept only values of their shape', () => {
     assert.match(moduleSettingProblem({ values: ['0', '1'] }, 'true') ?? '', /one of/);
     assert.match(moduleSettingProblem({}, ' ') ?? '', /non-empty/);
     assert.equal(moduleSettingPlaceholder({ values: ['0', '1'] }), '0');
-    for (const format of ['text', 'https-origin', 's3-bucket', 's3-region'] as const) assert.equal(moduleSettingProblem({ format }, moduleSettingPlaceholder({ format })), null);
+    for (const format of ['text', 'https-origin', 's3-bucket', 's3-region', 'worker-name'] as const) assert.equal(moduleSettingProblem({ format }, moduleSettingPlaceholder({ format })), null);
 });
 
 test('the engine page loads only the native APIs of the modules it composes, on demand', () => {
