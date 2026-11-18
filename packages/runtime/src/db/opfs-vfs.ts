@@ -11,6 +11,7 @@ export type OpfsVfs = 'opfs' | 'opfs-wl';
 
 interface UserAgentBrand {
     readonly brand: string;
+    readonly version?: string;
 }
 
 interface NavigatorWithUserAgentData {
@@ -20,4 +21,13 @@ interface NavigatorWithUserAgentData {
 export function preferredOpfsVfs(nav: NavigatorWithUserAgentData | undefined = globalThis.navigator as NavigatorWithUserAgentData | undefined): OpfsVfs {
     const brands = nav?.userAgentData?.brands ?? [];
     return brands.some(({ brand }) => brand === 'Chromium') ? 'opfs-wl' : 'opfs';
+}
+
+/** The engine `preferredOpfsVfs` saw, for the developer page: "Chromium (Google Chrome 142)" or why it is not. */
+export function describeVfsChoice(nav: NavigatorWithUserAgentData | undefined = globalThis.navigator as NavigatorWithUserAgentData | undefined): string {
+    const brands = nav?.userAgentData?.brands;
+    if (!brands) return 'not Chromium (the browser does not report userAgentData: Safari, iOS or Firefox)';
+    if (!brands.some(({ brand }) => brand === 'Chromium')) return 'not Chromium (userAgentData does not name Chromium)';
+    const named = brands.find(({ brand }) => brand !== 'Chromium' && !/not.?a.?brand/i.test(brand));
+    return named ? `Chromium (${named.brand}${named.version ? ` ${named.version}` : ''})` : 'Chromium';
 }

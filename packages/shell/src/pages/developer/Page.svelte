@@ -27,6 +27,8 @@
     import EventLogManager from "./EventLogManager.svelte";
     import PerformanceDashboard from "./PerformanceDashboard.svelte";
     import StackInfo from "./StackInfo.svelte";
+    import StorageEngine from "./StorageEngine.svelte";
+    import LaunchHistory from "./LaunchHistory.svelte";
     import { events as eventsSignal } from "@hearthlog/runtime/store/events.svelte.js";
     import { localStoreStatus } from "@hearthlog/runtime/store/local-store.svelte.js";
     import { getSyncPhase, syncStatus } from "@hearthlog/runtime/store/sync.svelte.js";
@@ -43,6 +45,7 @@
     import IconMagnify from "~icons/mdi/magnify";
     import IconRefresh from "~icons/mdi/refresh";
     import IconUpload from "~icons/mdi/upload";
+    import IconAlertOutline from "~icons/mdi/alert-outline";
     import {
         downloadLocalDatabase,
         getLocalRecoverySummary,
@@ -307,6 +310,16 @@
         </Tabs.List>
     </Tabs.Root>
 
+    {#if localStoreStatus.storageType === 'memory'}
+        <div class="mt-4 flex items-start gap-3 rounded-2xl border border-[color-mix(in_srgb,var(--stor-negative)_25%,transparent)] bg-[var(--stor-negative-soft)] px-4 py-3 lg:mt-6" role="alert" data-testid="storage-memory-banner">
+            <IconAlertOutline class="mt-0.5 h-5 w-5 shrink-0 text-[var(--stor-negative)]" />
+            <div class="text-sm">
+                <p class="font-semibold text-[var(--stor-negative)]">Not saved on this device</p>
+                <p class="mt-0.5 text-[var(--stor-ink)]">SQLite could not open the database file and is running in memory. Everything downloads and rebuilds again on the next launch.</p>
+            </div>
+        </div>
+    {/if}
+
     {#if activeTab === 'overview'}
         <div class="stor-panel mt-4 grid grid-cols-3 overflow-hidden lg:mt-6" aria-label="Local status">
             <div class="min-w-0 border-r border-[var(--stor-border)] px-3 py-3 sm:px-[var(--stor-panel-padding)] sm:py-4">
@@ -327,6 +340,8 @@
         </div>
 
         <div class="mt-4 lg:mt-6"><StackInfo stats={sqliteStats} /></div>
+        <div class="mt-4 lg:mt-6"><StorageEngine /></div>
+        <div class="mt-4 lg:mt-6"><LaunchHistory /></div>
 
         <div class="mt-4 grid min-w-0 gap-4 lg:mt-6 lg:gap-6 xl:grid-cols-[minmax(0,1.6fr)_minmax(18rem,1fr)]">
             <LocalSqliteStats stats={sqliteStats} loading={resource.loading} />
@@ -561,6 +576,7 @@
             </section>
         </div>
     {:else if activeTab === "database"}
+        <div class="mt-4 lg:mt-6"><StorageEngine /></div>
         <div class="mt-4 grid min-w-0 gap-4 lg:mt-6 lg:gap-6 xl:grid-cols-2">
             <LocalSqliteStats stats={sqliteStats} loading={resource.loading} />
             <IndexedDbStats />

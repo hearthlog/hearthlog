@@ -7,6 +7,8 @@ export interface LocalStoreStatus {
     schemaRebuilt: boolean;
     errorMessage: string | null;
     readyAt: Date | null;
+    /** Where SQLite opened the database (`opfs`, `opfs-wl`, `memory`, …); null until known. */
+    storageType: string | null;
 }
 
 export const localStoreStatus = $state<LocalStoreStatus>({
@@ -16,7 +18,12 @@ export const localStoreStatus = $state<LocalStoreStatus>({
     schemaRebuilt: false,
     errorMessage: null,
     readyAt: null,
+    storageType: null,
 });
+
+export function setLocalStoreStorage(storageType: string | null): void {
+    localStoreStatus.storageType = storageType;
+}
 
 export function markLocalStoreBooting(): void {
     localStoreStatus.phase = 'booting';

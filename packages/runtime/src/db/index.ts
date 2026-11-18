@@ -30,6 +30,7 @@ import { MIN_IN_PLACE_SCHEMA_VERSION, SCHEMA_VERSION } from "./schema-version.js
 import { MODULE_PROJECTIONS } from "#generated/modules";
 import { allModuleTables, BASELINE_PROJECTION_VERSION } from "./module-projections.js";
 import { preferredOpfsVfs } from "./opfs-vfs.js";
+import { launch } from "../store/launch-history.js";
 
 export type { ActiveContext } from "./session-context.js";
 
@@ -224,11 +225,18 @@ const globalForDb = globalThis as unknown as {
     sqlocalDb: SQLocalKysely | undefined;
 };
 
+/** The OPFS file name of the local database (browser session storage in e2e builds). */
+export const DATABASE_PATH = import.meta.env.VITE_E2E === "1" ? "session" : "stor";
+
 export const sqlocalDb =
     globalForDb.sqlocalDb ??
     new SQLocalKysely({
-        databasePath: import.meta.env.VITE_E2E === "1" ? "session" : "stor",
+        databasePath: DATABASE_PATH,
         vfs: preferredOpfsVfs(),
+        // The first connection ends the launch's "Open database" step (page start → SQLite ready).
+        onConnect: (reason) => {
+            if (reason === "initial" && typeof performance !== "undefined") launch.step("Open database", 0);
+        },
         onInit: (sql) => {
             // Get entity DDLs from the generated schema, restricted to the
             // entities this tenant is approved for (feature-scoped SQLite):
