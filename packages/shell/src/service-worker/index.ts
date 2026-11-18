@@ -11,6 +11,7 @@ import { ExpirationPlugin } from 'workbox-expiration';
 import {
     cleanupOutdatedCaches,
     createHandlerBoundToURL,
+    matchPrecache,
     precacheAndRoute,
 } from 'workbox-precaching';
 import { NavigationRoute, registerRoute } from 'workbox-routing';
@@ -24,9 +25,25 @@ const APP_SHELL_URL = '/index.html';
 
 self.skipWaiting();
 clientsClaim();
+
+// SQLite WASM spawns its OPFS async proxy as `sqlite3-opfs-async-proxy-<hash>.js?vfs=opfs` (or `opfs-wl`) and the
+// proxy reads `vfs` from its own `location`. A response taken straight from the cache carries the cached URL, without
+// the query, and a worker's `location` is its response's URL: the proxy then throws "Expecting vfs=opfs|opfs-wl", no
+// OPFS VFS installs, and SQLocal silently opens an in-memory database, so every launch downloads and rebuilds
+// everything. A new Response has no URL, so the worker keeps the request's. Registered before the precache route so it
+// answers first.
+const OPFS_PROXY_PATH = /\/sqlite3-opfs-async-proxy-[^/]+\.js$/;
+registerRoute(
+    ({ url, sameOrigin }) => sameOrigin && OPFS_PROXY_PATH.test(url.pathname),
+    async ({ request, url }) => {
+        const cached = await matchPrecache(url.pathname);
+        if (!cached) return fetch(request);
+        return new Response(await cached.blob(), { status: cached.status, statusText: cached.statusText, headers: cached.headers });
+    },
+);
+
 precacheAndRoute(precacheManifest(), {
-    // SQLite WASM's OPFS async proxy worker is spawned with `?vfs=opfs-wl` (or `?vfs=opfs`).
-    ignoreURLParametersMatching: [/^utm_/, /^fbclid$/, /^vfs$/],
+    ignoreURLParametersMatching: [/^utm_/, /^fbclid$/],
 });
 cleanupOutdatedCaches();
 
