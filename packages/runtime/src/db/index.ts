@@ -29,6 +29,7 @@ import { SCHEMA_LOCK_NAME, withTabLock } from "../store/tab-coordination.js";
 import { MIN_IN_PLACE_SCHEMA_VERSION, SCHEMA_VERSION } from "./schema-version.js";
 import { MODULE_PROJECTIONS } from "#generated/modules";
 import { allModuleTables, BASELINE_PROJECTION_VERSION } from "./module-projections.js";
+import { preferredOpfsVfs } from "./opfs-vfs.js";
 
 export type { ActiveContext } from "./session-context.js";
 
@@ -227,7 +228,7 @@ export const sqlocalDb =
     globalForDb.sqlocalDb ??
     new SQLocalKysely({
         databasePath: import.meta.env.VITE_E2E === "1" ? "session" : "stor",
-        vfs: "opfs-wl",
+        vfs: preferredOpfsVfs(),
         onInit: (sql) => {
             // Get entity DDLs from the generated schema, restricted to the
             // entities this tenant is approved for (feature-scoped SQLite):
