@@ -3,6 +3,7 @@ import { waitForPageUpdates } from '../runtime/page-data.svelte.js';
 import { pageVisible } from '../runtime/visibility.js';
 import { announceInvalidation } from '../runtime/invalidation.js';
 import { measurementMetadata } from '../utils/perf.js';
+import { launch } from './launch-history.js';
 import { invalidate } from '$app/navigation';
 import { db, refreshQueryStatistics, requireActiveContext } from '../db/index.js';
 import {
@@ -547,6 +548,9 @@ async function download(options: { checkMaintenance?: boolean } = {}): Promise<n
         const logId = await ensureSelectedContext();
         const context = await requireActiveContext();
         let cursor = await getLocalHeadVersion();
+        // The launch's first download is the one that shows how it started (developer page, Launch history).
+        const firstOfLaunch = launch.claimFirstDownload();
+        if (firstOfLaunch) launch.note({ logVersionAtStart: cursor });
         // A new device, a socket sent back to HTTP (possibly below an archived prefix), or an hour since the last
         // look: only then does a download ask whether a newer snapshot exists.
         const due = options.checkMaintenance || cursor === 0
@@ -560,11 +564,19 @@ async function download(options: { checkMaintenance?: boolean } = {}): Promise<n
         if (checkpoint && await baselineVersion(context) < checkpoint.throughVersion
             && (cursor < checkpoint.throughVersion || await coveredSurplus(context, checkpoint.throughVersion) > checkpoint.eventCount + ADOPT_MIN_SURPLUS)
             && !await localDirectivesBlockBaseline(context, checkpoint.throughVersion)) {
+            const installStarted = performance.now();
+            const reachedFrom = cursor;
             await installBaseline(checkpoint, context);
             installedBaseline = true;
             cursor = await getLocalHeadVersion();
+            if (firstOfLaunch) {
+                launch.step('Snapshot install + rebuild', installStarted);
+                if (reachedFrom === 0) launch.path('full-download', `The local database had no events, so the snapshot through v${checkpoint.throughVersion} and everything after it were downloaded and projected.`);
+                else launch.path('snapshot-install', `The Ledger had a newer snapshot (through v${checkpoint.throughVersion}) than this device's baseline, and the device was at v${reachedFrom}, so it installed the snapshot and rebuilt every projection.`);
+            }
         }
         let downloaded = 0;
+        const pagesStarted = performance.now();
         while (true) {
             const storedEvents = await getLedgerClient().getEventPage(logId, cursor, 512);
             if (storedEvents.length === 0) break;
@@ -578,6 +590,14 @@ async function download(options: { checkMaintenance?: boolean } = {}): Promise<n
         }
         catchUpRevision += 1;
         caughtUpScope = scopeKey({ tenantId: context.tenantId, logId });
+        if (firstOfLaunch) {
+            if (downloaded > 0) launch.step(`Download ${downloaded} events`, pagesStarted);
+            if (!installedBaseline && cursor > 0 && launch.record.logVersionAtStart === 0) {
+                launch.path('full-download', `The local database had no events, so all ${downloaded} were downloaded.`);
+            }
+            launch.note({ downloaded });
+            launch.finish();
+        }
         // A large catch-up changes table sizes the most; give the planner current statistics.
         if (installedBaseline || downloaded >= LARGE_DOWNLOAD_EVENTS) await refreshQueryStatistics();
         // Build Log history's index in the background, so opening the panel does not wait for it.
@@ -899,6 +919,11 @@ async function handleRealtimeReady(headVersion: number): Promise<void> {
     realtimeHealthy = true;
     markLedgerReachable();
     clearRealtimeHealthRecovery();
+    // Already caught up when the socket opened: this launch needed no download at all.
+    if (launch.claimFirstDownload()) {
+        launch.note({ logVersionAtStart: localHead, downloaded: 0 });
+        launch.finish();
+    }
     await addSyncLogEntry('ws_ready', `WebSocket ready at version ${headVersion}`);
 }
 

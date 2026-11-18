@@ -1,6 +1,7 @@
 <script lang="ts">
     import { onMount } from 'svelte';
     import { tenant } from '@hearthlog/contracts/tenant/config';
+    import { localStoreStatus } from '@hearthlog/runtime/store/local-store.svelte.js';
     import { formatSqliteBytes, type LocalSqliteStats } from '@hearthlog/runtime/db/local-statistics.js';
     import IconLayersOutline from '~icons/mdi/layers-outline';
 
@@ -68,7 +69,9 @@
     const runtime = $derived([
         ['SQLite', stats?.sqliteVersion ?? '…'],
         ['Schema version', stats ? String(stats.schemaVersion) : '…'],
-        ['OPFS', opfs],
+        // The OPFS API being there says nothing about where SQLite opened the database: that is the storage row.
+        ['Database storage', localStoreStatus.storageType ?? '…'],
+        ['OPFS API', opfs],
         ['Storage used', quota],
         ['Service worker', serviceWorker],
         ['Cross-origin isolated', isolated ? 'yes' : 'no'],
