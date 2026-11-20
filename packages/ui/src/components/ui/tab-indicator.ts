@@ -1,15 +1,16 @@
 const SELECTED_TAB =
-    '[data-state="active"], [aria-selected="true"], [aria-current="page"], [aria-current="true"]';
+    '[data-state="active"], [aria-selected="true"], [aria-current="page"], [aria-current="true"], [aria-pressed="true"], [data-checked="true"]';
 
 /**
- * Sliding selection pill for a tab row.
+ * Sliding selection pill for a tab row or segmented control.
  *
- * Measures the selected trigger and animates a pill between tabs. The selected
- * trigger keeps its own background until the pill is positioned, so the row
- * never flashes unselected while the list is still laying out.
+ * Measures the selected trigger in layout coordinates (immune to ancestor
+ * scale/slide transforms on opening popovers) and animates a pill between
+ * options. The selected trigger keeps its own background until the pill is
+ * positioned, so the row never flashes unselected while laying out.
  *
- * Usage: `{@attach tabIndicator}` on a `.stor-page-tabs` row or a Bits UI
- * `Tabs.List`. Motion is disabled by the global reduced-motion rule.
+ * Usage: `{@attach tabIndicator}` on a `.stor-page-tabs`, `.stor-segmented-control`,
+ * or Bits UI `Tabs.List` container. Motion is disabled by the global reduced-motion rule.
  */
 export function tabIndicator(list: HTMLElement): () => void {
     const pill = document.createElement('span');
@@ -24,14 +25,31 @@ export function tabIndicator(list: HTMLElement): () => void {
     const place = (): boolean => {
         const selected = list.querySelector<HTMLElement>(SELECTED_TAB);
         if (!selected) return false;
-        const listRect = list.getBoundingClientRect();
-        const selectedRect = selected.getBoundingClientRect();
-        if (selectedRect.width === 0) return false;
-        pill.style.setProperty(
-            '--stor-tab-x',
-            `${selectedRect.left - listRect.left + list.scrollLeft - list.clientLeft}px`,
-        );
-        pill.style.setProperty('--stor-tab-w', `${selectedRect.width}px`);
+        let x = 0;
+        let y = 0;
+        let w = selected.offsetWidth;
+        let h = selected.offsetHeight;
+        let node: HTMLElement | null = selected;
+        while (node && node !== list) {
+            x += node.offsetLeft;
+            y += node.offsetTop;
+            node = node.offsetParent as HTMLElement | null;
+        }
+        if (node !== list) {
+            const listRect = list.getBoundingClientRect();
+            const selectedRect = selected.getBoundingClientRect();
+            x = selectedRect.left - listRect.left + list.scrollLeft - list.clientLeft;
+            y = selectedRect.top - listRect.top + list.scrollTop - list.clientTop;
+            w = selectedRect.width;
+            h = selectedRect.height;
+        }
+        if (w === 0 || h === 0) return false;
+        pill.style.setProperty('--stor-tab-x', `${x}px`);
+        pill.style.setProperty('--stor-tab-y', `${y}px`);
+        pill.style.setProperty('--stor-tab-w', `${w}px`);
+        pill.style.setProperty('--stor-tab-h', `${h}px`);
+        const radius = getComputedStyle(selected).borderRadius;
+        if (radius) pill.style.setProperty('--stor-tab-r', radius);
         return true;
     };
 
@@ -73,7 +91,7 @@ export function tabIndicator(list: HTMLElement): () => void {
         attributes: true,
         childList: true,
         subtree: true,
-        attributeFilter: ['data-state', 'aria-selected', 'aria-current'],
+        attributeFilter: ['data-state', 'aria-selected', 'aria-current', 'aria-pressed', 'data-checked'],
     });
 
     observeTabs();

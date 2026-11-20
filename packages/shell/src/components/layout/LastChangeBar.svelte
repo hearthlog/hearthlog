@@ -52,19 +52,19 @@
 </script>
 
 {#if change}
-    <!-- From 1024px toasts stack at the bottom right, so the bar starts at the panel's left and stops short of them. -->
-    <div class="pointer-events-none fixed bottom-6 right-3 z-[var(--stor-layer-toast)] hidden justify-center md:flex lg:right-[calc(24rem+40px)] lg:justify-start lg:pl-6 {collapsed ? 'md:left-20' : 'md:left-20 lg:left-[var(--stor-sidebar-width)]'}">
+    <!-- Phones anchor it in the thumb zone above the dock/FAB; from 1024px toasts stack at the bottom right, so the bar starts at the panel's left and stops short of them. -->
+    <div class="stor-last-change-wrap pointer-events-none fixed inset-x-3 z-[var(--stor-layer-toast)] flex justify-center md:bottom-6 md:right-3 lg:right-[calc(24rem+40px)] lg:justify-start lg:pl-6 {collapsed ? 'md:left-20' : 'md:left-20 lg:left-[var(--stor-sidebar-width)]'}">
         <div class="stor-last-change pointer-events-auto" role="status" data-state={change.state}>
             {#if change.state === "undone"}
                 <IconUndo class="h-[18px] w-[18px] shrink-0 opacity-70" aria-hidden="true" />
             {:else}
-                <IconCheck class="h-[18px] w-[18px] shrink-0" aria-hidden="true" />
+                <IconCheck class="h-[18px] w-[18px] shrink-0 text-[var(--stor-positive-inverse)]" aria-hidden="true" />
             {/if}
             <span class="min-w-0 flex-1 truncate">{message}</span>
             {#if change.reversal && (change.state === "saved" || change.state === "undoing")}
                 <button type="button" class="stor-last-change-action" disabled={change.state === "undoing"} onclick={() => void lastChange.undo()}>Undo</button>
             {/if}
-            <button type="button" class="stor-last-change-action stor-last-change-quiet" onclick={openHistory}>History</button>
+            <button type="button" class="stor-last-change-action stor-last-change-quiet max-sm:hidden" onclick={openHistory}>History</button>
             <button type="button" class="stor-last-change-close" aria-label="Dismiss" onclick={() => lastChange.dismiss()}>
                 <IconClose class="h-4 w-4" aria-hidden="true" />
             </button>

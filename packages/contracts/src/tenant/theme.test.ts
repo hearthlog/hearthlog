@@ -56,8 +56,11 @@ function failures(accent: string, mode: ResolvedTheme): string[] {
     check('negative text', v['--stor-negative-text']!, [v['--stor-negative']!], 4.5);
     // Focus
     check('focus', v['--stor-focus']!, surfaces, 3);
-    // The Undo on the inverse pill (ink fill in light mode, canvas fill in dark)
+    // The Undo and status icons on the inverse pill (ink fill in light mode, canvas fill in dark)
     check('action on the inverse pill', v['--stor-action-inverse']!, [v['--stor-tooltip']!], 4.5);
+    check('positive on the inverse pill', v['--stor-positive-inverse']!, [v['--stor-tooltip']!], 4.5);
+    check('negative on the inverse pill', v['--stor-negative-inverse']!, [v['--stor-tooltip']!], 4.5);
+    check('info on the inverse pill', v['--stor-info-inverse']!, [v['--stor-tooltip']!], 4.5);
 
     // Every clash got a rule
     const action = palette.action;

@@ -115,7 +115,7 @@
         <div class="stor-nav-fly-head">
             <span class="min-w-0 truncate">{label}</span>
             {#if badge}
-                <span class="stor-nav-badge {badge.tone === 'negative' ? 'stor-nav-badge-negative' : 'stor-nav-badge-warning'} shrink-0">{badge.count} overdue</span>
+                <span class="stor-nav-badge {badge.tone === 'negative' ? 'stor-nav-badge-negative' : 'stor-nav-badge-warning'} shrink-0">{badge.label || badge.count}</span>
             {:else if figure}
                 <span class="stor-nav-figure" title={figure.label}>{figure.text}</span>
             {/if}

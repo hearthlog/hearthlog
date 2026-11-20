@@ -45,7 +45,7 @@
     <div class="flex items-center gap-1">
         <button
             type="button"
-            class="rounded-lg p-1.5 text-[var(--stor-muted-text)] transition hover:bg-[var(--stor-surface)] hover:text-[var(--stor-ink)] disabled:opacity-30"
+            class="flex h-11 w-11 items-center justify-center rounded-xl text-[var(--stor-muted-text)] transition hover:bg-[var(--stor-surface)] hover:text-[var(--stor-ink)] disabled:opacity-30 fine:h-9 fine:w-9 fine:rounded-[10px]"
             aria-label="First page"
             title="First page"
             disabled={currentPage === 1}
@@ -55,7 +55,7 @@
         </button>
         <button
             type="button"
-            class="rounded-lg p-1.5 text-[var(--stor-muted-text)] transition hover:bg-[var(--stor-surface)] hover:text-[var(--stor-ink)] disabled:opacity-30"
+            class="flex h-11 w-11 items-center justify-center rounded-xl text-[var(--stor-muted-text)] transition hover:bg-[var(--stor-surface)] hover:text-[var(--stor-ink)] disabled:opacity-30 fine:h-9 fine:w-9 fine:rounded-[10px]"
             aria-label="Previous page"
             title="Previous page"
             disabled={currentPage === 1}
@@ -69,7 +69,7 @@
         </span>
         <button
             type="button"
-            class="rounded-lg p-1.5 text-[var(--stor-muted-text)] transition hover:bg-[var(--stor-surface)] hover:text-[var(--stor-ink)] disabled:opacity-30"
+            class="flex h-11 w-11 items-center justify-center rounded-xl text-[var(--stor-muted-text)] transition hover:bg-[var(--stor-surface)] hover:text-[var(--stor-ink)] disabled:opacity-30 fine:h-9 fine:w-9 fine:rounded-[10px]"
             aria-label="Next page"
             title="Next page"
             disabled={currentPage === totalPages}
@@ -79,7 +79,7 @@
         </button>
         <button
             type="button"
-            class="rounded-lg p-1.5 text-[var(--stor-muted-text)] transition hover:bg-[var(--stor-surface)] hover:text-[var(--stor-ink)] disabled:opacity-30"
+            class="flex h-11 w-11 items-center justify-center rounded-xl text-[var(--stor-muted-text)] transition hover:bg-[var(--stor-surface)] hover:text-[var(--stor-ink)] disabled:opacity-30 fine:h-9 fine:w-9 fine:rounded-[10px]"
             aria-label="Last page"
             title="Last page"
             disabled={currentPage === totalPages}

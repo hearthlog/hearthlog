@@ -6,6 +6,7 @@
     import Button from '@hearthlog/ui/components/ui/Button.svelte';
     import Input from '@hearthlog/ui/components/ui/Input.svelte';
     import Select from '@hearthlog/ui/components/ui/Select.svelte';
+    import { tabIndicator } from '@hearthlog/ui/components/ui/tab-indicator.js';
     import LogHistory from '../history/LogHistory.svelte';
     import LogMap from '../history/LogMap.svelte';
     import LogTree from '../history/LogTree.svelte';
@@ -165,7 +166,7 @@
                 </p>
             {/if}
             <div class="flex items-center gap-2">
-                <div class="stor-segmented-control flex min-w-0 flex-1" role="group" aria-label="Show">
+                <div class="stor-segmented-control flex min-w-0 flex-1" role="group" aria-label="Show" {@attach tabIndicator}>
                     <button type="button" class="stor-segmented-option flex-1" aria-pressed={view.tab === 'history'} onclick={() => changeTab('history')}>History</button>
                     <button type="button" class="stor-segmented-option flex-1" aria-pressed={view.tab === 'logs'} onclick={() => changeTab('logs')}>Logs</button>
                 </div>

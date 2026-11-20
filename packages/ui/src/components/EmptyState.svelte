@@ -37,7 +37,7 @@
         </div>
     {/if}
     <h3 class="stor-title-2 text-[var(--stor-ink)]">{title}</h3>
-    <p class="-mt-1.5 max-w-xs text-small text-[var(--stor-muted-text)]">{description}</p>
+    <p class="-mt-1.5 max-w-xs text-pretty text-small text-[var(--stor-muted-text)]">{description}</p>
     {#if children}
         <div class="flex flex-wrap items-center justify-center gap-2 pt-0.5">{@render children()}</div>
     {/if}

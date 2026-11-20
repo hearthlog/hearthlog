@@ -5,7 +5,7 @@
     const resource = currentPageResource();
 </script>
 {#if resource?.().loading}
-    <span class="inline-block h-[0.85em] min-w-[3ch] rounded bg-stone-200/70 align-baseline tabular-nums motion-safe:animate-pulse" aria-label="Loading value"><span class="sr-only">Loading</span>&nbsp;</span>
+    <span class="inline-block h-[0.85em] min-w-[3ch] rounded bg-[var(--stor-surface-muted)] align-baseline tabular-nums motion-safe:animate-pulse" aria-label="Loading value"><span class="sr-only">Loading</span>&nbsp;</span>
 {:else}
     {@render children()}
 {/if}

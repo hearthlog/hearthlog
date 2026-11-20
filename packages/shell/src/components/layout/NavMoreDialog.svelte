@@ -114,9 +114,9 @@
 
 <Dialog.Root {open} onOpenChange={onOpenChange}>
     <Dialog.Portal>
-        <Dialog.Overlay class="fixed inset-0 z-[51] bg-[var(--stor-overlay)] md:hidden" />
+        <Dialog.Overlay class="stor-backdrop fixed inset-0 z-[51] md:hidden" />
         <Dialog.Content
-            class="stor-sheet fixed inset-x-3 bottom-[calc(var(--stor-mobile-bottom-inset)+var(--stor-mobile-nav-height)+10px)] z-[52] max-h-[min(42rem,calc(100dvh-6rem))] overflow-y-auto rounded-[26px] p-3 outline-none md:hidden"
+            class="stor-sheet stor-bottom-sheet fixed inset-x-3 bottom-[calc(var(--stor-mobile-bottom-inset)+var(--stor-mobile-nav-height)+10px)] z-[52] max-h-[min(42rem,calc(100dvh-6rem))] overflow-y-auto rounded-[26px] p-3 outline-none md:hidden"
             aria-label="More navigation and sync options"
         >
             <div class="mx-auto mb-2 h-1 w-10 rounded-full bg-[var(--stor-border)]" aria-hidden="true"></div>
@@ -166,13 +166,13 @@
             </section>
 
             <section class="mt-3" aria-labelledby="mobile-appearance-heading">
-                <h2 id="mobile-appearance-heading" class="px-1 pb-1.5 text-[10.5px] font-semibold uppercase tracking-[0.1em] text-[var(--stor-muted-text)]">Appearance</h2>
+                <h2 id="mobile-appearance-heading" class="stor-overline px-1 pb-1.5">Appearance</h2>
                 <AppearanceOptions compact />
             </section>
 
             {#if settings.length}
                 <section class="mt-3" aria-label="Settings">
-                    <h2 class="px-1 pb-1.5 text-[10.5px] font-semibold uppercase tracking-[0.1em] text-[var(--stor-muted-text)]">Settings</h2>
+                    <h2 class="stor-overline px-1 pb-1.5">Settings</h2>
                     <div class="grid grid-cols-2 gap-1.5">
                         {#each settings as link}
                             {@const Icon = link.icon}
@@ -185,7 +185,7 @@
             {/if}
 
             <section class="mt-3 flex items-center gap-2.5 rounded-xl px-1 py-1" aria-label="Account">
-                <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--stor-accent-soft)] text-sm font-bold text-[var(--stor-accent-strong)]" aria-hidden="true">{initial}</span>
+                <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[color-mix(in_srgb,var(--stor-ink)_8%,transparent)] text-sm font-bold text-[var(--stor-ink)]" aria-hidden="true">{initial}</span>
                 <div class="min-w-0 flex-1">
                     <div class="truncate text-xs font-semibold text-[var(--stor-ink)]" title={userEmail} data-testid="mobile-current-user-email">{userEmail || "Account"}</div>
                 </div>

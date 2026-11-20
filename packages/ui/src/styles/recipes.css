@@ -18,7 +18,7 @@
     .stor-metric-value { font-size: 22px; line-height: 28px; font-weight: 600; letter-spacing: -.025em; font-feature-settings: "tnum", "ss01"; color: var(--stor-ink); overflow-wrap: anywhere; }
     .stor-metric[data-size="lg"] .stor-metric-value { font-size: 32px; line-height: 36px; letter-spacing: -.03em; }
     .stor-metric-spark { color: var(--stor-accent); }
-    .stor-metric-support { font-size: var(--stor-text-small); line-height: var(--stor-text-small-line); font-family: var(--stor-font-sans); color: var(--stor-muted-text); }
+    .stor-metric-support { font-size: var(--stor-text-small); line-height: var(--stor-text-small-line); font-family: var(--stor-font-sans); color: var(--stor-muted-text); text-wrap: pretty; }
     .stor-metric-delta { margin-right: 6px; font-weight: 500; }
     /* A currency or unit after a large figure: smaller and quieter than the number. */
     .stor-unit { font-size: .55em; font-weight: 600; letter-spacing: 0; color: var(--stor-muted-text); }
@@ -37,16 +37,16 @@
     .stor-kbd { display: inline-flex; flex: none; align-items: center; height: 20px; padding: 0 6px; border-radius: 5px; background: var(--stor-surface-muted); box-shadow: 0 0 0 1px var(--stor-border); color: var(--stor-muted-text); font: 600 11px/1 var(--stor-font-sans); letter-spacing: 0; }
     [data-stor-button-variant="default"] .stor-kbd { background: color-mix(in srgb, currentColor 16%, transparent); box-shadow: none; color: inherit; }
     .stor-page-header { min-width: 0; padding-bottom: 4px; }
-    .stor-page-header h1, .stor-health-header h1 { font-size: 24px; line-height: 1.2; }
+    .stor-page-header h1, .stor-health-header h1 { font-size: var(--stor-text-title-1); line-height: var(--stor-text-title-1-line); letter-spacing: -.015em; }
     /* Section pages let the navigation name the place: the title is read by
        assistive tech and shown as a compact label on mobile only. */
-    .stor-page-title { margin-bottom: 12px; }
+    .stor-page-title { margin-bottom: 12px; text-wrap: balance; }
     .stor-page-label { margin-bottom: 8px; font-size: 18px; font-weight: 600; letter-spacing: -.01em; color: var(--stor-ink); }
     /* Serif titles: page and overlay titles only. Controls, data, and body copy stay in Inter.
        Newsreader is self-hosted with font-display: optional, so first paint never waits for it. */
     .stor-page-title, .stor-page-label, .stor-serif-title { font-family: var(--stor-font-serif); font-weight: 500; letter-spacing: -.012em; font-optical-sizing: auto; }
     /* The type scale's named styles that need more than a size: the serif titles and the uppercase overline. */
-    .stor-title-1, .stor-title-2 { font-family: var(--stor-font-serif); font-weight: 500; font-optical-sizing: auto; }
+    .stor-title-1, .stor-title-2 { font-family: var(--stor-font-serif); font-weight: 500; font-optical-sizing: auto; text-wrap: balance; }
     .stor-title-1 { font-size: var(--stor-text-title-1); line-height: var(--stor-text-title-1-line); letter-spacing: -.015em; }
     .stor-title-2 { font-size: var(--stor-text-title-2); line-height: var(--stor-text-title-2-line); letter-spacing: -.01em; }
     .stor-overline { font-size: var(--stor-text-overline); line-height: var(--stor-text-overline-line); font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--stor-muted-text); }
@@ -59,11 +59,11 @@
     .stor-page-tab:focus-visible { outline: 2px solid var(--stor-focus); outline-offset: 2px; }
     .stor-page-tab:is([data-state="active"], [aria-selected="true"], [aria-current="page"], [aria-current="true"]) { color: var(--stor-ink); }
     /* The measured pill replaces the selected tab's own background so it can slide. */
-    .stor-tabs-sliding .stor-page-tab { position: relative; z-index: 1; }
-    .stor-tabs-sliding .stor-page-tab:is([data-state="active"], [aria-selected="true"], [aria-current="page"], [aria-current="true"]) { background: transparent; box-shadow: none; }
-    .stor-tab-indicator { position: absolute; top: 3px; bottom: 3px; left: 0; width: var(--stor-tab-w, 0px); border-radius: 9999px; opacity: 0; pointer-events: none; transform: translateX(var(--stor-tab-x, 0px)); }
+    .stor-tabs-sliding .stor-page-tab,
+    .stor-tabs-sliding .stor-segmented-option { position: relative; z-index: 1; }
+    .stor-tab-indicator { position: absolute; top: var(--stor-tab-y, 3px); left: 0; width: var(--stor-tab-w, 0px); height: var(--stor-tab-h, calc(100% - 6px)); border-radius: var(--stor-tab-r, 9999px); opacity: 0; pointer-events: none; transform: translateX(var(--stor-tab-x, 0px)); }
     .stor-tabs-sliding .stor-tab-indicator { opacity: 1; }
-    .stor-tabs-ready .stor-tab-indicator { transition: transform var(--stor-tab-motion), width var(--stor-tab-motion), opacity var(--stor-dur-2) ease; }
+    .stor-tabs-ready .stor-tab-indicator { transition: transform var(--stor-tab-motion), width var(--stor-tab-motion), height var(--stor-tab-motion), opacity var(--stor-dur-2) ease; }
     .stor-primary-tabs { width: fit-content; max-width: 100%; }
     .stor-primary-tabs .stor-page-tab { font-size: 14px; padding-inline: 16px; }
     /* Five sections fit a phone's row without scrolling the last one out of sight. */
@@ -77,18 +77,18 @@
         .stor-page-tab { min-height: 30px; padding-block: 5px; }
         .stor-section-tabs { width: fit-content; grid-template-columns: repeat(2, minmax(140px, 1fr)); }
     }
-    .stor-segmented-control { gap: 2px; border-radius: 9999px; background: var(--stor-surface-well); padding: 3px; box-shadow: var(--stor-well-inset); }
+    .stor-segmented-control { position: relative; gap: 2px; border-radius: 9999px; background: var(--stor-surface-well); padding: 3px; box-shadow: var(--stor-well-inset); }
     .stor-segmented-option { min-height: 36px; border-radius: 9999px; padding-inline: 12px; color: var(--stor-muted-text); font-size: 13px; font-weight: 600; transition: color var(--stor-dur-2) ease, background-color var(--stor-dur-2) ease, box-shadow var(--stor-dur-2) ease; }
     .stor-segmented-option:hover { color: var(--stor-ink); }
-    .stor-segmented-option[aria-pressed="true"], .stor-segmented-option[data-state="active"] { color: var(--stor-ink); }
+    .stor-segmented-option:is([aria-pressed="true"], [data-state="active"], [data-checked="true"]) { color: var(--stor-ink); }
     @media (min-width: 640px) { .stor-segmented-option { min-height: 30px; } }
     /* The selected pill: page tabs, segmented options and the sliding tab indicator. Navigation's pill, which in
        the expanded sidebar is the card around the current section, sits a step above it. */
     .stor-tab-indicator,
     .stor-page-tab:is([data-state="active"], [aria-selected="true"], [aria-current="page"], [aria-current="true"]),
-    .stor-segmented-option:is([aria-pressed="true"], [data-state="active"]) { background: var(--stor-surface-raised); box-shadow: var(--stor-elevation-2); }
+    .stor-segmented-option:is([aria-pressed="true"], [data-state="active"], [data-checked="true"]) { background: var(--stor-surface-raised); box-shadow: var(--stor-elevation-2); }
     /* Toasts: the inverse ink pill (ink fill, canvas text), the same face as the last-change bar. */
-    .stor-toast { display: flex; width: 100%; align-items: flex-start; gap: 10px; min-height: 44px; box-sizing: border-box; padding: 6px 6px 6px 16px; border-radius: 22px; background: var(--stor-tooltip); box-shadow: 0 12px 32px -8px rgba(0, 0, 0, .3); font-size: 13px; font-weight: 500; line-height: 20px; color: var(--stor-tooltip-text); }
+    .stor-toast { display: flex; width: 100%; align-items: flex-start; gap: 10px; min-height: 44px; box-sizing: border-box; padding: 6px 6px 6px 16px; border-radius: 22px; background: var(--stor-tooltip); box-shadow: 0 12px 32px -8px rgba(0, 0, 0, .3); font-size: 13px; font-weight: 500; line-height: 20px; color: var(--stor-tooltip-text); transition: transform var(--stor-dur-3) var(--stor-ease-out), opacity var(--stor-dur-2) var(--stor-ease-out); }
     .stor-toast > svg:first-child { margin-top: 8px; }
     .stor-toast-action { flex: none; align-self: center; min-height: 32px; padding: 0 12px; border-radius: 999px; font-weight: 600; color: var(--stor-action-inverse); }
     .stor-toast-close { flex: none; align-self: center; display: grid; place-items: center; width: 32px; height: 32px; border-radius: 999px; color: inherit; opacity: .72; }
@@ -96,7 +96,8 @@
     .stor-toast :is(button):focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--stor-action-inverse); }
     .stor-nav-selected, .stor-nav-indicator { background: var(--stor-surface-raised); box-shadow: var(--stor-nav-card-shadow); }
     .stor-nav-sliding .stor-nav-selected,
-    .stor-tabs-sliding .stor-page-tab:is([data-state="active"], [aria-selected="true"], [aria-current="page"], [aria-current="true"]) { background: transparent; box-shadow: none; }
+    .stor-tabs-sliding .stor-page-tab:is([data-state="active"], [aria-selected="true"], [aria-current="page"], [aria-current="true"]),
+    .stor-tabs-sliding .stor-segmented-option:is([aria-pressed="true"], [data-state="active"], [data-checked="true"]) { background: transparent; box-shadow: none; }
 }
 
 .stor-drawer {
@@ -106,25 +107,100 @@
         opacity var(--stor-drawer-enter-fade);
 }
 
+.stor-backdrop,
 .stor-drawer-overlay {
+    background: var(--stor-overlay);
     transition: opacity var(--stor-overlay-enter-fade);
+}
+
+@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .stor-backdrop {
+        -webkit-backdrop-filter: blur(2px);
+        backdrop-filter: blur(2px);
+    }
+}
+
+.stor-dialog {
+    transition:
+        transform var(--stor-dur-3) var(--stor-ease-out),
+        opacity var(--stor-dur-2) var(--stor-ease-out);
+}
+
+.stor-bottom-sheet {
+    transition:
+        transform var(--stor-dur-3) var(--stor-ease-out),
+        opacity var(--stor-dur-2) var(--stor-ease-out);
+}
+
+.stor-menu {
+    transition:
+        transform var(--stor-dur-2) var(--stor-ease-out),
+        opacity var(--stor-dur-2) var(--stor-ease-out);
+}
+
+.stor-tooltip-content {
+    transition:
+        transform var(--stor-dur-1) var(--stor-ease-out),
+        opacity var(--stor-dur-1) var(--stor-ease-out);
 }
 
 @media (max-width: 639px) {
     .stor-drawer-footer > div > button[data-stor-button-variant="default"]:last-child { flex: 1; }
 }
 
-/* First paint of a mounted drawer slides it in from just off the edge. */
+/* First paint of mounted overlays and feedback pills enters smoothly; exits settle on Bits UI's data-ending-style. */
 
 @starting-style {
     .stor-drawer {
         opacity: 0;
         transform: translateX(var(--stor-drawer-shift));
     }
+    .stor-backdrop,
     .stor-drawer-overlay {
         opacity: 0;
     }
+    .stor-dialog {
+        opacity: 0;
+        transform: translateY(1.5rem);
+    }
+    .stor-bottom-sheet {
+        opacity: 0;
+        transform: translateY(1.5rem);
+    }
+    .stor-menu {
+        opacity: 0;
+        transform: translateY(-3px) scale(0.98);
+    }
+    .stor-menu[data-side="top"] { transform: translateY(3px) scale(0.98); }
+    .stor-menu[data-side="right"] { transform: translateX(-3px) scale(0.98); }
+    .stor-menu[data-side="left"] { transform: translateX(3px) scale(0.98); }
+    .stor-tooltip-content {
+        opacity: 0;
+        transform: scale(0.96);
+    }
+    .stor-tooltip-content[data-side="top"] { transform: translateY(2px) scale(0.96); }
+    .stor-tooltip-content[data-side="bottom"] { transform: translateY(-2px) scale(0.96); }
+    .stor-tooltip-content[data-side="right"] { transform: translateX(-2px) scale(0.96); }
+    .stor-tooltip-content[data-side="left"] { transform: translateX(2px) scale(0.96); }
+    .stor-toast {
+        opacity: 0;
+        transform: translateY(8px);
+    }
 }
+
+.stor-drawer[data-starting-style] { opacity: 0; transform: translateX(var(--stor-drawer-shift)); }
+.stor-backdrop[data-starting-style], .stor-drawer-overlay[data-starting-style] { opacity: 0; }
+.stor-dialog[data-starting-style] { opacity: 0; transform: translateY(1.5rem); }
+.stor-bottom-sheet[data-starting-style] { opacity: 0; transform: translateY(1.5rem); }
+.stor-menu[data-starting-style] { opacity: 0; transform: translateY(-3px) scale(0.98); }
+.stor-menu[data-starting-style][data-side="top"] { transform: translateY(3px) scale(0.98); }
+.stor-menu[data-starting-style][data-side="right"] { transform: translateX(-3px) scale(0.98); }
+.stor-menu[data-starting-style][data-side="left"] { transform: translateX(3px) scale(0.98); }
+.stor-tooltip-content[data-starting-style] { opacity: 0; transform: scale(0.96); }
+.stor-tooltip-content[data-starting-style][data-side="top"] { transform: translateY(2px) scale(0.96); }
+.stor-tooltip-content[data-starting-style][data-side="bottom"] { transform: translateY(-2px) scale(0.96); }
+.stor-tooltip-content[data-starting-style][data-side="right"] { transform: translateX(-2px) scale(0.96); }
+.stor-tooltip-content[data-starting-style][data-side="left"] { transform: translateX(2px) scale(0.96); }
 
 .stor-drawer[data-ending-style] {
     opacity: 0;
@@ -134,9 +210,52 @@
         opacity var(--stor-drawer-exit-fade);
 }
 
+.stor-backdrop[data-ending-style],
 .stor-drawer-overlay[data-ending-style] {
     opacity: 0;
     transition: opacity var(--stor-overlay-exit-fade);
+}
+
+.stor-dialog[data-ending-style],
+.stor-bottom-sheet[data-ending-style] {
+    opacity: 0;
+    transform: translateY(1.5rem);
+    transition:
+        transform var(--stor-dur-2) var(--stor-ease-in),
+        opacity var(--stor-dur-2) var(--stor-ease-in);
+}
+
+.stor-menu[data-ending-style] {
+    opacity: 0;
+    transform: translateY(-3px) scale(0.98);
+    transition:
+        transform var(--stor-dur-1) var(--stor-ease-in),
+        opacity var(--stor-dur-1) var(--stor-ease-in);
+}
+.stor-menu[data-ending-style][data-side="top"] { transform: translateY(3px) scale(0.98); }
+.stor-menu[data-ending-style][data-side="right"] { transform: translateX(-3px) scale(0.98); }
+.stor-menu[data-ending-style][data-side="left"] { transform: translateX(3px) scale(0.98); }
+
+.stor-tooltip-content[data-ending-style] {
+    opacity: 0;
+    transform: scale(0.96);
+    transition:
+        transform var(--stor-dur-1) var(--stor-ease-in),
+        opacity var(--stor-dur-1) var(--stor-ease-in);
+}
+
+@media (min-width: 640px) {
+    @starting-style {
+        .stor-dialog {
+            opacity: 0;
+            transform: translateY(6px) scale(0.97);
+        }
+    }
+    .stor-dialog[data-starting-style],
+    .stor-dialog[data-ending-style] {
+        opacity: 0;
+        transform: translateY(6px) scale(0.97);
+    }
 }
 
 .stor-drawer-grabber { display: none; }
@@ -149,8 +268,9 @@
         top: auto; bottom: var(--stor-keyboard, 0px); height: auto;
         max-height: calc(100dvh - var(--stor-keyboard, 0px) - env(safe-area-inset-top) - 2.5rem);
         padding-top: 0; border-radius: 24px 24px 0 0;
-        transition: transform var(--stor-drawer-enter-motion), opacity var(--stor-drawer-enter-fade), bottom 120ms ease-out;
+        transition: transform var(--stor-drawer-enter-motion), opacity var(--stor-drawer-enter-fade), bottom var(--stor-dur-1) ease-out;
     }
+    .stor-drawer[data-starting-style],
     .stor-drawer[data-ending-style] { transform: translateY(2rem); }
     .stor-drawer-grabber { display: block; width: 38px; height: 5px; flex: none; margin: 8px auto 0; border-radius: 3px; background: var(--stor-border); }
     .stor-drawer-header { padding-top: 6px; padding-bottom: 8px; }
@@ -179,7 +299,6 @@
     /* Two-level sidebar: the expanded sidebar lists sub-pages and names the place, so page tab rows and labels step aside. */
     html:not([data-sidebar-collapsed="true"]) .stor-sidebar-owned-tabs { display: none; }
     html:not([data-sidebar-collapsed="true"]) .stor-page-label { display: none; }
-    .stor-page-header h1, .stor-health-header h1 { font-size: 28px; }
     .stor-metric-value { font-size: 26px; line-height: 32px; }
     .stor-metric[data-size="lg"] .stor-metric-value { font-size: var(--stor-text-display); line-height: var(--stor-text-display-line); }
     .stor-drawer { top: 16px; right: 16px; height: calc(100dvh - 32px); max-width: 28rem; border-radius: 24px; overflow: hidden; padding-top: 0; }

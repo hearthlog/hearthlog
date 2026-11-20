@@ -15,6 +15,9 @@
     import LastChangeBar from "@hearthlog/shell/components/layout/LastChangeBar.svelte";
     import { SIDEBAR_WIDTH_KEY, readSidebarWidth } from "@hearthlog/shell/components/layout/sidebar-size.js";
     import LogCreateDrawer from "@hearthlog/shell/components/layout/LogCreateDrawer.svelte";
+    import ShortcutsDialog from "@hearthlog/shell/components/layout/ShortcutsDialog.svelte";
+    import Drawer from "@hearthlog/ui/components/Drawer.svelte";
+    import DataPlaceholder from "@hearthlog/ui/components/data/DataPlaceholder.svelte";
     import NotificationCenter from "@hearthlog/ui/components/NotificationCenter.svelte";
     import Announcer from "@hearthlog/ui/components/Announcer.svelte";
     import MovedBanner from "@hearthlog/shell/components/layout/MovedBanner.svelte";
@@ -75,6 +78,7 @@
     let sidebarWidth = $state(readSidebarWidth(localStorage));
     let syncIssuesOpen = $state(false);
     let createLogDrawerOpen = $state(false);
+    let shortcutsOpen = $state(false);
     let SyncIssuesDrawer = $state<SyncIssuesDrawerComponent | null>(null);
     let syncIssuesLoadPromise: Promise<void> | null = null;
     let userEmail = $state(
@@ -108,7 +112,10 @@
     onMount(() => initializeAppearance(tenant.id));
 
     onMount(() => startup.startModules());
-    onMount(() => installShortcuts((href) => goto(href)));
+    onMount(() => installShortcuts((href) => goto(href), {
+        toggleSidebar: () => { if (expandable.current) toggleSidebar(); },
+        openShortcuts: () => { shortcutsOpen = true; },
+    }));
     onMount(() => startWorkspaceClock());
     onMount(() => startNativeShell({ toggleSidebar: () => toggleSidebar() }));
 
@@ -368,10 +375,11 @@
 
 <div
     data-stor-root
-    class="flex h-dvh w-full flex-col bg-[var(--stor-bg)] transition-[padding] duration-150 ease-out motion-reduce:transition-none {sidebarCollapsed
+    class="flex h-dvh w-full flex-col bg-[var(--stor-bg)] transition-[padding] duration-[var(--stor-dur-2)] ease-out motion-reduce:transition-none {sidebarCollapsed
         ? 'md:pl-20'
         : 'lg:pl-[var(--stor-sidebar-width)]'}"
 >
+    <a href="#stor-main-content" class="stor-skip-link">Skip to main content</a>
     <NavBar
         userEmail={userEmail}
         logs={logs.value}
@@ -394,11 +402,14 @@
         onOpenSyncIssues={openSyncIssues}
         onSwitchLog={handleSwitchLog}
         onCreateLog={openCreateLogDrawer}
+        onOpenShortcuts={() => (shortcutsOpen = true)}
     />
 
     <main
+        id="stor-main-content"
+        tabindex="-1"
         data-stor-main
-        class="min-h-0 flex-1 overflow-y-auto pt-[var(--stor-mobile-header-height)] lg:pt-0"
+        class="min-h-0 flex-1 overflow-y-auto pt-[var(--stor-mobile-header-height)] focus:outline-none lg:pt-0"
         data-page-fit={pageFitsScreen(page.url.pathname) ? "" : undefined}
     >
         <MovedBanner />
@@ -419,6 +430,7 @@
     <LastChangeBar collapsed={sidebarCollapsed} logId={eventLogFilename.value} />
     <NotificationCenter />
     <Announcer />
+    <ShortcutsDialog show={shortcutsOpen} onClose={() => (shortcutsOpen = false)} />
     <LogCreateDrawer
         show={createLogDrawerOpen}
         onClose={() => createLogDrawerOpen = false}
@@ -430,8 +442,8 @@
             onClose={() => syncIssuesOpen = false}
         />
     {:else if syncIssuesOpen}
-        <div class="fixed inset-y-0 right-0 z-50 flex w-full max-w-md items-center justify-center border-l border-[var(--stor-border)] bg-white/95 text-sm font-medium text-stone-600 shadow-[var(--stor-elevation-3)]" role="status">
-            Loading sync issues…
-        </div>
+        <Drawer show={syncIssuesOpen} title="Sync issues" onClose={() => (syncIssuesOpen = false)}>
+            <DataPlaceholder rows={4} label="Loading sync issues" />
+        </Drawer>
     {/if}
 </div>

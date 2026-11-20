@@ -164,10 +164,13 @@
 }
 html[data-theme="dark"] {
     color-scheme: dark;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
 }
 html {
     overflow: hidden;
     background: var(--stor-bg);
+    font-synthesis: none;
 }
 body {
     margin: 0;
@@ -177,15 +180,20 @@ body {
     background: var(--stor-bg);
     color: var(--stor-ink);
 }
-body,
 button,
 input,
 select,
 textarea {
     transition:
-        background-color var(--stor-dur-2) ease,
-        border-color var(--stor-dur-2) ease,
-        color var(--stor-dur-2) ease;
+        background-color var(--stor-dur-1) ease,
+        border-color var(--stor-dur-1) ease,
+        color var(--stor-dur-1) ease;
+}
+/* Suppress transitions across the single paint that flips light/dark tokens so nothing lags behind its surface. */
+html[data-theme-switching] *,
+html[data-theme-switching] *::before,
+html[data-theme-switching] *::after {
+    transition: none !important;
 }
 button,
 a,
@@ -335,8 +343,8 @@ html[data-theme="dark"] [class~="border-sky-200"] { border-color: var(--stor-inf
 }
 /* Forced colors drop shadows and fills: sections, the selected pill and buttons keep a visible edge. */
 @media (forced-colors: active) {
-    .stor-panel, .stor-today-card, .stor-menu, .stor-sheet, .stor-toast, .stor-last-change { border: 1px solid CanvasText; }
-    .stor-tab-indicator, .stor-page-tab:is([data-state="active"], [aria-selected="true"], [aria-current="page"], [aria-current="true"]), .stor-segmented-option:is([aria-pressed="true"], [data-state="active"]) { outline: 2px solid Highlight; }
+    .stor-panel, .stor-today-card, .stor-menu, .stor-sheet, .stor-toast, .stor-last-change, .stor-skip-link { border: 1px solid CanvasText; }
+    .stor-tab-indicator, .stor-page-tab:is([data-state="active"], [aria-selected="true"], [aria-current="page"], [aria-current="true"]), .stor-segmented-option:is([aria-pressed="true"], [data-state="active"], [data-checked="true"]) { outline: 2px solid Highlight; }
     [data-stor-button-variant] { border: 1px solid ButtonText; }
     .stor-field-control:is(:focus, :focus-within) { outline: 2px solid Highlight; }
 }

@@ -163,7 +163,7 @@
             "rounded px-0.5 tabular-nums outline-none",
             part === "literal"
                 ? "text-[var(--stor-muted-text)]"
-                : "text-stone-950 focus:bg-stone-200",
+                : "text-[var(--stor-ink)] focus:bg-[var(--stor-accent-soft)] focus:text-[var(--stor-accent-strong)]",
         );
     }
 </script>
@@ -183,9 +183,9 @@
     calendarLabel={placeholder || "Choose date"}
 >
     <div
+        data-disabled={disabled ? "" : undefined}
         class={cn(
-            "flex min-w-0 w-full items-center rounded-xl border border-[var(--stor-field-border)] stor-well focus-within:bg-[var(--stor-surface)] text-base sm:text-sm text-stone-950 transition focus-within:border-[var(--stor-focus)] focus-within:ring-2 focus-within:ring-[var(--stor-selected)]",
-            disabled && "cursor-not-allowed bg-[var(--stor-surface-muted)] text-[var(--stor-muted-text)]",
+            "stor-field-control flex min-w-0 w-full items-center text-base sm:text-sm",
             className,
         )}
     >
@@ -194,7 +194,7 @@
             {name}
             data-date-value={value}
             class={cn(
-                "flex h-11 fine:h-9 min-w-0 flex-1 items-center gap-0.5 px-3 py-2.5 sm:py-1.5 outline-none",
+                "flex h-11 fine:h-9 min-w-0 flex-1 items-center gap-0.5 px-3 py-2.5 fine:py-1.5 outline-none",
                 granularity === "minute"
                     ? "flex-wrap gap-y-0.5"
                     : "overflow-hidden whitespace-nowrap",
@@ -215,7 +215,7 @@
         {#if hasValue && !disabled && clearable}
             <button
                 type="button"
-                class="mr-1 flex h-10 w-10 sm:h-8 sm:w-8 shrink-0 items-center justify-center rounded-lg text-[var(--stor-muted-text)] transition hover:bg-[var(--stor-surface-muted)] hover:text-stone-700"
+                class="mr-1 flex h-9 w-9 fine:h-7 fine:w-7 shrink-0 items-center justify-center rounded-lg text-[var(--stor-muted-text)] transition hover:bg-[var(--stor-surface-hover)] hover:text-[var(--stor-ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--stor-focus)]"
                 aria-label={granularity === "minute"
                     ? "Clear date and time"
                     : "Clear date"}
@@ -227,7 +227,7 @@
 
         <BitsDatePicker.Trigger
             class={cn(
-                "mr-1 flex h-10 w-10 sm:h-8 sm:w-8 shrink-0 items-center justify-center rounded-lg text-[var(--stor-muted-text)] transition hover:bg-[var(--stor-surface-muted)] hover:text-stone-950 disabled:cursor-not-allowed disabled:opacity-50",
+                "mr-1 flex h-9 w-9 fine:h-7 fine:w-7 shrink-0 items-center justify-center rounded-lg text-[var(--stor-muted-text)] transition hover:bg-[var(--stor-surface-hover)] hover:text-[var(--stor-ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--stor-focus)] disabled:cursor-not-allowed disabled:opacity-50",
                 triggerClass,
             )}
             aria-label={granularity === "minute"
@@ -250,11 +250,11 @@
             <BitsDatePicker.Calendar>
                 {#snippet children({ months, weekdays })}
                     <BitsDatePicker.Header class="mb-2 flex items-center justify-between gap-2">
-                        <BitsDatePicker.PrevButton class="flex h-8 w-8 items-center justify-center rounded-lg text-[var(--stor-muted-text)] transition hover:bg-[var(--stor-surface-muted)] hover:text-stone-950 disabled:opacity-40">
+                        <BitsDatePicker.PrevButton class="flex h-8 w-8 items-center justify-center rounded-lg text-[var(--stor-muted-text)] transition hover:bg-[var(--stor-surface-hover)] hover:text-[var(--stor-ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--stor-focus)] disabled:opacity-40">
                             <IconChevronLeft class="h-4 w-4" />
                         </BitsDatePicker.PrevButton>
-                        <BitsDatePicker.Heading class="text-sm font-semibold text-stone-900" />
-                        <BitsDatePicker.NextButton class="flex h-8 w-8 items-center justify-center rounded-lg text-[var(--stor-muted-text)] transition hover:bg-[var(--stor-surface-muted)] hover:text-stone-950 disabled:opacity-40">
+                        <BitsDatePicker.Heading class="text-sm font-semibold text-[var(--stor-ink)]" />
+                        <BitsDatePicker.NextButton class="flex h-8 w-8 items-center justify-center rounded-lg text-[var(--stor-muted-text)] transition hover:bg-[var(--stor-surface-hover)] hover:text-[var(--stor-ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--stor-focus)] disabled:opacity-40">
                             <IconChevronRight class="h-4 w-4" />
                         </BitsDatePicker.NextButton>
                     </BitsDatePicker.Header>
@@ -280,7 +280,7 @@
                                                 class="p-0 text-center"
                                             >
                                                 <BitsDatePicker.Day
-                                                    class="flex h-8 w-8 items-center justify-center rounded-lg text-sm font-medium text-[var(--stor-muted-text)] outline-none transition hover:bg-[var(--stor-accent-soft)] focus-visible:ring-2 focus-visible:ring-[var(--stor-focus)] data-[disabled]:pointer-events-none data-[disabled]:opacity-30 data-[outside-month]:text-[var(--stor-muted-text)] data-[selected]:bg-[var(--stor-action)] data-[selected]:text-[var(--stor-action-text)] data-[today]:ring-1 data-[today]:ring-[var(--stor-focus)] data-[unavailable]:text-[var(--stor-negative)]"
+                                                    class="relative flex h-8 w-8 items-center justify-center rounded-lg text-sm font-medium tabular-nums text-[var(--stor-ink)] outline-none transition hover:bg-[var(--stor-accent-soft)] focus-visible:ring-2 focus-visible:ring-[var(--stor-focus)] data-[disabled]:pointer-events-none data-[disabled]:opacity-30 data-[outside-month]:text-[var(--stor-faint-text)] data-[selected]:bg-[var(--stor-action)] data-[selected]:font-semibold data-[selected]:text-[var(--stor-action-text)] data-[today]:after:content-[''] data-[today]:after:absolute data-[today]:after:bottom-1 data-[today]:after:left-1/2 data-[today]:after:h-1 data-[today]:after:w-1 data-[today]:after:-translate-x-1/2 data-[today]:after:rounded-full data-[today]:after:bg-[var(--stor-now)] data-[today]:data-[selected]:after:bg-[var(--stor-action-text)] data-[unavailable]:text-[var(--stor-negative)]"
                                                 />
                                             </BitsDatePicker.Cell>
                                         {/each}
@@ -295,8 +295,8 @@
             {#if granularity === "minute"}
                 <div class="mt-3 border-t border-[var(--stor-border)] pt-3">
                     <div class="mb-2 flex items-center justify-between gap-3">
-                        <span class="text-xs font-semibold uppercase text-[var(--stor-muted-text)]">Time</span>
-                        <BitsDatePicker.Close class="rounded-lg px-2.5 py-1.5 text-xs font-semibold text-stone-600 transition hover:bg-[var(--stor-surface-muted)] hover:text-stone-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-stone-400">
+                        <span class="stor-overline">Time</span>
+                        <BitsDatePicker.Close class="rounded-lg px-2.5 py-1.5 text-xs font-semibold text-[var(--stor-muted-text)] transition hover:bg-[var(--stor-surface-hover)] hover:text-[var(--stor-ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--stor-focus)]">
                             Done
                         </BitsDatePicker.Close>
                     </div>
@@ -314,7 +314,7 @@
                         >
                             <BitsTimeField.Input
                                 aria-label="Selected time"
-                                class="flex min-h-9 items-center gap-0.5 rounded-lg border border-[var(--stor-border)] bg-[var(--stor-surface-muted)] px-3 py-2 text-sm text-stone-950 outline-none transition focus-within:border-stone-400 focus-within:bg-white focus-within:ring-2 focus-within:ring-stone-200"
+                                class="stor-field-control flex min-h-9 items-center gap-0.5 px-3 py-1.5 text-sm"
                             >
                                 {#snippet children({ segments })}
                                     {#each segments as segment}
@@ -333,7 +333,7 @@
                     <div class="grid grid-cols-4 gap-1.5">
                         <button
                             type="button"
-                            class="flex h-8 items-center justify-center gap-1 rounded-2xl bg-[var(--stor-surface-raised)] px-2 text-xs font-medium text-stone-600 transition hover:bg-[var(--stor-surface-muted)] hover:text-stone-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-stone-400"
+                            class="flex h-8 items-center justify-center gap-1 rounded-full bg-[var(--stor-surface-raised)] px-2 text-xs font-medium text-[var(--stor-muted-text)] shadow-[var(--stor-elevation-2)] transition hover:text-[var(--stor-ink)] hover:shadow-[var(--stor-control-shadow-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--stor-focus)]"
                             aria-label="Decrease time by one hour"
                             onclick={() => adjustTime(-60)}
                         >
@@ -342,7 +342,7 @@
                         </button>
                         <button
                             type="button"
-                            class="flex h-8 items-center justify-center gap-1 rounded-2xl bg-[var(--stor-surface-raised)] px-2 text-xs font-medium text-stone-600 transition hover:bg-[var(--stor-surface-muted)] hover:text-stone-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-stone-400"
+                            class="flex h-8 items-center justify-center gap-1 rounded-full bg-[var(--stor-surface-raised)] px-2 text-xs font-medium text-[var(--stor-muted-text)] shadow-[var(--stor-elevation-2)] transition hover:text-[var(--stor-ink)] hover:shadow-[var(--stor-control-shadow-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--stor-focus)]"
                             aria-label="Increase time by one hour"
                             onclick={() => adjustTime(60)}
                         >
@@ -351,7 +351,7 @@
                         </button>
                         <button
                             type="button"
-                            class="flex h-8 items-center justify-center gap-1 rounded-2xl bg-[var(--stor-surface-raised)] px-2 text-xs font-medium text-stone-600 transition hover:bg-[var(--stor-surface-muted)] hover:text-stone-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-stone-400"
+                            class="flex h-8 items-center justify-center gap-1 rounded-full bg-[var(--stor-surface-raised)] px-2 text-xs font-medium text-[var(--stor-muted-text)] shadow-[var(--stor-elevation-2)] transition hover:text-[var(--stor-ink)] hover:shadow-[var(--stor-control-shadow-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--stor-focus)]"
                             aria-label="Decrease time by five minutes"
                             onclick={() => adjustTime(-5)}
                         >
@@ -360,7 +360,7 @@
                         </button>
                         <button
                             type="button"
-                            class="flex h-8 items-center justify-center gap-1 rounded-2xl bg-[var(--stor-surface-raised)] px-2 text-xs font-medium text-stone-600 transition hover:bg-[var(--stor-surface-muted)] hover:text-stone-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-stone-400"
+                            class="flex h-8 items-center justify-center gap-1 rounded-full bg-[var(--stor-surface-raised)] px-2 text-xs font-medium text-[var(--stor-muted-text)] shadow-[var(--stor-elevation-2)] transition hover:text-[var(--stor-ink)] hover:shadow-[var(--stor-control-shadow-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--stor-focus)]"
                             aria-label="Increase time by five minutes"
                             onclick={() => adjustTime(5)}
                         >

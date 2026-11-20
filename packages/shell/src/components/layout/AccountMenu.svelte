@@ -6,6 +6,7 @@
     import Tooltip from '@hearthlog/ui/components/ui/Tooltip.svelte';
     import AppearanceOptions from './AppearanceOptions.svelte';
     import IconDots from '~icons/mdi/dots-vertical';
+    import IconKeyboard from '~icons/mdi/keyboard-outline';
     import IconLogout from '~icons/mdi/logout';
 
     interface SettingsLink {
@@ -20,11 +21,13 @@
         settings,
         collapsed = false,
         isActive,
+        onOpenShortcuts,
     }: {
         userEmail: string;
         settings: SettingsLink[];
         collapsed?: boolean;
         isActive: (path: string) => boolean;
+        onOpenShortcuts?: () => void;
     } = $props();
 
     let open = $state(false);
@@ -37,16 +40,21 @@
         open = false;
         beginAccessLogout('/');
     }
+
+    function openShortcuts(): void {
+        open = false;
+        onOpenShortcuts?.();
+    }
 </script>
 
 {#snippet accountTrigger(tip: Record<string, unknown> = {})}
     <Popover.Trigger
         {...tip}
-        class="group flex items-center rounded-xl text-left transition hover:bg-[color-mix(in_srgb,var(--stor-ink),transparent_95%)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--stor-focus)] {collapsed ? 'mx-auto h-11 w-11 justify-center' : 'w-full gap-2.5 p-1.5'}"
+        class="group flex items-center rounded-xl text-left transition hover:bg-[var(--stor-nav-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--stor-focus)] {collapsed ? 'mx-auto h-11 w-11 justify-center' : 'w-full gap-2.5 p-1.5'}"
         aria-label={`Account and settings, ${userEmail}`}
         data-testid={collapsed ? 'account-menu-collapsed' : 'account-menu'}
     >
-        <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[linear-gradient(140deg,var(--stor-accent-soft),color-mix(in_srgb,var(--stor-accent),var(--stor-surface)_72%))] text-xs font-bold text-[var(--stor-accent-strong)]" aria-hidden="true">{initial}</span>
+        <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[color-mix(in_srgb,var(--stor-ink)_8%,transparent)] text-xs font-bold text-[var(--stor-ink)]" aria-hidden="true">{initial}</span>
         {#if !collapsed}
             <span class="min-w-0 flex-1 truncate text-xs font-semibold text-[var(--stor-ink)]">{userEmail}</span>
             <IconDots class="h-4 w-4 shrink-0 text-[var(--stor-muted-text)]" />
@@ -71,28 +79,40 @@
             class="stor-menu z-[var(--stor-layer-menu)] w-72 p-2 outline-none"
         >
             <div class="flex items-center gap-2.5 px-2 pb-2 pt-1">
-                <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--stor-accent-soft)] text-sm font-bold text-[var(--stor-accent-strong)]" aria-hidden="true">{initial}</span>
+                <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[color-mix(in_srgb,var(--stor-ink)_8%,transparent)] text-sm font-bold text-[var(--stor-ink)]" aria-hidden="true">{initial}</span>
                 <span class="min-w-0 truncate text-sm font-semibold text-[var(--stor-ink)]" data-testid="current-user-email">{userEmail}</span>
             </div>
-            <h2 class="px-2 pb-1.5 pt-2 text-[10.5px] font-semibold uppercase tracking-[0.1em] text-[var(--stor-muted-text)]">Appearance</h2>
+            <h2 class="stor-overline px-2 pb-1.5 pt-2">Appearance</h2>
             <AppearanceOptions compact />
             {#if settings.length}
-                <h2 class="px-2 pb-1 pt-3 text-[10.5px] font-semibold uppercase tracking-[0.1em] text-[var(--stor-muted-text)]">Settings</h2>
+                <h2 class="stor-overline px-2 pb-1 pt-3">Settings</h2>
                 {#each settings as link}
                     {@const Icon = link.icon}
+                    {@const active = isActive(link.path)}
                     <a
                         href={link.path}
-                        class="flex items-center gap-2.5 rounded-xl p-2 transition hover:bg-[var(--stor-surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--stor-focus)]"
-                        aria-current={isActive(link.path) ? 'page' : undefined}
+                        class="flex items-center gap-2.5 rounded-xl p-2 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--stor-focus)] {active ? 'bg-[var(--stor-selected)]' : 'hover:bg-[var(--stor-surface-hover)]'}"
+                        aria-current={active ? 'page' : undefined}
                         onclick={() => (open = false)}
                     >
-                        <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--stor-surface-muted)] text-[var(--stor-muted-text)]"><Icon class="h-4 w-4" /></span>
+                        <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg {active ? 'bg-[var(--stor-surface-raised)] text-[var(--stor-accent-strong)]' : 'bg-[var(--stor-surface-muted)] text-[var(--stor-muted-text)]'}"><Icon class="h-4 w-4" /></span>
                         <span class="min-w-0">
                             <span class="block text-sm font-semibold text-[var(--stor-ink)]">{link.label}</span>
                             <span class="block truncate text-xs text-[var(--stor-muted-text)]">{link.subtitle}</span>
                         </span>
                     </a>
                 {/each}
+            {/if}
+            {#if onOpenShortcuts}
+                <button
+                    type="button"
+                    class="mt-1 hidden w-full items-center gap-2.5 rounded-xl p-2 text-left text-sm font-semibold text-[var(--stor-ink)] transition hover:bg-[var(--stor-surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--stor-focus)] lg:flex"
+                    onclick={openShortcuts}
+                >
+                    <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--stor-surface-muted)] text-[var(--stor-muted-text)]"><IconKeyboard class="h-4 w-4" /></span>
+                    <span class="min-w-0 flex-1">Keyboard shortcuts</span>
+                    <kbd class="stor-kbd" aria-hidden="true">?</kbd>
+                </button>
             {/if}
             {#if canLogOut}
                 <div class="mx-1 my-2 h-px bg-[var(--stor-border)]"></div>

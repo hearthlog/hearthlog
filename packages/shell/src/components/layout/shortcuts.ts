@@ -7,6 +7,21 @@ import { lastChange } from './last-change.svelte.js';
 const GO_KEYS: Record<string, string> = { f: 'Finance', h: 'Health', c: 'Calendar', i: 'Invoices' };
 const GO_WINDOW_MS = 1500;
 
+export interface ShellShortcutActions {
+    toggleSidebar?: () => void;
+    openShortcuts?: () => void;
+}
+
+/** Enabled G-chord section jumps for the active tenant, used by both the handler and the shortcuts dialog. */
+export function enabledSectionShortcuts(): { key: string; label: string; path: string }[] {
+    return Object.entries(GO_KEYS).flatMap(([key, label]) => {
+        const feature = FEATURES.find((entry) => entry.page?.label === label);
+        return feature?.page && isFeatureEnabled(feature.id)
+            ? [{ key: key.toUpperCase(), label, path: feature.page.path }]
+            : [];
+    });
+}
+
 /** Keys that belong to what is focused: typing, menus, and anything with its own arrow handling. */
 function takesKeys(target: EventTarget | null): boolean {
     if (!(target instanceof HTMLElement)) return false;
@@ -14,11 +29,15 @@ function takesKeys(target: EventTarget | null): boolean {
 }
 
 /**
- * The shell's keyboard shortcuts: N new item on this page (a visible `data-stor-new` button, else the feature's create shortcut), ← / → and T through time, G then F, H, C or I to go to
- * a section, ⌘Z to undo the last change. Esc is each sheet's own. Nothing fires while typing, while a sheet or
- * menu is open, or with a modifier other than ⌘/Ctrl on Z. Every shortcut also has a visible control.
+ * The shell's keyboard shortcuts: N new item on this page (a visible `data-stor-new` button, else the feature's create shortcut),
+ * ← / → and T through time, G then F, H, C or I to go to a section, [ to toggle the sidebar, ? for the shortcuts reference,
+ * ⌘Z to undo the last change. Esc is each sheet's own. Nothing fires while typing, while a sheet or menu is open, or with a
+ * modifier other than ⌘/Ctrl on Z. Every shortcut also has a visible control.
  */
-export function installShortcuts(goto: (href: string) => unknown): () => void {
+export function installShortcuts(
+    goto: (href: string) => unknown,
+    actions: ShellShortcutActions = {},
+): () => void {
     let goPending = 0;
 
     const handle = (event: KeyboardEvent) => {
@@ -48,6 +67,12 @@ export function installShortcuts(goto: (href: string) => unknown): () => void {
 
         if (key === 'g' && !event.shiftKey) {
             goPending = Date.now() + GO_WINDOW_MS;
+        } else if (event.key === '?' && actions.openShortcuts) {
+            event.preventDefault();
+            actions.openShortcuts();
+        } else if (event.key === '[' && !event.shiftKey && actions.toggleSidebar) {
+            event.preventDefault();
+            actions.toggleSidebar();
         } else if (key === 'n' && !event.shiftKey) {
             // A page's own "new" button (marked `data-stor-new`) wins; else the feature's first create shortcut.
             const button = [...document.querySelectorAll<HTMLButtonElement>('button[data-stor-new]')].find((candidate) => !candidate.disabled && candidate.offsetParent !== null);

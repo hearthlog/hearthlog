@@ -50,6 +50,13 @@
         return IconInfo;
     }
 
+    function iconTone(item: AppNotification): string {
+        if (item.type === "success") return "text-[var(--stor-positive-inverse)]";
+        if (item.type === "error") return "text-[var(--stor-negative-inverse)]";
+        if (item.type === "progress") return "animate-spin opacity-85";
+        return "text-[var(--stor-info-inverse)]";
+    }
+
     async function runAction(item: AppNotification) {
         dismissNotification(item.id);
         await item.action?.run();
@@ -68,7 +75,7 @@
             role={item.type === "error" ? "alert" : "status"}
             data-type={item.type}
         >
-            <Icon class="h-[18px] w-[18px] shrink-0 {item.type === 'progress' ? 'animate-spin' : 'opacity-80'}" />
+            <Icon class="h-[18px] w-[18px] shrink-0 {iconTone(item)}" aria-hidden="true" />
             <div class="min-w-0 flex-1 py-1.5">{item.message}</div>
             {#if item.action}
                 <button type="button" class="stor-toast-action" onclick={() => runAction(item)}>{item.action.label}</button>

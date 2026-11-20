@@ -41,7 +41,7 @@
                 {sideOffset}
                 collisionPadding={8}
                 class={cn(
-                    "z-[var(--stor-layer-tooltip)] rounded-lg bg-[var(--stor-tooltip)] px-2.5 py-1.5 text-xs font-semibold text-[var(--stor-tooltip-text)] shadow-[var(--stor-elevation-3)]",
+                    "stor-tooltip-content z-[var(--stor-layer-tooltip)] rounded-lg bg-[var(--stor-tooltip)] px-2.5 py-1.5 text-xs font-semibold text-[var(--stor-tooltip-text)] shadow-[var(--stor-elevation-3)]",
                     className,
                 )}
             >
