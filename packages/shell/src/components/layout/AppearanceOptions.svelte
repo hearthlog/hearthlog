@@ -1,6 +1,7 @@
 <script lang="ts">
     import { appearance } from "@hearthlog/runtime/theme/appearance.svelte.js";
     import type { ThemePreference } from "@hearthlog/contracts/tenant/theme";
+    import { tabIndicator } from "@hearthlog/ui/components/ui/tab-indicator.js";
     import IconDesktop from "~icons/mdi/monitor";
     import IconLight from "~icons/mdi/white-balance-sunny";
     import IconDark from "~icons/mdi/weather-night";
@@ -20,15 +21,14 @@
 </script>
 
 {#if compact}
-<fieldset class="grid grid-cols-3 gap-1 rounded-xl bg-[var(--stor-surface-muted)] p-1" aria-label="Appearance">
+<fieldset class="stor-segmented-control grid grid-cols-3 gap-1 rounded-xl p-1" aria-label="Appearance" {@attach tabIndicator}>
     <legend class="sr-only">Appearance</legend>
     {#each options as option}
         {@const Icon = option.icon}
         {@const selected = appearance.preference === option.value}
         <label
-            class="flex min-h-11 cursor-pointer flex-col items-center justify-center gap-1 rounded-lg px-1 py-1.5 text-xs font-semibold transition has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-[var(--stor-focus)] sm:min-h-14 {selected
-                ? 'bg-[var(--stor-surface-raised)] text-[var(--stor-ink)] shadow-[var(--stor-shadow-sm)]'
-                : 'text-[var(--stor-muted-text)] hover:text-[var(--stor-ink)]'}"
+            data-checked={selected ? "true" : undefined}
+            class="stor-segmented-option flex min-h-11 cursor-pointer flex-col items-center justify-center gap-1 rounded-lg px-1 py-1.5 text-xs font-semibold has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-[var(--stor-focus)] sm:min-h-14"
         >
             <input
                 class="sr-only"

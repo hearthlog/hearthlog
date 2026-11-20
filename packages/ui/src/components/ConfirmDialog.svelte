@@ -62,15 +62,15 @@
 
 <AlertDialog.Root open={show} onOpenChange={handleOpenChange}>
 	<AlertDialog.Portal>
-		<AlertDialog.Overlay class="fixed inset-0 z-[var(--stor-layer-dialog)] bg-[var(--stor-overlay)]" />
-		<AlertDialog.Content onOpenAutoFocus={focusCancel} class="stor-sheet fixed inset-x-4 bottom-4 z-[var(--stor-layer-dialog-content)] flex max-h-[calc(100dvh-2rem-env(safe-area-inset-top))] flex-col overflow-hidden rounded-[var(--stor-panel-radius)] outline-none sm:left-1/2 sm:top-1/2 sm:bottom-auto sm:max-w-lg sm:-translate-x-1/2 sm:-translate-y-1/2">
+		<AlertDialog.Overlay class="stor-backdrop fixed inset-0 z-[var(--stor-layer-dialog)]" />
+		<AlertDialog.Content onOpenAutoFocus={focusCancel} class="stor-sheet stor-dialog fixed inset-x-4 bottom-4 z-[var(--stor-layer-dialog-content)] flex max-h-[calc(100dvh-2rem-env(safe-area-inset-top))] flex-col overflow-hidden rounded-[var(--stor-panel-radius)] outline-none sm:left-1/2 sm:top-1/2 sm:bottom-auto sm:max-w-lg sm:-translate-x-1/2 sm:-translate-y-1/2">
 			<header class="shrink-0 px-5 pb-2 pt-5 sm:px-6 sm:pt-6">
 				<AlertDialog.Title level={3} class="stor-title-2 text-[var(--stor-ink)]">
 					{title}
 				</AlertDialog.Title>
 			</header>
 			<div class="min-h-0 flex-1 overflow-y-auto px-5 sm:px-6">
-				<AlertDialog.Description class="whitespace-pre-line text-body text-[var(--stor-muted-text)]">
+				<AlertDialog.Description class="whitespace-pre-line text-pretty text-body text-[var(--stor-muted-text)]">
 					{message}
 				</AlertDialog.Description>
 			</div>

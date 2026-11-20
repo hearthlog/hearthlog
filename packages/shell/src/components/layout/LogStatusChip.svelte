@@ -80,7 +80,7 @@
                 : 'h-9 min-w-0 max-w-full gap-2 rounded-full pl-2.5 pr-2 text-xs font-semibold'} {danger
             ? 'bg-[var(--stor-negative-soft)] text-[var(--stor-negative)] ring-1 ring-inset ring-[color-mix(in_srgb,var(--stor-negative),transparent_70%)]'
             : variant === 'pill' || variant === 'round'
-              ? 'bg-[var(--stor-surface-raised)] text-[var(--stor-ink)] shadow-[var(--stor-shadow-sm)] hover:shadow-[var(--stor-shadow-md)]'
+              ? 'bg-[var(--stor-surface-raised)] text-[var(--stor-ink)] shadow-[var(--stor-shadow-sm)] hover:shadow-[var(--stor-control-shadow-hover)]'
               : variant === 'row'
                 ? 'bg-[var(--stor-surface-muted)] text-[var(--stor-ink)]'
                 : 'text-[var(--stor-ink)] hover:bg-[var(--stor-nav-hover)]'}"
@@ -108,7 +108,7 @@
             <span class="hidden shrink-0 font-medium opacity-70 min-[380px]:inline">· {statusLine}</span>
             <IconUnfold class="h-3.5 w-3.5 shrink-0 opacity-60" />
         {:else}
-            <span class="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] {danger ? 'bg-[color-mix(in_srgb,var(--stor-negative),transparent_85%)]' : 'bg-[var(--stor-accent-soft)] text-[var(--stor-accent-strong)]'}">
+            <span class="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] {danger ? 'bg-[color-mix(in_srgb,var(--stor-negative),transparent_85%)]' : 'bg-[color-mix(in_srgb,var(--stor-ink)_7%,transparent)] text-[var(--stor-muted-text)]'}">
                 <IconLayers class="h-4 w-4" />
                 {#if showDot}<span class="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full {dotClass} {pulsing ? 'motion-safe:animate-pulse' : ''} {ringClass}" aria-hidden="true"></span>{/if}
             </span>

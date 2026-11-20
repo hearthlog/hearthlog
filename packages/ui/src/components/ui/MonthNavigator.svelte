@@ -171,8 +171,8 @@
                     aria-expanded={mobileOpen}
                 ><span class="truncate">{monthLabel}</span><IconChevronDown class="h-4 w-4 shrink-0" /></Dialog.Trigger>
                 <Dialog.Portal>
-                    <Dialog.Overlay class="fixed inset-0 z-[var(--stor-layer-sheet)] bg-[var(--stor-overlay)] sm:hidden" />
-                    <Dialog.Content class="stor-sheet fixed inset-x-0 bottom-0 z-[var(--stor-layer-sheet-content)] max-h-[calc(100dvh-env(safe-area-inset-top))] overflow-y-auto rounded-t-3xl px-4 pt-3 pb-[calc(1rem+env(safe-area-inset-bottom))] outline-none sm:hidden">
+                    <Dialog.Overlay class="stor-backdrop fixed inset-0 z-[var(--stor-layer-sheet)] sm:hidden" />
+                    <Dialog.Content class="stor-sheet stor-bottom-sheet fixed inset-x-0 bottom-0 z-[var(--stor-layer-sheet-content)] max-h-[calc(100dvh-env(safe-area-inset-top))] overflow-y-auto rounded-t-3xl px-4 pt-3 pb-[calc(1rem+env(safe-area-inset-bottom))] outline-none sm:hidden">
                         <div class="mx-auto mb-4 h-1 w-10 rounded-full bg-[var(--stor-border)]" aria-hidden="true"></div>
                         <div class="mb-2 flex items-center justify-between">
                             <Dialog.Title level={3} class="text-xl font-semibold text-[var(--stor-ink)]">Choose month</Dialog.Title>

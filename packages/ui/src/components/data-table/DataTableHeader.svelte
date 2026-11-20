@@ -35,7 +35,7 @@
 {#if canSort && toggleSorting}
     <button
         type="button"
-        class="group flex w-full min-w-0 flex-col {align === 'right' ? 'items-end' : 'items-start'} gap-0.5 rounded-md px-1 py-0.5 text-left outline-none transition hover:bg-[var(--stor-surface)] focus-visible:ring-2 focus-visible:ring-[var(--stor-selected)]"
+        class="group flex w-full min-w-0 flex-col {align === 'right' ? 'items-end' : 'items-start'} gap-0.5 rounded-md px-1 py-0.5 text-left outline-none transition hover:bg-[var(--stor-surface)] focus-visible:ring-2 focus-visible:ring-[var(--stor-focus)]"
         aria-label={sortLabel}
         aria-sort={sortDirection === "asc"
             ? "ascending"

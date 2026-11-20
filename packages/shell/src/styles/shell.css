@@ -20,22 +20,22 @@
     .stor-nav-badge-dot.stor-nav-badge-negative { background: var(--stor-negative); }
     .stor-nav-badge-dot.stor-nav-badge-warning { background: var(--stor-warning); }
     /* Sub-pages open and close in place, so the rows below glide instead of jumping. */
-    .stor-nav-sub { display: grid; grid-template-rows: 0fr; transition: grid-template-rows 200ms ease; }
+    .stor-nav-sub { display: grid; grid-template-rows: 0fr; transition: grid-template-rows var(--stor-dur-3) var(--stor-ease-out); }
     .stor-nav-sub[data-open] { grid-template-rows: 1fr; }
-    .stor-nav-sub-in { min-height: 0; overflow: hidden; visibility: hidden; transition: visibility 0s linear 200ms; }
+    .stor-nav-sub-in { min-height: 0; overflow: hidden; visibility: hidden; transition: visibility 0s linear var(--stor-dur-3); }
     .stor-nav-sub[data-open] > .stor-nav-sub-in { visibility: visible; transition-delay: 0s; }
     /* Recently: two-line rows whose icons sit in the navigation's icon column. */
     /* The NSFW toggle reads as a group heading that opens; it disables itself while an NSFW section is in view. */
-    .stor-nsfw-toggle { display: flex; align-items: center; gap: 6px; min-height: 30px; border-radius: 8px; font-size: 10.5px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--stor-muted-text); transition: color var(--stor-dur-1), background-color var(--stor-dur-1); }
+    .stor-nsfw-toggle { display: flex; align-items: center; gap: 6px; min-height: 30px; border-radius: 8px; font-size: var(--stor-text-overline); line-height: var(--stor-text-overline-line); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--stor-muted-text); transition: color var(--stor-dur-1), background-color var(--stor-dur-1); }
     .stor-nsfw-toggle:hover:not(:disabled) { color: var(--stor-ink); background: var(--stor-nav-hover); }
     .stor-nsfw-toggle:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--stor-focus); }
     .stor-nsfw-toggle:disabled { cursor: default; }
-    .stor-recent-place { display: flex; align-items: center; gap: 11px; min-height: 40px; padding: 3px 10px 3px 13px; border-radius: 10px; transition: background-color 120ms; }
+    .stor-recent-place { display: flex; align-items: center; gap: 11px; min-height: 40px; padding: 3px 10px 3px 13px; border-radius: 10px; transition: background-color var(--stor-dur-1) ease; }
     .stor-recent-place:hover { background: var(--stor-nav-hover); }
     .stor-recent-place:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--stor-focus); }
     /* Last change: an inverse ink pill (ink fill, canvas text) over the bottom of the page panel, offering Undo for
        what this tab just saved. Undo draws in the accent as the other mode shows it. Toasts share the recipe. */
-    .stor-last-change { display: flex; align-items: center; gap: 4px; width: min(560px, 100%); min-height: 44px; box-sizing: border-box; padding: 6px 6px 6px 16px; border-radius: 999px; background: var(--stor-tooltip); box-shadow: 0 12px 32px -8px rgba(0, 0, 0, 0.3); font-size: 13px; font-weight: 500; color: var(--stor-tooltip-text); }
+    .stor-last-change { display: flex; align-items: center; gap: 4px; width: min(560px, 100%); min-height: 44px; box-sizing: border-box; padding: 6px 6px 6px 16px; border-radius: 999px; background: var(--stor-tooltip); box-shadow: 0 12px 32px -8px rgba(0, 0, 0, 0.3); font-size: 13px; font-weight: 500; color: var(--stor-tooltip-text); transition: transform var(--stor-dur-3) var(--stor-ease-out), opacity var(--stor-dur-2) var(--stor-ease-out); }
     .stor-last-change > svg:first-child { margin-right: 6px; }
     .stor-last-change-action { flex: none; display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 0 12px; border-radius: 999px; font-size: 13px; font-weight: 600; color: var(--stor-action-inverse); transition: background-color var(--stor-dur-1); }
     .stor-last-change-action:hover:not(:disabled) { background: color-mix(in srgb, var(--stor-tooltip-text) 12%, transparent); }
@@ -44,24 +44,28 @@
     .stor-last-change-close { display: grid; flex: none; place-items: center; width: 32px; height: 32px; border-radius: 999px; color: inherit; opacity: 0.72; }
     .stor-last-change-close:hover { background: color-mix(in srgb, var(--stor-tooltip-text) 12%, transparent); opacity: 1; }
     .stor-last-change :is(button):focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--stor-action-inverse); }
+    /* Skip link: hidden until keyboard focus, then floats above the shell chrome. */
+    .stor-skip-link { position: fixed; left: 12px; top: 12px; z-index: var(--stor-layer-tooltip); padding: 10px 16px; border-radius: 999px; background: var(--stor-surface-raised); box-shadow: var(--stor-elevation-3); color: var(--stor-ink); font-size: 13px; font-weight: 600; text-decoration: none; transform: translateY(-160%); opacity: 0; pointer-events: none; transition: transform var(--stor-dur-2) var(--stor-ease-out), opacity var(--stor-dur-1) var(--stor-ease-out); }
+    .stor-skip-link:focus-visible { transform: none; opacity: 1; pointer-events: auto; outline: 2px solid var(--stor-focus); outline-offset: 2px; }
     /* Rail flyout: a section's pages beside the rail, opened by hover or keyboard focus (NavFlyout). */
-    .stor-nav-fly { position: fixed; z-index: 60; width: 13rem; padding: 8px; border-radius: 16px; background: var(--stor-surface-overlay); box-shadow: var(--stor-elevation-3); opacity: 0; visibility: hidden; transform: translateX(-4px); transition: opacity 140ms ease, transform 140ms ease, visibility 0s linear 140ms; }
+    .stor-nav-fly { position: fixed; z-index: 60; width: 13rem; padding: 8px; border-radius: 16px; background: var(--stor-surface-overlay); box-shadow: var(--stor-elevation-3); opacity: 0; visibility: hidden; transform: translateX(-4px); transition: opacity var(--stor-dur-2) var(--stor-ease-out), transform var(--stor-dur-2) var(--stor-ease-out), visibility 0s linear var(--stor-dur-2); }
     .stor-nav-fly[data-open] { opacity: 1; visibility: visible; transform: none; transition-delay: 0s; }
     /* A bridge across the gap keeps the pointer inside while it travels from the rail to the flyout. */
     .stor-nav-fly::before { content: ""; position: absolute; left: -14px; top: 0; bottom: 0; width: 14px; }
     .stor-nav-fly ul { display: grid; gap: 1px; margin: 0; padding: 0; list-style: none; }
     .stor-nav-fly-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 8px 8px; font-size: 13px; font-weight: 600; color: var(--stor-ink); }
-    .stor-nav-fly .stor-nav-child { height: 32px; padding: 0 8px; }
-    .stor-nav-fly .stor-nav-child-active { padding-left: 14px; }
-    .stor-nav-fly .stor-nav-child-active::before { content: ""; position: absolute; left: 0; top: 8px; bottom: 8px; width: 2px; border-radius: 2px; background: var(--stor-ink); }
     /* Sub-pages line up with the section's label inside its card (row padding 12px + 18px icon + 10px gap). */
     .stor-nav-children { display: flex; flex-direction: column; gap: 1px; margin: 0; padding: 0 0 6px; }
-    .stor-nav-child { position: relative; display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 8px 0 40px; border-radius: 8px; font-size: 13px; font-weight: 500; color: var(--stor-muted-text); transition: color 120ms, background-color 120ms; }
+    .stor-nav-child { position: relative; display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 8px 0 40px; border-radius: 8px; font-size: 13px; font-weight: 500; color: var(--stor-muted-text); transition: color var(--stor-dur-1) ease, background-color var(--stor-dur-1) ease; }
     .stor-nav-child:hover { color: var(--stor-ink); background: var(--stor-nav-hover); }
     .stor-nav-child:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--stor-focus); }
     .stor-nav-child .stor-nav-badge { min-width: 18px; height: 16px; padding: 0 5px; font-size: 10px; line-height: 16px; }
-    /* Selection is ink, so red keeps meaning late work. */
+    /* Selection is ink, so red keeps meaning late work. The leading bar aligns under the parent icon spine. */
     .stor-nav-child-active { color: var(--stor-ink); font-weight: 600; }
+    .stor-nav-child-active::before { content: ""; position: absolute; left: 20px; top: 8px; bottom: 8px; width: 2px; border-radius: 2px; background: var(--stor-ink); }
+    .stor-nav-fly .stor-nav-child { height: 32px; padding: 0 8px; }
+    .stor-nav-fly .stor-nav-child-active { padding-left: 14px; }
+    .stor-nav-fly .stor-nav-child-active::before { left: 0; }
     .stor-dock-badge { position: absolute; top: -3px; right: 2px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 999px; font-size: 9.5px; font-weight: 700; line-height: 16px; text-align: center; color: var(--stor-negative-text); box-shadow: 0 0 0 2px var(--stor-surface-raised); }
     .stor-dock-badge-negative { background: var(--stor-negative); }
     .stor-dock-badge-warning { background: var(--stor-warning); color: var(--stor-surface); }
@@ -77,6 +81,36 @@
 [data-stor-main] {
     padding-bottom: calc(var(--stor-mobile-bottom-inset) + var(--stor-mobile-nav-height) + 12px);
     scroll-padding-bottom: calc(var(--stor-mobile-bottom-inset) + var(--stor-mobile-nav-height) + 12px);
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: var(--stor-border-strong) transparent;
+}
+
+[data-testid="desktop-sidebar"] nav {
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: var(--stor-border-strong) transparent;
+}
+
+[data-stor-main]::-webkit-scrollbar,
+[data-testid="desktop-sidebar"] nav::-webkit-scrollbar { width: 8px; height: 8px; }
+[data-stor-main]::-webkit-scrollbar-track,
+[data-testid="desktop-sidebar"] nav::-webkit-scrollbar-track { background: transparent; }
+[data-stor-main]::-webkit-scrollbar-thumb,
+[data-testid="desktop-sidebar"] nav::-webkit-scrollbar-thumb {
+    border: 2px solid transparent;
+    border-radius: 999px;
+    background: var(--stor-border);
+    background-clip: content-box;
+}
+[data-stor-main]::-webkit-scrollbar-thumb:hover,
+[data-testid="desktop-sidebar"] nav::-webkit-scrollbar-thumb:hover {
+    background: var(--stor-border-strong);
+    background-clip: content-box;
+}
+
+@starting-style {
+    .stor-last-change { opacity: 0; transform: translateY(8px); }
 }
 
 [data-stor-main]:has(.stor-mobile-action) {
@@ -103,9 +137,31 @@
 
 .stor-mobile-header { background: var(--stor-bg); box-shadow: var(--stor-header-shadow); }
 
+@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .stor-mobile-header {
+        background: color-mix(in srgb, var(--stor-bg) 72%, transparent);
+        -webkit-backdrop-filter: blur(22px) saturate(1.8);
+        backdrop-filter: blur(22px) saturate(1.8);
+        border-bottom: 1px solid var(--stor-rule);
+        box-shadow: none;
+    }
+    .stor-mobile-nav {
+        background: color-mix(in srgb, var(--stor-surface-raised) 72%, transparent);
+        -webkit-backdrop-filter: blur(24px) saturate(1.9);
+        backdrop-filter: blur(24px) saturate(1.9);
+        box-shadow:
+            inset 0 0.5px 0 rgba(255, 255, 255, 0.65),
+            var(--stor-elevation-3);
+    }
+    html[data-theme="dark"] .stor-mobile-nav {
+        box-shadow:
+            inset 0 0.5px 0 rgba(255, 255, 255, 0.1),
+            var(--stor-elevation-3);
+    }
+}
+
 /* From the rail up the sidebar sits on the canvas and the page is one raised panel beside it.
-   Inside the panel the canvas is the panel's own surface, so sticky headers and fades match it,
-   and panels step down from white cards to outlined sections. */
+   Inside the panel the canvas is the panel's own surface, so sticky headers and fades match it. */
 
 @media (min-width: 768px) {
     [data-stor-main] {
@@ -119,6 +175,16 @@
 
 body:has([data-stor-drawer]) .stor-mobile-action,
 body:has([data-stor-drawer]) .stor-mobile-fab { visibility: hidden; }
+
+@media (max-width: 767px) {
+    .stor-last-change-wrap {
+        bottom: calc(var(--stor-mobile-bottom-inset) + var(--stor-mobile-nav-height) + var(--stor-mobile-stack-gap));
+    }
+    body:has(.stor-mobile-action, .stor-mobile-fab) .stor-last-change-wrap {
+        bottom: calc(var(--stor-mobile-bottom-inset) + var(--stor-mobile-nav-height) + var(--stor-mobile-action-height) + 2 * var(--stor-mobile-stack-gap));
+    }
+    body:has([data-stor-drawer], [role="dialog"], [role="alertdialog"]) .stor-last-change-wrap { visibility: hidden; }
+}
 
 /* A phone spends its width on content: tighter gaps and panel padding (still clear of the smaller curve). */
 
@@ -178,7 +244,7 @@ body:has([data-stor-drawer]) .stor-mobile-fab { visibility: hidden; }
 
 .stor-calendar-scroller::-webkit-scrollbar { display: none; }
 
-.stor-calendar-day { position: relative; min-width: 0; min-height: 64px; border-radius: 14px; padding: 0 1px 6px; transition: background-color 160ms ease; }
+.stor-calendar-day { position: relative; min-width: 0; min-height: 64px; border-radius: 14px; padding: 0 1px 6px; transition: background-color var(--stor-dur-2) ease; }
 
 /* Days outside the month in view sit on the muted fill in faint text, so the weeks still read as a month. Today is an ember dot under its number. */
 
@@ -275,6 +341,7 @@ html[data-stor-shell="ios"] .stor-mobile-header {
     background: color-mix(in srgb, var(--stor-bg) 62%, transparent);
     -webkit-backdrop-filter: blur(22px) saturate(1.8);
     backdrop-filter: blur(22px) saturate(1.8);
+    border-bottom: 0;
     box-shadow: none;
 }
 
@@ -285,7 +352,14 @@ html[data-stor-shell="ios"] .stor-mobile-nav {
     -webkit-backdrop-filter: blur(24px) saturate(1.9);
     backdrop-filter: blur(24px) saturate(1.9);
     box-shadow:
-        inset 0 0.5px 0 color-mix(in srgb, white 70%, transparent),
+        inset 0 0.5px 0 rgba(255, 255, 255, 0.7),
+        inset 0 0 0 0.5px color-mix(in srgb, var(--stor-ink) 10%, transparent),
+        var(--stor-shadow-md);
+}
+
+html[data-stor-shell="ios"][data-theme="dark"] .stor-mobile-nav {
+    box-shadow:
+        inset 0 0.5px 0 rgba(255, 255, 255, 0.12),
         inset 0 0 0 0.5px color-mix(in srgb, var(--stor-ink) 10%, transparent),
         var(--stor-shadow-md);
 }
@@ -301,7 +375,7 @@ html[data-stor-shell="ios"] [data-stor-main] { padding-top: var(--stor-mobile-he
 
 .stor-sidebar-handle { position: absolute; top: 0; bottom: 0; left: calc(100% - 4px); width: 12px; cursor: col-resize; touch-action: none; z-index: 1; }
 
-.stor-sidebar-handle::after { content: ""; position: absolute; left: 3px; top: 18px; bottom: 18px; width: 2px; border-radius: 2px; background: var(--stor-focus); opacity: 0; transition: opacity 120ms ease 150ms; }
+.stor-sidebar-handle::after { content: ""; position: absolute; left: 3px; top: 18px; bottom: 18px; width: 2px; border-radius: 2px; background: var(--stor-focus); opacity: 0; transition: opacity var(--stor-dur-1) ease var(--stor-dur-2); }
 
 .stor-sidebar-handle:hover::after, .stor-sidebar-handle:focus-visible::after, html[data-sidebar-resizing] .stor-sidebar-handle::after { opacity: 1; }
 

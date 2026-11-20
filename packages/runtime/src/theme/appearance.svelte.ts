@@ -38,13 +38,29 @@ let resolved = $state<ResolvedTheme>(initialTheme());
 let storageKey = "";
 let mediaQuery: MediaQueryList | null = null;
 let removeListeners: (() => void) | null = null;
+let switchFrame = 0;
 
 function applyResolvedTheme(next: ResolvedTheme): void {
+    const root = document.documentElement;
+    const themeChanged = root.dataset.theme !== next;
+    if (themeChanged) {
+        if (switchFrame) cancelAnimationFrame(switchFrame);
+        root.dataset.themeSwitching = "";
+    }
     resolved = next;
-    document.documentElement.dataset.theme = next;
-    document.documentElement.dataset.appearance = preference;
-    document.documentElement.style.colorScheme = next;
-    const themeColor = getComputedStyle(document.documentElement)
+    root.dataset.theme = next;
+    root.dataset.appearance = preference;
+    root.style.colorScheme = next;
+    if (themeChanged) {
+        // Keep transitions suppressed across the paint that flips the theme tokens, then restore them.
+        switchFrame = requestAnimationFrame(() => {
+            switchFrame = requestAnimationFrame(() => {
+                switchFrame = 0;
+                delete root.dataset.themeSwitching;
+            });
+        });
+    }
+    const themeColor = getComputedStyle(root)
         .getPropertyValue("--stor-theme-color")
         .trim();
     const meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');

@@ -101,6 +101,7 @@
         onOpenSyncIssues,
         onSwitchLog,
         onCreateLog,
+        onOpenShortcuts,
     }: {
         userEmail: string;
         logs: LogSummary[];
@@ -123,6 +124,7 @@
         onOpenSyncIssues: () => void;
         onSwitchLog: (logId: string) => Promise<void>;
         onCreateLog: () => void;
+        onOpenShortcuts?: () => void;
     } = $props();
 
     let isMoreOpen = $state(false);
@@ -458,7 +460,7 @@
 {/snippet}
 
 <aside
-    class="fixed left-0 top-0 bottom-0 z-50 hidden flex-col bg-[var(--stor-sidebar)] transition-[width] duration-150 ease-out motion-reduce:transition-none md:flex {collapsed
+    class="fixed left-0 top-0 bottom-0 z-50 hidden flex-col bg-[var(--stor-sidebar)] transition-[width] duration-[var(--stor-dur-2)] ease-out motion-reduce:transition-none md:flex {collapsed
         ? 'w-20'
         : 'w-[var(--stor-sidebar-width)]'}"
     data-testid="desktop-sidebar"
@@ -474,21 +476,29 @@
                 <span class="stor-brand-title truncate"><BrandWordmark title={tenant.title} /></span>
             {/if}
         </a>
-        <button
-            type="button"
-            class="hidden h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[var(--stor-muted-text)] transition hover:bg-[var(--stor-surface-hover)] lg:flex hover:text-[var(--stor-ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--stor-focus)] {collapsed ? '' : 'ml-auto'}"
-            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-            title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-            onclick={onToggleCollapsed}
-        >
-            {#if collapsed}<IconDockRight class="h-4.5 w-4.5" />{:else}<IconDockLeft class="h-4.5 w-4.5" />{/if}
-        </button>
+        <Tooltip content={collapsed ? "Expand sidebar ([)" : "Collapse sidebar ([)"} side={collapsed ? "right" : "bottom"} delayDuration={250}>
+            {#snippet trigger({ props })}
+                <button
+                    {...props}
+                    type="button"
+                    class="hidden h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[var(--stor-muted-text)] transition hover:bg-[var(--stor-nav-hover)] hover:text-[var(--stor-ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--stor-focus)] lg:flex {collapsed ? '' : 'ml-auto'}"
+                    aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+                    aria-keyshortcuts="["
+                    onclick={(event) => {
+                        (props.onclick as ((event: MouseEvent) => void) | undefined)?.(event);
+                        onToggleCollapsed();
+                    }}
+                >
+                    {#if collapsed}<IconDockRight class="h-4.5 w-4.5" />{:else}<IconDockLeft class="h-4.5 w-4.5" />{/if}
+                </button>
+            {/snippet}
+        </Tooltip>
     </div>
 
     <nav class="relative min-h-0 flex-1 overflow-y-auto pb-3 pt-2 {collapsed ? 'px-2' : 'px-3'}" aria-label="Main navigation" {@attach navIndicator}>
         {#each navGroups as group, groupIndex}
             <section class={groupIndex > 0 ? (collapsed ? "mt-2 border-t border-[var(--stor-border)] pt-2" : "mt-3") : ""} aria-label={group.label || "Pages"}>
-                {#if group.label && !collapsed}<p class="px-3 pb-1.5 pt-2 text-[10.5px] font-semibold uppercase tracking-[0.1em] text-[var(--stor-muted-text)]">{group.label}</p>{/if}
+                {#if group.label && !collapsed}<p class="stor-overline px-3 pb-1.5 pt-2">{group.label}</p>{/if}
                 <div class="space-y-0.5">
                     {#each group.links as link}
                         {@render navLink(link)}
@@ -527,7 +537,7 @@
     {#if !collapsed && recentShown.length > 0}
         <!-- Where this device was lately in this log, outside the section in view. -->
         <section class="shrink-0 px-3 pb-2" aria-label="Recently">
-            <p class="px-3 pb-1.5 pt-1 text-[10.5px] font-semibold uppercase tracking-[0.1em] text-[var(--stor-muted-text)]">Recently</p>
+            <p class="stor-overline px-3 pb-1.5 pt-1">Recently</p>
             <ul class="flex flex-col gap-px">
                 {#each recentShown as place (place.href)}
                     {@const Icon = place.icon}
@@ -557,7 +567,7 @@
             expanded={logTreeOpen}
             onOpen={openLogChip}
         />
-        <AccountMenu {userEmail} settings={settingsLinks} {collapsed} {isActive} />
+        <AccountMenu {userEmail} settings={settingsLinks} {collapsed} {isActive} {onOpenShortcuts} />
     </div>
     <div class="hidden lg:block"><SidebarResizer width={sidebarWidth} folded={collapsed} onChange={onResizeSidebar} /></div>
 </aside>

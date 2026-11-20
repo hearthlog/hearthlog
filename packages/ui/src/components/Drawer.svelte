@@ -84,7 +84,7 @@
     <Dialog.Portal>
         <Dialog.Overlay
             data-sheet-covered={covered ? "" : undefined}
-            class="stor-drawer-overlay fixed inset-0 z-[var(--stor-layer-sheet)] bg-[var(--stor-overlay)]"
+            class="stor-backdrop stor-drawer-overlay fixed inset-0 z-[var(--stor-layer-sheet)]"
         />
         <Dialog.Content
             data-stor-drawer

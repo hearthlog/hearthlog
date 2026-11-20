@@ -45,11 +45,11 @@
     <Dialog.Portal>
         <Dialog.Overlay
             data-sheet-covered={covered ? "" : undefined}
-            class="fixed inset-0 z-[var(--stor-layer-sheet)] bg-[var(--stor-overlay)]"
+            class="stor-backdrop fixed inset-0 z-[var(--stor-layer-sheet)]"
         />
         <Dialog.Content
             data-sheet-covered={covered ? "" : undefined}
-            class="stor-sheet fixed inset-x-0 bottom-0 z-[var(--stor-layer-sheet-content)] flex max-h-[calc(100dvh-env(safe-area-inset-top))] w-full flex-col overflow-hidden rounded-t-3xl pt-[env(safe-area-inset-top)] outline-none sm:left-1/2 sm:top-1/2 sm:bottom-auto sm:max-h-[90vh] sm:max-w-lg sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-[var(--stor-panel-radius)] sm:pt-0"
+            class="stor-sheet stor-dialog fixed inset-x-0 bottom-0 z-[var(--stor-layer-sheet-content)] flex max-h-[calc(100dvh-env(safe-area-inset-top))] w-full flex-col overflow-hidden rounded-t-3xl pt-[env(safe-area-inset-top)] outline-none sm:left-1/2 sm:top-1/2 sm:bottom-auto sm:max-h-[90vh] sm:max-w-lg sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-[var(--stor-panel-radius)] sm:pt-0"
         >
             <header class="flex shrink-0 items-center gap-3 px-4 py-3 sm:pb-2 sm:pl-6 sm:pr-5 sm:pt-5">
                 {#if stacked}

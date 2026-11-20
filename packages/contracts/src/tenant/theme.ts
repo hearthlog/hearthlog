@@ -582,13 +582,19 @@ export function themePaletteFor(accent = DEFAULT_ACCENT, mode: ResolvedTheme = '
         now = n.ink;
     }
     const other = dark ? 'light' : 'dark';
-    const inverseAction = roles.monochrome ? n.bg : withContrast(accentRoles(accent, other).action, [n.ink], TEXT_CONTRAST, other);
+    const otherRoles = accentRoles(accent, other);
+    const inverseAction = roles.monochrome ? n.bg : withContrast(otherRoles.action, [n.ink], TEXT_CONTRAST, other);
+    const inverseStatus = (role: StatusRole): string =>
+        withContrast(resolveStatus(role, other, otherRoles.action, [])[0], [n.ink], TEXT_CONTRAST, other);
     const charts = chartPalette(accent, mode, n.surface, n.raised);
     const health = HEALTH_DOMAINS[mode];
     const variables: Record<string, string> = {
         '--stor-accent': roles.action,
-        // The action as it draws in the other mode: the Undo on the inverse pill (ink fill in light, canvas fill in dark).
+        // The action and status icons as they draw in the other mode: Undo and status icons on the inverse pill.
         '--stor-action-inverse': inverseAction,
+        '--stor-positive-inverse': inverseStatus('positive'),
+        '--stor-negative-inverse': inverseStatus('negative'),
+        '--stor-info-inverse': inverseStatus('info'),
         '--stor-chart-issued': charts.issued,
         '--stor-chart-received': charts.received,
         '--stor-chart-income-tax': charts.incomeTax,
@@ -639,7 +645,7 @@ export function themePaletteFor(accent = DEFAULT_ACCENT, mode: ResolvedTheme = '
         '--stor-focus': roles.focus,
         '--stor-accent-strong': roles.text,
         '--stor-accent-soft': roles.soft,
-        '--stor-overlay': dark ? 'rgba(0, 0, 0, 0.28)' : 'rgba(34, 29, 24, 0.12)',
+        '--stor-overlay': dark ? 'rgba(0, 0, 0, 0.52)' : 'rgba(34, 29, 24, 0.2)',
         '--stor-now': now,
         '--stor-now-soft': nowSoft,
         '--stor-positive': positive,

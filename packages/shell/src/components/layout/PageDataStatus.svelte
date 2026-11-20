@@ -31,6 +31,6 @@
 {:else}
     <span class="sr-only" role="status">{resource.loading ? 'Loading page data' : resource.refreshing ? 'Updating page data' : 'Page data ready'}</span>
     {#if resource.refreshing}
-        <div class="pointer-events-none fixed right-3 top-2 z-40 rounded-full bg-[var(--stor-surface-raised)] px-2 py-1 text-xs text-[var(--stor-muted-text)] shadow-[var(--stor-shadow-sm)]" aria-hidden="true">Updating…</div>
+        <div class="pointer-events-none fixed right-3 top-[calc(var(--stor-mobile-header-height)+0.5rem)] z-40 rounded-full bg-[var(--stor-surface-raised)] px-2.5 py-1 text-xs font-medium text-[var(--stor-muted-text)] shadow-[var(--stor-shadow-sm)] md:right-6 md:top-5" aria-hidden="true">Updating…</div>
     {/if}
 {/if}

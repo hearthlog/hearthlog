@@ -436,7 +436,7 @@ never tints a surface, so a tinted surface always means selection); only the acc
 | Brand / action | `--stor-accent` (the derived action colour for marks: dots, rings, progress; never the raw input), `--stor-accent-text` and `--stor-accent-strong` (links and selected labels, ≥ 4.5:1 on every surface), `--stor-accent-soft`; buttons use `--stor-action`, `--stor-action-text`, `--stor-action-hover`; `--stor-action-inverse` is the action as the other mode draws it, for Undo on the inverse pill (≥ 4.5:1 on `--stor-tooltip`) |
 | Lines / focus | `--stor-border` (hairlines), `--stor-border-strong` (rules that must show), `--stor-field-border`, `--stor-selected`, `--stor-focus`, `--stor-overlay` |
 | Now | `--stor-now`, `--stor-now-soft`: ember, for today and now marks only, never text |
-| Status | `--stor-positive`, `--stor-negative`, `--stor-warning`, `--stor-info` (+ `-soft`, `--stor-info-border`) |
+| Status | `--stor-positive`, `--stor-negative`, `--stor-warning`, `--stor-info` (+ `-soft`, `--stor-info-border`, and `-inverse` for status icons on the inverse pill, ≥ 4.5:1 on `--stor-tooltip`) |
 | Charts / code | `--stor-chart-*` (curated families chosen by accent hue), `--stor-code-*` |
 | Health domains | `--stor-health-eat`, `--stor-health-move`, `--stor-health-body` (fixed, the same on every site); `.stor-tone-eat/-move/-body` set `--tone` from them, and tints are `color-mix(in srgb, var(--tone) N%, var(--stor-surface))` |
 | Elevation | `--stor-surface-well/-overlay/-sheet`, `--stor-well-shadow` (flat: `none`), `--stor-elevation-1…4`, `--stor-elevation-pressed`, `--stor-nav-card-shadow`, `--stor-tooltip`; `--stor-shadow-sm/md/lg`, `--stor-panel-shadow`, `--stor-sidebar-shadow` are aliases; `--stor-header-shadow` |
@@ -450,8 +450,8 @@ Modal, ConfirmDialog; level 4); only menus and sheets cast a deep shadow. Shadow
 no inset rims, and buttons cast none: primary is a flat fill, secondary the raised surface with a 1px border. Dark mode shows height as lighter surfaces: page
 and raised are the hairline alone, menus and sheets add black. The sidebar's current section is a raised card that
 holds its sub-pages (`[data-nav-section][data-active]` and the sliding `.stor-nav-indicator`); it keeps a step more
-lift than raised (`--stor-nav-card-shadow`), so keep that structure. From 768px `[data-stor-main]` is the page panel: inside it `--stor-bg` is the
-panel's surface and `.stor-panel` sections are outlined rather than shadowed (`shell.css`). Strength is the single `ELEVATION_STRENGTH` constant in
+lift than raised (`--stor-nav-card-shadow`), so keep that structure. From 768px `[data-stor-main]` is the page panel (`--stor-page` + `--stor-page-shadow`, mirrored by `.stor-boot-page`): inside it `--stor-bg` is the
+panel's surface so sticky headers and fades match it, and `.stor-panel` cards sit on it with a hairline border and `--stor-elevation-1` (`shell.css`). Strength is the single `ELEVATION_STRENGTH` constant in
 `packages/contracts/src/tenant/theme.ts`. Stack with the `--stor-layer-*` tokens
 (`z-[var(--stor-layer-menu)]`), not literal z-index numbers, and do not use raw
 Tailwind `shadow-sm/md/lg/xl`.
@@ -513,8 +513,8 @@ The design system's own (panel, page, metric, menu, sheet, tabs, drawer, buttons
 `packages/shell/src/styles/shell.css`, and a module's own recipes are in its `src/styles.css` (manifest `styles`),
 imported through `.generated/module-sources.generated.css` only for tenants that enable the module.
 
-- Shell: `.stor-mobile-header`, `.stor-mobile-nav`, `.stor-mobile-action`,
-  `.stor-drawer*`, `.stor-notifications`.
+- Shell: `.stor-mobile-header`, `.stor-mobile-nav` (frosted translucent glass when `backdrop-filter` is supported, opaque surface fallback otherwise), `.stor-mobile-action`,
+  `.stor-backdrop`, `.stor-drawer*`, `.stor-dialog`, `.stor-bottom-sheet`, `.stor-skip-link`, `.stor-notifications`.
 - Page structure: `.stor-page`, `.stor-page-header`, `.stor-toolbar`,
   `.stor-page-tabs` / `.stor-page-tab` (one capsule track with a raised
   selected pill that slides between triggers; `.stor-primary-tabs` is the
@@ -584,7 +584,7 @@ imported through `.generated/module-sources.generated.css` only for tenants that
   `notify.progress` returns an id for sticky tasks and is dismissed with
   `dismissNotification`. Prefer an action button (for example Undo) over a
   second confirmation when the domain supports reversal.
-- Keyboard (`shortcuts.ts`, installed by the layout): N presses the page's visible `data-stor-new` button (give the page's primary create button `data-stor-new shortcut="N"`), else opens the feature's first create shortcut (`commands[0]`), ← / → and T step and reset the page's time navigator (`MonthNavigator` registers itself in `state/time-navigation.ts`; a new navigator should do the same), G then F, H, C or I goes to Finance, Health, Calendar or Invoices (matched by nav label), ⌘Z undoes the last change, ⌘↵ and Esc belong to sheets. Nothing fires while typing, inside a grid, list or menu, or while a sheet is open. A shortcut always has a visible control too.
+- Keyboard (`shortcuts.ts`, installed by the layout): N presses the page's visible `data-stor-new` button (give the page's primary create button `data-stor-new shortcut="N"`), else opens the feature's first create shortcut (`commands[0]`), ← / → and T step and reset the page's time navigator (`MonthNavigator` registers itself in `state/time-navigation.ts`; a new navigator should do the same), G then F, H, C or I goes to Finance, Health, Calendar or Invoices (matched by nav label), `[` toggles the desktop sidebar, `?` opens the keyboard shortcuts reference (`ShortcutsDialog`, also in `AccountMenu`), ⌘Z undoes the last change, ⌘↵ and Esc belong to sheets. Nothing fires while typing, inside a grid, list or menu, or while a sheet is open. A shortcut always has a visible control too.
 - Time travel: a month or day change that goes through `timeTravel(direction, update)` (`@hearthlog/ui/utils/time-travel.js`, used by `MonthNavigator`) slides the page panel's content 16px against the direction of time while it cross-fades (View Transitions; none under reduced motion or without the API). Day-level navigation in module pages can call it the same way.
 - Destructive actions confirm through `ConfirmDialog`, disable themselves
   while running, and offer undo where one exists.
@@ -606,9 +606,9 @@ imported through `.generated/module-sources.generated.css` only for tenants that
   More sheet list it under an NSFW toggle that starts hidden in every new window (session storage,
   `nsfw-toggle.svelte.ts`) and stays open while such a section is in view. Like all navigation, it is not an
   access check.
-- Last change: from 768px the shell shows an inverse ink pill (`.stor-last-change`, the toast face: `--stor-tooltip` fill, `--stor-tooltip-text`, Undo in `--stor-action-inverse`) for the latest change this tab committed,
-  named as Log history names it, with History and, when the action only added standard records, Undo
-  (`LastChangeBar`). Undo appends those records' `…_REMOVED` events (`runtime/commands/undo.ts`);
+- Last change: the shell shows an inverse ink pill (`.stor-last-change`, the toast face: `--stor-tooltip` fill, `--stor-tooltip-text`, Undo in `--stor-action-inverse`) for the latest change this tab committed,
+  named as Log history names it, with History (from `sm:`) and, when the action only added standard records, Undo
+  (`LastChangeBar`). On phones it anchors in the bottom thumb zone above the dock and any page FAB (hidden while a drawer is open). Undo appends those records' `…_REMOVED` events (`runtime/commands/undo.ts`);
   it never tombstones or edits events. Edits, removals and module-specific events offer no undo.
 - Mobile: bottom navigation shows the primary destinations, `MobilePageAction`
   renders the page's main action as a label-sized pill at the bottom right above
