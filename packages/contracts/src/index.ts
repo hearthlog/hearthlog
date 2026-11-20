@@ -233,9 +233,9 @@ export type ModuleVariable =
     | { name: string; setting: string; format?: ModuleSettingFormat; values?: string[]; optional?: boolean };
 
 /** How the core validates a module setting. `values`, when present, also limits it to those strings. */
-export type ModuleSettingFormat = 'text' | 'https-origin' | 's3-bucket' | 's3-region';
+export type ModuleSettingFormat = 'text' | 'https-origin' | 's3-bucket' | 's3-region' | 'worker-name';
 
-export const MODULE_SETTING_FORMATS: readonly ModuleSettingFormat[] = ['text', 'https-origin', 's3-bucket', 's3-region'];
+export const MODULE_SETTING_FORMATS: readonly ModuleSettingFormat[] = ['text', 'https-origin', 's3-bucket', 's3-region', 'worker-name'];
 
 /** Why a module setting value is invalid, or null when it is valid. */
 export function moduleSettingProblem(variable: { format?: ModuleSettingFormat; values?: readonly string[] }, value: unknown): string | null {
@@ -249,6 +249,7 @@ export function moduleSettingProblem(variable: { format?: ModuleSettingFormat; v
         }
         case 's3-bucket': return /^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/.test(value) ? null : 'must be an S3 bucket name';
         case 's3-region': return /^[a-z0-9-]+$/.test(value) ? null : 'must be an S3 region';
+        case 'worker-name': return /^[a-z0-9][a-z0-9-]{0,62}$/.test(value) ? null : 'must be a Worker name';
         default: return null;
     }
 }
@@ -256,7 +257,7 @@ export function moduleSettingProblem(variable: { format?: ModuleSettingFormat; v
 /** A harmless value of the right shape, for builds that check a module without real configuration. */
 export function moduleSettingPlaceholder(variable: { format?: ModuleSettingFormat; values?: readonly string[] }): string {
     if (variable.values?.length) return variable.values[0];
-    return { 'https-origin': 'https://module-check.example.invalid', 's3-bucket': 'module-check', 's3-region': 'us-east-1', text: 'module-check' }[variable.format ?? 'text'];
+    return { 'https-origin': 'https://module-check.example.invalid', 's3-bucket': 'module-check', 's3-region': 'us-east-1', text: 'module-check', 'worker-name': 'module-check' }[variable.format ?? 'text'];
 }
 
 /** What the Vite dev server gives a module's `dev` entry for one request. Never available in a deployed build. */
@@ -277,7 +278,12 @@ export type ModuleBinding =
     | { binding: string; type: 'r2'; resource: string }
     | { binding: string; type: 'images' }
     /** A SQLite Durable Object exported by the module's server entry. Names are persistent deployment identities. */
-    | { binding: string; type: 'durable-object'; className: string };
+    | { binding: string; type: 'durable-object'; className: string }
+    /**
+     * Another Worker in the site's account, bound by the name in the module's `setting` (format `worker-name`).
+     * An optional one is left unbound when the tenant sets no name; the module answers without it.
+     */
+    | { binding: string; type: 'service'; setting: string; optional?: boolean };
 
 /** What a module's server entry exports. `TEnv` is the Worker's `Env`. */
 export interface ServerModule<TEnv = unknown> {
@@ -551,9 +557,19 @@ export function validateManifest(value: unknown, source = 'hearthlog.module.json
         }
         for (const prefix of (server.routes ?? []) as unknown[]) text(`${label} routes`, prefix, /^\/api\/[a-z0-9-]+(\/[a-z0-9-]+)*$/);
         const objectClasses = new Set<string>();
+        const serviceSettings = new Set<string>();
         for (const [index, raw] of ((server.bindings ?? []) as unknown[]).entries()) {
-            const binding = keys(`${label} bindings[${index}]`, raw, ['binding', 'type', 'resource', 'className']);
+            const binding = keys(`${label} bindings[${index}]`, raw, ['binding', 'type', 'resource', 'className', 'setting', 'optional']);
             text(`${label} bindings[${index}] binding`, binding.binding, /^[A-Z][A-Z0-9_]*$/);
+            if (binding.type === 'service') {
+                const setting = text(`${label} bindings[${index}] setting`, binding.setting, /^[a-z][a-zA-Z0-9]*$/);
+                if (serviceSettings.has(setting)) fail(label, `setting "${setting}" is declared twice`);
+                serviceSettings.add(setting);
+                if (binding.optional !== undefined && typeof binding.optional !== 'boolean') fail(label, `bindings[${index}] optional must be a boolean`);
+                if (binding.resource !== undefined || binding.className !== undefined) fail(label, `bindings[${index}] a service is named by its setting only`);
+                continue;
+            }
+            if (binding.setting !== undefined || binding.optional !== undefined) fail(label, `bindings[${index}] setting and optional belong to a service`);
             if (binding.type === 'durable-object') {
                 text(`${label} bindings[${index}] className`, binding.className, /^[A-Z][A-Za-z0-9]*$/);
                 if (objectClasses.has(binding.className as string)) fail(label, 'a Durable Object class is declared twice');
@@ -561,7 +577,7 @@ export function validateManifest(value: unknown, source = 'hearthlog.module.json
                 if (binding.resource !== undefined) fail(label, 'Durable Objects do not use an infrastructure resource');
             } else if (binding.className !== undefined) fail(label, 'className belongs to a Durable Object');
             else if (binding.type === 'r2') text(`${label} bindings[${index}] resource`, binding.resource, /^[a-zA-Z]+$/);
-            else if (binding.type !== 'images' || binding.resource !== undefined) fail(label, `bindings[${index}] must be an r2 bucket (with a resource) or images`);
+            else if (binding.type !== 'images' || binding.resource !== undefined) fail(label, `bindings[${index}] must be an r2 bucket (with a resource), images, a durable-object or a service`);
         }
         const settings = new Set<string>();
         for (const [index, raw] of ((server.vars ?? []) as unknown[]).entries()) {
@@ -576,7 +592,7 @@ export function validateManifest(value: unknown, source = 'hearthlog.module.json
                 continue;
             }
             const setting = text(`${at} setting`, variable.setting, /^[a-z][a-zA-Z0-9]*$/);
-            if (settings.has(setting)) fail(at, `setting "${setting}" is declared twice`);
+            if (settings.has(setting) || serviceSettings.has(setting)) fail(at, `setting "${setting}" is declared twice`);
             settings.add(setting);
             if (variable.format !== undefined && !MODULE_SETTING_FORMATS.includes(variable.format as ModuleSettingFormat)) fail(at, `format must be one of ${MODULE_SETTING_FORMATS.join(', ')}`);
             if (variable.values !== undefined) {

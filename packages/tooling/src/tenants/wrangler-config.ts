@@ -114,23 +114,45 @@ export function siteWorkerFirst(features: readonly string[]): string[] {
 export function moduleBindings(
     features: readonly string[],
     infrastructure: InfrastructureDefinition,
-): { r2: Array<{ binding: string; bucket_name: string }>; images: boolean; vars: Record<string, string> } {
+): {
+    r2: Array<{ binding: string; bucket_name: string }>;
+    services: Array<{ binding: string; service: string }>;
+    images: boolean;
+    vars: Record<string, string>;
+} {
     const keyed = infrastructure as unknown as Record<string, string | undefined>;
     const lookup = (resource: string): string => {
         const value = keyed[resource];
         if (!value) throw new Error(`The infrastructure has no "${resource}"`);
         return value;
     };
-    const result = { r2: [] as Array<{ binding: string; bucket_name: string }>, images: false, vars: {} as Record<string, string> };
+    const result = {
+        r2: [] as Array<{ binding: string; bucket_name: string }>,
+        services: [] as Array<{ binding: string; service: string }>,
+        images: false,
+        vars: {} as Record<string, string>,
+    };
     for (const { manifest } of modulesForFeatures(loadModules(), features)) {
         const server = manifest.server;
         if (!server) continue;
+        const settings = infrastructure.moduleSettings?.[manifest.id] ?? {};
+        const declared = new Set<string>();
         for (const binding of server.bindings ?? []) {
             if (binding.type === "r2") result.r2.push({ binding: binding.binding, bucket_name: lookup(binding.resource) });
             else if (binding.type === "images") result.images = true;
+            else if (binding.type === "service") {
+                declared.add(binding.setting);
+                const value = settings[binding.setting];
+                const label = `moduleSettings.${manifest.id}.${binding.setting}`;
+                if (value === undefined) {
+                    if (binding.optional) continue;
+                    throw new TenantConfigError(`${label} is required by ${manifest.id}`);
+                }
+                const problem = moduleSettingProblem({ format: "worker-name" }, value);
+                if (problem) throw new TenantConfigError(`${label} ${problem}`);
+                result.services.push({ binding: binding.binding, service: value });
+            }
         }
-        const settings = infrastructure.moduleSettings?.[manifest.id] ?? {};
-        const declared = new Set<string>();
         for (const variable of server.vars ?? []) {
             if ("resource" in variable) {
                 const value = variable.optional ? keyed[variable.resource] : lookup(variable.resource);
@@ -204,6 +226,7 @@ export function buildTenantWranglerConfig(
                 binding: "LEDGER",
                 service: infrastructure.ledgerWorker,
             },
+            ...modules.services,
         ],
         ...(objects.length ? {
             durable_objects: { bindings: objects },
