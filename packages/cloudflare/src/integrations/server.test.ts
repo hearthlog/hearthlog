@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { GATEWAY_CRONS, MAX_INBOUND_EMAIL_BYTES, type ServerModule } from '@hearthlog/contracts';
 import { deterministicUuid } from '@hearthlog/contracts/integrations/ids';
 import { handleIntegrationRequest, type IntegrationsEnv } from './index';
-import { handleInboundEmail, recipientIntegrationId, runServerJobs, type EmailMessageLike, type ServerJobsEnv } from './server';
+import { handleInboundEmail, recipientIntegrationId, runServerJobs, serverIntegrationsFor, type EmailMessageLike, type ServerJobsEnv } from './server';
 
 // The development site installs no module, so the test module's kind is added to the generated catalog here.
 vi.mock('../../../../dev/.generated/src/modules.generated.ts', async (original) => ({
@@ -175,6 +175,18 @@ describe('inbound email', () => {
         await handleInboundEmail(broken, env({ fetch: async () => { throw new Error('down'); } } as never), [testModule], NOW);
         expect(broken.rejected).toBe('The message could not be processed');
         error.mockRestore();
+    });
+});
+
+describe('integrations for a route', () => {
+    it('writes through the integrations of one kind, and gives none without the app token', async () => {
+        const config = env();
+        const [integration] = serverIntegrationsFor(config, 'bank-test');
+        expect(integration).toMatchObject({ id: 'bank-mail', kind: 'bank-test', logId: LOG });
+        await integration!.upsertEntity(async () => ({ requestId: 'r', events: [{ id: 'e', type: 'BANK_NOTE_ADDED', entityId: 'bank_note:x', timestamp: NOW, payload: { text: 'from a route' } }] }));
+        expect(config.fake.appends).toMatchObject([{ actor: 'service:bank-mail', path: `/logs/${LOG}/events` }]);
+        expect(serverIntegrationsFor(config, 'other')).toEqual([]);
+        expect(serverIntegrationsFor({ ...config, LEDGER_AUTH_TOKEN: '' }, 'bank-test')).toEqual([]);
     });
 });
 

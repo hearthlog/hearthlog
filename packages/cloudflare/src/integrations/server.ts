@@ -38,6 +38,18 @@ function serverIntegration(env: ServerJobsEnv, integration: IntegrationDefinitio
     };
 }
 
+/**
+ * The site's configured integrations of one kind, each able to write to its log as `service:<id>`. For server code
+ * that runs on a user's request rather than a job or a mail, such as a module route finishing a bank approval: the
+ * route checks the caller itself (Access), then writes through the integration like a job would.
+ */
+export function serverIntegrationsFor(env: ServerJobsEnv, kind: string): ServerIntegration[] {
+    if (!env.LEDGER_AUTH_TOKEN) return [];
+    return parseConfiguredIntegrations(env.INTEGRATIONS)
+        .filter((integration) => integration.kind === kind)
+        .map((integration) => serverIntegration(env, integration));
+}
+
 /** The kinds a module implements: the ones it has an inbound or email handler for. */
 function kindsOf(module: ServerModule<Env>): Set<string> {
     return new Set([...Object.keys(module.integrations ?? {}), ...Object.keys(module.email ?? {})]);

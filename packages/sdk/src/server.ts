@@ -20,6 +20,7 @@ export type {
     IntegrationRequest, ServerIntegration, ServerJobContext, ServerModule, ServiceAppend, ServiceEvent,
 } from '@hearthlog/contracts';
 export { GATEWAY_CRONS, MAX_INBOUND_EMAIL_BYTES } from '@hearthlog/contracts';
+export { serverIntegrationsFor } from '@hearthlog/cloudflare/integrations/server.js';
 export { deterministicUuid } from '@hearthlog/contracts/integrations/ids';
 export { IntegrationRequestError } from '@hearthlog/contracts/integrations/service';
 
