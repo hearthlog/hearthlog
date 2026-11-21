@@ -21,7 +21,7 @@ const site = {
     features: ids('activities'),
 };
 
-test('only integrations with a client id reach the Worker variable', needsModules, () => {
+test('every configured integration reaches the Worker variable, with its client id when it has one', needsModules, () => {
     const resolved = resolveForTest(undefined, {
         ...site,
         features: [...site.features],
@@ -32,6 +32,7 @@ test('only integrations with a client id reach the Worker variable', needsModule
     });
     assert.deepEqual(JSON.parse(integrationsVariable(resolved)), [
         { id: 'iphone-steps', kind: 'steps', logId: LOG_ID, clientId: 'abcdef0123456789.access' },
+        { id: 'later', kind: 'steps', logId: LOG_ID },
     ]);
 });
 

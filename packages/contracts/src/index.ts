@@ -210,13 +210,18 @@ export interface ModuleServer {
     entry: string;
     /** Path prefixes the module's handler serves; the host dispatches them. May be empty (a module that only adds jobs or integrations). */
     routes?: string[];
-    /** The module runs a daily job (the gateway's `scheduled` handler). */
+    /** The module runs a daily job (the gateway's `scheduled` handler, on the site that sweeps the shared stack). */
     scheduled?: boolean;
+    /** The module runs an hourly job (`ServerModule.hourly`) on every site that enables it. */
+    hourly?: boolean;
     bindings?: ModuleBinding[];
     /** Worker variables, each copied from the tenant's infrastructure or from the module's own settings; an `optional` one is left out when unset. */
     vars?: ModuleVariable[];
-    /** Write-only Worker secrets supplied by the operator, never emitted into configuration or browser code. */
-    secrets?: Array<{ name: string }>;
+    /**
+     * Write-only Worker secrets supplied by the operator, never emitted into configuration or browser code. A deploy
+     * refuses to run without one, unless it is `optional`: then the module must work (or say it is not set up) without it.
+     */
+    secrets?: Array<{ name: string; optional?: boolean }>;
     /**
      * A file in `src/server/` whose default export is a `DevServerModule`. The Vite dev server hands it the
      * requests under `routes`; it is never bundled into a deployed gateway.
@@ -283,11 +288,20 @@ export type ModuleBinding =
 export interface ServerModule<TEnv = unknown> {
     id: string;
     routes: Array<{ prefix: string; handle(request: Request, env: TEnv): Promise<Response> }>;
-    scheduled?(env: TEnv): Promise<unknown>;
+    /** The daily job (manifest `server.scheduled`). */
+    scheduled?(env: TEnv, context: ServerJobContext): Promise<unknown>;
+    /** The hourly job (manifest `server.hourly`); the module decides inside it whether this hour has work. */
+    hourly?(env: TEnv, context: ServerJobContext): Promise<unknown>;
     /** AI decision capabilities the manifest declares (`aiCapabilities`), by id. */
     ai?: Record<string, AiCapabilityDefinition>;
     /** Handlers for the integration kinds the manifest declares (`integrationKinds`), by kind. */
     integrations?: Record<string, IntegrationHandler<TEnv>>;
+    /**
+     * Handlers for mail sent to an integration of one of the module's kinds, by kind. Mail reaches the gateway through
+     * Cloudflare Email Routing (a catch-all on a subdomain of the site's domain); the recipient `<integration id>@…`
+     * (or `<integration id>+anything@…`) names the integration.
+     */
+    email?: Record<string, EmailHandler<TEnv>>;
     /** Files a fork carries into its child log; omit when the module's files are shared by the whole app. */
     forkFiles?: FileContributor;
 }
@@ -362,6 +376,52 @@ export interface IntegrationRequest<TEnv = unknown> {
 
 /** Returns the JSON the host sends back; throws `IntegrationRequestError` for a bad request. */
 export type IntegrationHandler<TEnv = unknown> = (request: IntegrationRequest<TEnv>) => Promise<unknown>;
+
+/**
+ * A configured integration as server code outside a request sees it: a job or an email handler. Its events are
+ * authored `service:<id>` in its one log, like an inbound integration's; it needs no service token.
+ */
+export interface ServerIntegration {
+    id: string;
+    kind: string;
+    logId: string;
+    /** As `IntegrationRequest.upsertEntity`, against this integration's log. */
+    upsertEntity(build: (base: number | undefined) => Promise<ServiceAppend>): Promise<'created' | 'updated'>;
+}
+
+/** What the host hands a module's job. */
+export interface ServerJobContext {
+    now: number;
+    /** The site's configured integrations of the kinds this module handles (in `integrations` or `email`); may be empty. */
+    integrations: ServerIntegration[];
+}
+
+/** One message as the email handler receives it. The host has already checked the size; nothing is stored. */
+export interface InboundEmail {
+    /** The envelope sender and recipient. */
+    from: string;
+    to: string;
+    headers: Headers;
+    /** The whole message (RFC 5322), at most `MAX_INBOUND_EMAIL_BYTES`. */
+    raw: Uint8Array;
+}
+
+export interface EmailRequest<TEnv = unknown> {
+    env: TEnv;
+    integration: ServerIntegration;
+    email: InboundEmail;
+    now: number;
+    /** Refuse the message: Email Routing bounces it to the sender with this reason. */
+    reject(reason: string): void;
+}
+
+export type EmailHandler<TEnv = unknown> = (request: EmailRequest<TEnv>) => Promise<void>;
+
+/** Bank statements arrive as PDF attachments; anything larger is refused before a handler runs. */
+export const MAX_INBOUND_EMAIL_BYTES = 10 * 1024 * 1024;
+
+/** The gateway's cron triggers; `scheduled` runs on the daily one, `hourly` on the hourly one. */
+export const GATEWAY_CRONS = { daily: '23 3 * * *', hourly: '17 * * * *' } as const;
 
 /** A fork event as file contributors see it: the stored event, with its log version. */
 export interface ForkHistoryEvent {
@@ -542,7 +602,10 @@ export function validateManifest(value: unknown, source = 'hearthlog.module.json
     }
     if (manifest.server !== undefined) {
         const label = `${id} server`;
-        const server = keys(label, manifest.server, ['entry', 'routes', 'scheduled', 'bindings', 'vars', 'secrets', 'dev']);
+        const server = keys(label, manifest.server, ['entry', 'routes', 'scheduled', 'hourly', 'bindings', 'vars', 'secrets', 'dev']);
+        for (const flag of ['scheduled', 'hourly'] as const) {
+            if (server[flag] !== undefined && typeof server[flag] !== 'boolean') fail(label, `${flag} must be a boolean`);
+        }
         if (!/^\.\/src\/server\/[A-Za-z0-9_-]+\.ts$/.test(entry(`${label} entry`, server.entry))) fail(label, 'entry must be a file in src/server/');
         if (server.dev !== undefined) {
             if (!/^\.\/src\/server\/[A-Za-z0-9_-]+\.ts$/.test(entry(`${label} dev`, server.dev))) fail(label, 'dev must be a file in src/server/');
@@ -590,8 +653,9 @@ export function validateManifest(value: unknown, source = 'hearthlog.module.json
             ...((server.vars ?? []) as Array<{ name: string }>).map(variable => variable.name),
         ]);
         for (const [index, raw] of ((server.secrets ?? []) as unknown[]).entries()) {
-            const secret = keys(`${label} secrets[${index}]`, raw, ['name']);
+            const secret = keys(`${label} secrets[${index}]`, raw, ['name', 'optional']);
             const name = text(`${label} secrets[${index}] name`, secret.name, /^[A-Z][A-Z0-9_]*$/);
+            if (secret.optional !== undefined && typeof secret.optional !== 'boolean') fail(label, `secrets[${index}] optional must be a boolean`);
             if (names.has(name) || /^(?:LEDGER(?:_|$)|CF_ACCESS_|STOR_|INVOICE_|AI(?:_|$)|CALENDAR_|ASSETS$|INTEGRATIONS$)/.test(name)) {
                 fail(label, `secret ${name} collides with an existing or reserved Worker binding`);
             }

@@ -19,8 +19,6 @@ export interface WranglerBase {
     ai: { binding: string };
     /** Service ingest is limited per Access client id; the namespace id only has to be unique in the account. */
     ratelimits: Array<{ name: string; namespace_id: string; simple: { limit: number; period: number } }>;
-    /** The daily sweep of the public Gallery copies, for the site that owns the bucket. */
-    triggers: { crons: string[] };
 }
 
 export const WRANGLER_BASE: WranglerBase = {
@@ -46,5 +44,4 @@ export const WRANGLER_BASE: WranglerBase = {
     images: { binding: "IMAGES" },
     ai: { binding: "AI" },
     ratelimits: [{ name: "INTEGRATIONS_LIMITER", namespace_id: "21001", simple: { limit: 30, period: 60 } }],
-    triggers: { crons: ["23 3 * * *"] },
 };

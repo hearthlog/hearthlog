@@ -69,3 +69,11 @@ test('module secrets use the selected site, require declared credentials, and ig
     assert.throws(() => moduleSecretsFromEnvironment('beta', declarations, {}), /supply MEDIA_KEY_BETA/);
     assert.deepEqual(moduleSecretsFromEnvironment('beta', [], { MEDIA_KEY: 'ignored' }), {});
 });
+
+test('an optional module secret is set when supplied and skipped when not', async () => {
+    const { moduleSecretsFromEnvironment } = await import('./ensure-tenant.js');
+    const declarations = [{ secrets: [{ name: 'BANK_KEY', optional: true }, { name: 'MEDIA_KEY' }] }];
+    assert.deepEqual(moduleSecretsFromEnvironment('alpha', declarations, { MEDIA_KEY: 'm' }), { MEDIA_KEY: 'm' });
+    assert.deepEqual(moduleSecretsFromEnvironment('alpha', declarations, { MEDIA_KEY: 'm', BANK_KEY_ALPHA: 'b' }), { BANK_KEY: 'b', MEDIA_KEY: 'm' });
+    assert.throws(() => moduleSecretsFromEnvironment('alpha', declarations, { BANK_KEY: 'b' }), /supply MEDIA_KEY_ALPHA/);
+});
