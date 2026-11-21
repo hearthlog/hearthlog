@@ -13,6 +13,7 @@ import { handleAiDecisionsRequest } from "./ai-decisions";
 import { fencedWrite, readFence } from './fence';
 import { handleForkPreparation } from './log-forks';
 import { handleIntegrationRequest, isIntegrationRequest } from './integrations';
+import { handleInboundEmail, runServerJobs } from './integrations/server';
 import { handleCalendarFeedManagementRequest } from './calendar-feeds';
 
 const LEDGER_PREFIX = "/api/ledger";
@@ -118,11 +119,23 @@ export function createGateway(modules: ReadonlyArray<ServerModule<Env>>) {
             }
             return serveAssetOrAppShell(request, env);
         },
-        /** Daily jobs of the site's modules (Gallery sweeps its public copies); see the `triggers` in `wrangler.jsonc`. */
-        async scheduled(_controller: ScheduledController, env: Env): Promise<void> {
+        /**
+         * The site's modules' jobs: daily (Gallery sweeps its public copies) and hourly (bank sync); see the
+         * `triggers` in `wrangler.jsonc` and `GATEWAY_CRONS`.
+         */
+        async scheduled(controller: ScheduledController, env: Env): Promise<void> {
             // A fenced workspace is being copied or has moved: jobs that write must not run against it.
             if (await readFence(env)) return;
-            for (const module of modules) await module.scheduled?.(env);
+            await runServerJobs(env, modules, controller.cron, controller.scheduledTime);
+        },
+        /** Mail Email Routing delivers (a catch-all on the site's mail subdomain), for the module that owns the recipient. */
+        async email(message: ForwardableEmailMessage, env: Env): Promise<void> {
+            // While the workspace moves, writes pause; the sender gets a bounce and statements fill the gap later.
+            if (await readFence(env)) {
+                message.setReject("Temporarily unavailable");
+                return;
+            }
+            await handleInboundEmail(message, env, modules);
         },
     } satisfies ExportedHandler<Env>;
 }

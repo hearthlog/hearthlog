@@ -25,6 +25,7 @@ import {
     buildTenantWranglerConfig,
     generateTenantWranglerConfigs,
     integrationsVariable,
+    siteTriggers,
     moduleBindings,
     serverDeclarations,
     siteIdentityVariables,
@@ -161,13 +162,9 @@ for (const site of sites) {
     const generated = JSON.parse(raw) as Record<string, unknown>;
     problems.push(...checkGeneratedSite(site, siteInfrastructure, generated));
     const label = `generated ${site.id}`;
-    const scheduled = serverDeclarations(site.features).some((server) => server.scheduled);
-    // The shared stack's public copies are swept by one site; a site on its own stack sweeps its own.
-    if (sweeps && scheduled && JSON.stringify(generated.triggers) !== JSON.stringify(WRANGLER_BASE.triggers)) {
-        problems.push(`${label}: this site must sweep its public Gallery bucket (triggers)`);
-    }
-    if (!(sweeps && scheduled) && generated.triggers !== undefined) {
-        problems.push(`${label}: only the site that owns the public Gallery bucket sweeps it`);
+    // The shared stack's public copies are swept by one site; a site on its own stack sweeps its own. Hourly jobs run everywhere.
+    if (JSON.stringify(generated.triggers) !== JSON.stringify(siteTriggers(site, sweeps))) {
+        problems.push(`${label}: triggers must be the daily sweep (only on the site that owns the public Gallery bucket) and the hourly jobs its modules declare`);
     }
     const expected = buildTenantWranglerConfig(site, siteInfrastructure, { sweeps });
     if (JSON.stringify(generated) !== JSON.stringify(expected)) problems.push(`${label}: the file differs from the builder output`);

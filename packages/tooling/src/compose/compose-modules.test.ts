@@ -152,6 +152,8 @@ test('generated files are imported only through #generated, not by path', () => 
 test('module secrets are named, write-only, and cannot overwrite variables or reserved credentials', () => {
     const server = { entry: './src/server/index.ts', secrets: [{ name: 'MEDIA_KEY' }] };
     assert.doesNotThrow(() => validateManifest(manifest({ server })));
+    assert.doesNotThrow(() => validateManifest(manifest({ server: { ...server, secrets: [{ name: 'MEDIA_KEY', optional: true }] } })));
+    assert.throws(() => validateManifest(manifest({ server: { ...server, secrets: [{ name: 'MEDIA_KEY', optional: 'yes' as never }] } })), ManifestError);
     for (const secrets of [[{ name: 'bad-name' }], [{ name: 'LEDGER_AUTH_TOKEN' }], [{ name: 'MEDIA_KEY', value: 'never-in-a-manifest' }], [{ name: 'MEDIA_KEY' }, { name: 'MEDIA_KEY' }]]) {
         assert.throws(() => validateManifest(manifest({ server: { ...server, secrets } })), ManifestError);
     }

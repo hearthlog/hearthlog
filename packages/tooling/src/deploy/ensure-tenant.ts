@@ -723,16 +723,20 @@ export async function collectSecrets(
 	return secrets;
 }
 
-/** Site-scoped operator variables take precedence when provisioning several gateways. Values never enter generated files. */
+/**
+ * Site-scoped operator variables take precedence when provisioning several gateways. Values never enter generated files.
+ * A secret the module marks `optional` is set when supplied and skipped when not (the module works without it).
+ */
 export function moduleSecretsFromEnvironment(
     siteId: string,
-    servers: ReadonlyArray<{ secrets?: ReadonlyArray<{ name: string }> }>,
+    servers: ReadonlyArray<{ secrets?: ReadonlyArray<{ name: string; optional?: boolean }> }>,
     environment: Record<string, string | undefined> = process.env,
 ): Record<string, string> {
     const result: Record<string, string> = {};
     const suffix = siteId.toUpperCase().replace(/-/g, '_');
-    for (const server of servers) for (const { name } of server.secrets ?? []) {
+    for (const server of servers) for (const { name, optional } of server.secrets ?? []) {
         const value = environment[`${name}_${suffix}`]?.trim() || environment[name]?.trim();
+        if (!value && optional) continue;
         if (!value) throw new TenantConfigError(`Site ${siteId}: supply ${name}_${suffix} (or ${name}) in the operator environment before setting module secrets`);
         result[name] = value;
     }

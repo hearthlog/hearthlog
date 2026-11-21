@@ -16,9 +16,11 @@ export { isUuid, LedgerScopeError, verifyLogAppId, type LedgerScopeEnv } from '@
 export { readBodyCapped } from '@hearthlog/cloudflare/request-body.js';
 export { readLedgerCheckpoint } from '@hearthlog/cloudflare/checkpoint-reader.js';
 export type {
-    DevServerContext, DevServerModule, FileContributor, ForkFile, ForkHistoryEvent, IntegrationHandler, IntegrationRequest, ServerModule, ServiceAppend,
-    ServiceEvent,
+    DevServerContext, DevServerModule, EmailHandler, EmailRequest, FileContributor, ForkFile, ForkHistoryEvent, InboundEmail, IntegrationHandler,
+    IntegrationRequest, ServerIntegration, ServerJobContext, ServerModule, ServiceAppend, ServiceEvent,
 } from '@hearthlog/contracts';
+export { GATEWAY_CRONS, MAX_INBOUND_EMAIL_BYTES } from '@hearthlog/contracts';
+export { serverIntegrationsFor } from '@hearthlog/cloudflare/integrations/server.js';
 export { deterministicUuid } from '@hearthlog/contracts/integrations/ids';
 export { IntegrationRequestError } from '@hearthlog/contracts/integrations/service';
 
