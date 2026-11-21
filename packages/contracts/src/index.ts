@@ -217,8 +217,11 @@ export interface ModuleServer {
     bindings?: ModuleBinding[];
     /** Worker variables, each copied from the tenant's infrastructure or from the module's own settings; an `optional` one is left out when unset. */
     vars?: ModuleVariable[];
-    /** Write-only Worker secrets supplied by the operator, never emitted into configuration or browser code. */
-    secrets?: Array<{ name: string }>;
+    /**
+     * Write-only Worker secrets supplied by the operator, never emitted into configuration or browser code. A deploy
+     * refuses to run without one, unless it is `optional`: then the module must work (or say it is not set up) without it.
+     */
+    secrets?: Array<{ name: string; optional?: boolean }>;
     /**
      * A file in `src/server/` whose default export is a `DevServerModule`. The Vite dev server hands it the
      * requests under `routes`; it is never bundled into a deployed gateway.
@@ -650,8 +653,9 @@ export function validateManifest(value: unknown, source = 'hearthlog.module.json
             ...((server.vars ?? []) as Array<{ name: string }>).map(variable => variable.name),
         ]);
         for (const [index, raw] of ((server.secrets ?? []) as unknown[]).entries()) {
-            const secret = keys(`${label} secrets[${index}]`, raw, ['name']);
+            const secret = keys(`${label} secrets[${index}]`, raw, ['name', 'optional']);
             const name = text(`${label} secrets[${index}] name`, secret.name, /^[A-Z][A-Z0-9_]*$/);
+            if (secret.optional !== undefined && typeof secret.optional !== 'boolean') fail(label, `secrets[${index}] optional must be a boolean`);
             if (names.has(name) || /^(?:LEDGER(?:_|$)|CF_ACCESS_|STOR_|INVOICE_|AI(?:_|$)|CALENDAR_|ASSETS$|INTEGRATIONS$)/.test(name)) {
                 fail(label, `secret ${name} collides with an existing or reserved Worker binding`);
             }
