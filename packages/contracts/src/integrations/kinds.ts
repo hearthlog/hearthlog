@@ -32,12 +32,13 @@ export interface IntegrationDefinition {
     logId: string;
     /**
      * The Access service token's client id (its JWT `common_name`). Absent until
-     * the token exists; an integration without one is configured but inactive.
+     * the token exists; without one the integration accepts no inbound requests,
+     * though the module's jobs and email handlers still write through it.
      */
     clientId?: string;
 }
 
-/** The non-secret shape the Worker receives in its INTEGRATIONS variable. */
+/** An integration that accepts inbound requests: it has a service token. */
 export type ActiveIntegration = Required<IntegrationDefinition>;
 
 export function isIntegrationKind(value: unknown): value is IntegrationKind {
@@ -63,8 +64,16 @@ export function activeIntegrations(integrations: readonly IntegrationDefinition[
     );
 }
 
-/** Parse the Worker's INTEGRATIONS variable. Anything malformed yields no integrations. */
+/** Parse the Worker's INTEGRATIONS variable, keeping the ones that accept inbound requests. */
 export function parseActiveIntegrations(value: string | undefined): ActiveIntegration[] {
+    return activeIntegrations(parseConfiguredIntegrations(value));
+}
+
+/**
+ * Parse the Worker's INTEGRATIONS variable (every configured integration, with or without a client id).
+ * Anything malformed yields no integrations; a malformed entry is skipped.
+ */
+export function parseConfiguredIntegrations(value: string | undefined): IntegrationDefinition[] {
     if (!value) return [];
     let parsed: unknown;
     try {
@@ -73,13 +82,12 @@ export function parseActiveIntegrations(value: string | undefined): ActiveIntegr
         return [];
     }
     if (!Array.isArray(parsed)) return [];
-    return parsed.flatMap((entry): ActiveIntegration[] => {
+    return parsed.flatMap((entry): IntegrationDefinition[] => {
         if (entry === null || typeof entry !== 'object') return [];
         const { id, kind, logId, clientId } = entry as Record<string, unknown>;
-        if (!isIntegrationId(id) || !isIntegrationKind(kind) || !isLogId(logId) || !isIntegrationClientId(clientId)) {
-            return [];
-        }
-        return [{ id, kind, logId: logId.toLowerCase(), clientId }];
+        if (!isIntegrationId(id) || !isIntegrationKind(kind) || !isLogId(logId)) return [];
+        if (clientId !== undefined && !isIntegrationClientId(clientId)) return [];
+        return [{ id, kind, logId: logId.toLowerCase(), ...(clientId !== undefined ? { clientId } : {}) }];
     });
 }
 

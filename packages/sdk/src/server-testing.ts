@@ -2,3 +2,4 @@
 export { handleAiDecisionsRequest, type AiDecisionsEnv } from '@hearthlog/cloudflare/ai-decisions.js';
 export { readChoice } from '@hearthlog/cloudflare/ai/decision-model.js';
 export { handleIntegrationRequest, type IntegrationsEnv } from '@hearthlog/cloudflare/integrations/index.js';
+export { handleInboundEmail, runServerJobs, type EmailMessageLike, type ServerJobsEnv } from '@hearthlog/cloudflare/integrations/server.js';

@@ -11,10 +11,9 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join, relative } from "node:path";
 
-import { moduleSettingProblem, type ModuleManifest } from "@hearthlog/contracts";
+import { GATEWAY_CRONS, moduleSettingProblem, type ModuleManifest } from "@hearthlog/contracts";
 
 import { WRANGLER_BASE } from "./wrangler-base.js";
-import { activeIntegrations } from "@hearthlog/contracts/integrations/kinds";
 import { gatewayEntryPath, loadModules, modulesForFeatures } from "../compose/compose-modules.js";
 import {
     gallerySweeperId,
@@ -166,7 +165,7 @@ export function buildTenantWranglerConfig(
     options: { sweeps?: boolean } = {},
 ): Record<string, unknown> {
     const modules = moduleBindings(site.features, infrastructure);
-    const scheduled = serverDeclarations(site.features).some((server) => server.scheduled);
+    const triggers = siteTriggers(site, options.sweeps ?? false);
     const objects = serverDeclarations(site.features).flatMap((server) =>
         (server.bindings ?? []).flatMap((binding) => binding.type === 'durable-object'
             ? [{ name: binding.binding, class_name: binding.className }] : []));
@@ -212,7 +211,7 @@ export function buildTenantWranglerConfig(
         // Each site's gateway entry bundles only the server code of the modules it enables.
         ...(modules.images ? { images: base.images } : {}),
         ratelimits: base.ratelimits,
-        ...(options.sweeps && scheduled ? { triggers: base.triggers } : {}),
+        ...(triggers ? { triggers } : {}),
         ai: base.ai,
         r2_buckets: [
             {
@@ -222,6 +221,20 @@ export function buildTenantWranglerConfig(
             ...modules.r2,
         ],
     };
+}
+
+/**
+ * The site's cron triggers, or none. The daily one runs the modules' `scheduled` jobs (the sweep of the public Gallery
+ * copies) only on the site that owns the bucket; the hourly one runs `hourly` jobs (bank sync) on every site that
+ * enables such a module.
+ */
+export function siteTriggers(site: Pick<ResolvedSite, "features">, sweeps: boolean): { crons: string[] } | undefined {
+    const servers = serverDeclarations(site.features);
+    const crons = [
+        ...(sweeps && servers.some((server) => server.scheduled) ? [GATEWAY_CRONS.daily] : []),
+        ...(servers.some((server) => server.hourly) ? [GATEWAY_CRONS.hourly] : []),
+    ];
+    return crons.length ? { crons } : undefined;
 }
 
 /**
@@ -251,9 +264,12 @@ export function siteIdentityVariables(
     };
 }
 
-/** The non-secret integration list a site's Worker accepts, as the INTEGRATIONS variable. */
+/**
+ * The site's configured integrations, as the Worker's INTEGRATIONS variable (nothing secret: a client id names a
+ * token, it is not one). Inbound requests need a client id; jobs and email handlers write through any of them.
+ */
 export function integrationsVariable(site: ResolvedSite): string {
-    return JSON.stringify(activeIntegrations(site.integrations));
+    return JSON.stringify(site.integrations);
 }
 
 /**
