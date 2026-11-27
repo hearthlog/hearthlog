@@ -147,8 +147,8 @@
     </div>
 {/snippet}
 
-<section data-month-navigation class="grid w-full grid-cols-[2.75rem_minmax(0,1fr)_2.75rem] items-center gap-x-2 gap-y-1 {compact ? 'sm:grid-cols-[2.75rem_13rem_2.75rem_5rem] sm:justify-start' : 'sm:grid-cols-[minmax(0,1fr)_2.75rem_5rem_2.75rem]'} {phoneArrows ? '' : 'max-sm:flex max-sm:w-auto'} {className}" aria-label="Month navigation">
-    <div class="col-start-2 row-start-1 min-w-0 text-center {phoneArrows ? '' : 'max-sm:text-left'} {compact ? 'sm:col-start-2 sm:text-center' : 'sm:col-start-1 sm:text-left'}">
+<section data-month-navigation class="grid w-full grid-cols-[2.75rem_minmax(0,1fr)_2.75rem] items-center gap-x-2 gap-y-1 {compact ? 'sm:grid-cols-[2.75rem_auto_2.75rem_5rem] sm:justify-start' : 'sm:grid-cols-[minmax(0,1fr)_2.75rem_5rem_2.75rem]'} {phoneArrows ? '' : 'max-sm:flex max-sm:w-auto'} {className}" aria-label="Month navigation">
+    <div class="col-start-2 row-start-1 min-w-0 text-center {phoneArrows ? '' : 'max-sm:text-left'} {compact ? 'sm:col-start-2 sm:text-center' : 'sm:col-start-1 sm:text-left'} sm:flex sm:items-baseline sm:gap-2.5">
         <h2 class="stor-serif-title text-lg text-[var(--stor-ink)] sm:text-[22px]">
             <Popover.Root open={desktopOpen} onOpenChange={(open) => setOpen('desktop', open)}>
                 <Popover.Trigger
@@ -183,8 +183,8 @@
                 </Dialog.Portal>
             </Dialog.Root>
         </h2>
-        <!-- A phone keeps the row to the month alone; the page repeats the figure lower down. -->
-        {#if subtitle}<p class="mt-0.5 text-sm leading-5 text-[var(--stor-muted-text)] max-sm:hidden">{subtitle}</p>{/if}
+        <!-- The figure sits beside the month on one line; a phone keeps the row to the month alone and the page repeats the figure lower down. -->
+        {#if subtitle}<p class="whitespace-nowrap text-sm leading-5 text-[var(--stor-muted-text)] max-sm:hidden">{subtitle}</p>{/if}
     </div>
 
     {#if hrefForMonth}
