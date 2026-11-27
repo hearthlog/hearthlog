@@ -274,6 +274,9 @@ body:has([data-stor-drawer]) .stor-mobile-fab { visibility: hidden; }
     [data-calendar-peek] a .text-xs::first-letter { text-transform: uppercase; }
 }
 
+/* The month row is the whole heading: the grid follows it closely. */
+@media (min-width: 1024px) { .stor-calendar-page { gap: 12px; } }
+
 @media (min-width: 1024px) {
     .stor-calendar-layout { min-height: 0; flex: 1; grid-template-columns: minmax(0, 1fr) 320px; grid-template-rows: minmax(0, 1fr); align-items: stretch; }
     .stor-calendar-agendas { min-height: 0; align-content: start; overflow-y: auto; /* room for card shadows and the hover lift, which a scroller would clip */ padding: 4px 8px 16px; margin: -4px -8px -16px; }

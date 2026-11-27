@@ -1073,11 +1073,11 @@
             onkeydown={handleCalendarKeydown}
             aria-label={`${monthLabel} calendar`}
             aria-describedby="calendar-keyboard-help"
-            class="stor-panel stor-calendar-panel min-w-0 p-2 outline-none lg:p-4"
+            class="stor-panel stor-calendar-panel min-w-0 p-2 outline-none lg:p-3"
             data-under-action={phone.current ? "" : undefined}
         >
         <!-- Phones: the month in view and the sources head the grid; the top bar names the page. -->
-        <div class="-mx-2 -mt-2 mb-1 flex h-12 shrink-0 items-center gap-1.5 pl-2 pr-1 md:hidden">
+        <div class="-mx-2 -mt-1 mb-1 flex h-10 shrink-0 items-center gap-1.5 pl-2 pr-1 md:hidden">
             <MonthNavigator year={currentYear} month={currentMonth + 1} currentYear={boundaryNow.getFullYear()} currentMonth={boundaryNow.getMonth() + 1} onNavigate={chooseMonth} slide={false} compact phoneArrows={false} class="min-w-0" />
             <div class="ml-auto">{@render sourcesMenu()}</div>
         </div>
