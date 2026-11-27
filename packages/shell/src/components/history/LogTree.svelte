@@ -66,7 +66,7 @@
                     <button
                         type="button"
                         class="flex min-h-12 min-w-0 flex-1 items-start gap-3 rounded-xl px-3 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--stor-focus)] disabled:cursor-default {current
-                            ? 'bg-[var(--stor-surface-raised)] shadow-[0_0_0_1px_color-mix(in_srgb,var(--stor-border)_70%,transparent),0_1px_3px_rgb(16_42_67/0.07)]'
+                            ? 'bg-[var(--stor-surface-raised)] shadow-[var(--stor-elevation-2)]'
                             : 'hover:bg-[var(--stor-surface-hover)]'} {log.hiddenAt ? 'opacity-70' : ''}"
                         aria-current={current ? 'true' : undefined}
                         aria-label={current ? `${log.name}, current log` : log.status === 'preparing' ? `${log.name}, preparing` : `Open ${log.name}`}

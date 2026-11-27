@@ -497,7 +497,7 @@
         {@const log = found.log}
         <li class="py-1">
             <button type="button"
-                class="flex min-h-11 w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left shadow-[inset_0_0_0_1px_var(--stor-border)] hover:bg-[var(--stor-surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--stor-focus)] disabled:cursor-default disabled:hover:bg-transparent"
+                class="flex min-h-11 w-full items-center gap-2.5 rounded-xl bg-[var(--stor-surface-muted)] px-3 py-2 text-left hover:bg-[var(--stor-surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--stor-focus)] disabled:cursor-default disabled:hover:bg-transparent"
                 aria-label={log.status === 'preparing' ? `${log.name} started here, preparing` : `Open ${log.name}, which started here`}
                 disabled={log.status === 'preparing' || switchingLogId !== null || locked}
                 onclick={() => onOpenLog(log.id)}>
@@ -522,7 +522,7 @@
         {@const members = bursts.get(key)}
         <li data-history-item={item.id} data-time={item.timestamp} data-time-from={item.runFrom}>
             {#if startsDay}<p class="px-2 pb-1.5 pt-4 text-xs font-semibold text-[var(--stor-muted-text)]">{day(item.timestamp)}</p>{/if}
-            <div class={open ? 'my-1 rounded-2xl bg-[var(--stor-surface-muted)] shadow-[inset_0_0_0_1px_var(--stor-border)]' : ''}>
+            <div class={open ? 'my-1 rounded-2xl bg-[var(--stor-surface-muted)]' : ''}>
                 <button type="button"
                     class="flex min-h-12 w-full items-center gap-3 rounded-xl px-2 py-2.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--stor-focus)] {open ? '' : 'hover:bg-[var(--stor-surface-hover)]'}"
                     aria-expanded={open} aria-controls={open ? `history-burst-${key}` : undefined}
@@ -555,7 +555,7 @@
         {#if view.step === 'fork' && open}{@render ghost()}{/if}
         <li data-history-item={item.id} data-time={item.timestamp}>
             {#if startsDay}<p class="px-2 pb-1.5 pt-4 text-xs font-semibold text-[var(--stor-muted-text)]">{day(item.timestamp)}</p>{/if}
-            <div class={open ? 'my-1 rounded-2xl bg-[var(--stor-surface-muted)] shadow-[inset_0_0_0_1px_var(--stor-border)]' : ''}>
+            <div class={open ? 'my-1 rounded-2xl bg-[var(--stor-surface-muted)]' : ''}>
                 <button type="button"
                     class="flex min-h-12 w-full items-center gap-3 rounded-xl px-2 py-2.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--stor-focus)] {open ? '' : 'hover:bg-[var(--stor-surface-hover)]'}"
                     aria-expanded={open} aria-controls={open ? `history-detail-${item.id}` : undefined}
@@ -604,7 +604,7 @@
     {@const open = openFolds.has(fold.key)}
     {@const Icon = fold.features[0] ? FEATURE_ICONS[fold.features[0] as keyof typeof FEATURE_ICONS] ?? IconHistory : IconHistory}
     <li class={depth === 0 ? 'py-1' : ''} data-history-fold={fold.key} data-time={fold.to} data-time-from={fold.from}>
-        <div class={open && depth === 0 ? 'rounded-2xl shadow-[inset_0_0_0_1px_var(--stor-border)]' : ''}>
+        <div class={open && depth === 0 ? 'rounded-2xl bg-[var(--stor-surface-muted)]' : ''}>
             <button type="button"
                 class="flex min-h-12 w-full items-center gap-3 rounded-xl px-2 py-2.5 text-left hover:bg-[var(--stor-surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--stor-focus)]"
                 aria-expanded={open} disabled={locked}

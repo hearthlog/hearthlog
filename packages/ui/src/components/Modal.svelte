@@ -80,7 +80,7 @@
                 {@render children()}
             </div>
             {#if footer}
-                <footer class="shrink-0 border-t border-[var(--stor-border)] px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:pb-5 sm:pl-6 sm:pr-5 sm:pt-4">
+                <footer class="shrink-0 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:pb-5 sm:pl-6 sm:pr-5 sm:pt-4">
                     <div class="flex w-full flex-wrap items-center justify-end gap-2" {@attach primaryShortcut}>{@render footer()}</div>
                 </footer>
             {/if}

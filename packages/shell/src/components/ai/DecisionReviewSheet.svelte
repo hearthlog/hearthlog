@@ -178,7 +178,7 @@
     {:else if entries.length === 0}
         <p class="text-sm text-[var(--stor-muted-text)]">{errorMessage || emptyText}</p>
     {:else}
-        <ul class="divide-y divide-[var(--stor-border)]" aria-label={title}>
+        <ul class="flex flex-col gap-0.5" aria-label={title}>
             {#each entries as entry (entry.id)}
                 <li class="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-1.5 py-2.5 sm:grid-cols-[auto_minmax(0,1fr)_12rem]">
                     <Checkbox
@@ -213,7 +213,7 @@
             {/each}
         </ul>
         {#if errorMessage}
-            <div class="mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">{errorMessage}</div>
+            <div class="mt-3 rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">{errorMessage}</div>
         {/if}
     {/if}
 

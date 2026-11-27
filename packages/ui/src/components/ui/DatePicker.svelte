@@ -293,7 +293,7 @@
             </BitsDatePicker.Calendar>
 
             {#if granularity === "minute"}
-                <div class="mt-3 border-t border-[var(--stor-border)] pt-3">
+                <div class="mt-4">
                     <div class="mb-2 flex items-center justify-between gap-3">
                         <span class="stor-overline">Time</span>
                         <BitsDatePicker.Close class="rounded-lg px-2.5 py-1.5 text-xs font-semibold text-[var(--stor-muted-text)] transition hover:bg-[var(--stor-surface-hover)] hover:text-[var(--stor-ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--stor-focus)]">

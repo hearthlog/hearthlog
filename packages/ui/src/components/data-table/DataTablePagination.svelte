@@ -29,7 +29,7 @@
 </script>
 
 <footer
-    class="flex flex-col gap-3 border-t border-[var(--stor-border)] bg-[var(--stor-surface-muted)]/60 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+    class="flex flex-col gap-3 bg-[var(--stor-surface-muted)]/60 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
 >
     <div class="flex flex-wrap items-center gap-3 text-xs text-[var(--stor-muted-text)]">
         <span>

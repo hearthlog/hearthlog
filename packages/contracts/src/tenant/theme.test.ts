@@ -113,7 +113,7 @@ describe('tenant theme', () => {
         expect(action('#d4a85a', 'dark')).toBe('#dcb062');
         expect(themePaletteFor('#b23a34', 'light').variables['--stor-negative']).toBe('#a73447');
         expect(themePaletteFor('#b23a34', 'dark').variables['--stor-now']).toBe('#ece9e4');
-        expect(themePaletteFor('#2b3a67', 'dark').variables['--stor-action-text']).toBe('#110f0d');
+        expect(themePaletteFor('#2b3a67', 'dark').variables['--stor-action-text']).toBe('#0c0a09');
     });
 
     it('makes a gray accent a monochrome site that acts in ink', () => {

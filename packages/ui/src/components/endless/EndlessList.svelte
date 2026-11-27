@@ -49,6 +49,7 @@
         opening,
         estimate,
         overscan = 1,
+        inset = 0,
         revision,
         anchorSelector,
         openingPlaceholder,
@@ -70,6 +71,11 @@
          */
         estimate: number | ((key: string) => number);
         overscan?: number;
+        /**
+         * Space at the top covered by a floating header, read once: blocks start below it and scroll under it, and
+         * every position (the place in view, scrolling to a target, the way home) measures from its bottom edge.
+         */
+        inset?: number;
         /** Changes after a save or a sync; the blocks on screen then read again. */
         revision?: number;
         /** Stable elements to keep at their screen positions when loaded buckets change. */
@@ -86,6 +92,8 @@
     } = $props();
 
     let scroller = $state<HTMLDivElement>();
+    // The floating header's height, fixed for the life of the list like the virtualizer's padding.
+    const topInset = untrack(() => inset);
     let openingReady = $state(false);
 
     function estimated(index: number): number {
@@ -112,6 +120,7 @@
             return size > 0 ? size : instance.itemSizeCache.get(instance.options.getItemKey(index)) ?? estimated(index);
         },
         overscan: untrack(() => overscan),
+        paddingStart: topInset,
         initialOffset: () => untrack(() => estimatedStart(axis.indexOf(opening.key))),
     });
 
@@ -122,7 +131,7 @@
     function viewport(): { top: number; height: number } | null {
         if (!scroller) return null;
         const rect = scroller.getBoundingClientRect();
-        let top = rect.top;
+        let top = rect.top + topInset;
         let bottom = rect.top + scroller.clientHeight;
         const page = scroller.closest<HTMLElement>("[data-stor-main]");
         if (page) {
@@ -461,7 +470,7 @@
         </div>
     </div>
     {#if openingPlaceholder && !openingReady}
-        <div class="opening-placeholder">{@render openingPlaceholder()}</div>
+        <div class="opening-placeholder" style:top={`${topInset}px`}>{@render openingPlaceholder()}</div>
     {/if}
     {#if home && homeAway}
         <button type="button" class="home-jump" onclick={() => home && scrollTo(home)}>

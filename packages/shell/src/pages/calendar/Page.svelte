@@ -766,7 +766,7 @@
                             {:else if href}
                                 <a
                                     href={href}
-                                    class="flex w-full items-center gap-3 rounded-xl border border-[var(--stor-border)] px-3 py-2.5 text-left"
+                                    class="flex w-full items-center gap-3 rounded-xl bg-[var(--stor-surface-muted)] px-3 py-2.5 text-left transition-colors hover:bg-[var(--stor-surface-hover)]"
                                     aria-label={itemAriaLabel(item)}
                                 >
                             <Icon class="h-4 w-4 shrink-0 text-[var(--stor-muted-text)]" />
@@ -785,7 +785,7 @@
                             {#if href}
                                 <a
                                     href={href}
-                                    class="flex w-full items-center gap-3 rounded-xl border border-[var(--stor-border)] px-3 py-2.5 text-left"
+                                    class="flex w-full items-center gap-3 rounded-xl bg-[var(--stor-surface-muted)] px-3 py-2.5 text-left transition-colors hover:bg-[var(--stor-surface-hover)]"
                                     aria-label={`${range.title}, ${label}`}
                                 >
                             <Icon class="h-4 w-4 shrink-0 text-[var(--stor-muted-text)]" />
@@ -888,7 +888,7 @@
                             {/each}
                         </ul>
                         {#if hiddenSourceCount > 0}
-                            <div class="mt-1 border-t border-[var(--stor-border)] pt-1">
+                            <div class="mt-2">
                                 <button
                                     type="button"
                                     class="flex min-h-11 w-full items-center rounded-xl px-2.5 text-left text-sm font-semibold text-[var(--stor-accent-text)] transition-colors hover:bg-[var(--stor-surface-muted)] sm:min-h-9"
@@ -899,7 +899,7 @@
                         {/if}
                         {#if compactHeader.current}
                             <CommandOnly>
-                                <div class="{showSourceMenu ? 'mt-1 border-t border-[var(--stor-border)] pt-1' : ''}">
+                                <div class="{showSourceMenu ? 'mt-2' : ''}">
                                     <Popover.Close
                                         class="flex min-h-11 w-full items-center gap-2.5 rounded-xl px-2.5 text-left text-sm text-[var(--stor-ink)] transition-colors hover:bg-[var(--stor-surface-muted)]"
                                         onclick={() => feedsOpen = true}
@@ -1077,12 +1077,12 @@
             data-under-action={phone.current ? "" : undefined}
         >
         <!-- Phones: the month in view and the sources head the grid; the top bar names the page. -->
-        <div class="-mx-2 -mt-2 mb-1 flex h-12 shrink-0 items-center gap-1.5 border-b border-[color-mix(in_srgb,var(--stor-border)_62%,transparent)] pl-2 pr-1 md:hidden">
+        <div class="-mx-2 -mt-2 mb-1 flex h-12 shrink-0 items-center gap-1.5 pl-2 pr-1 md:hidden">
             <MonthNavigator year={currentYear} month={currentMonth + 1} currentYear={boundaryNow.getFullYear()} currentMonth={boundaryNow.getMonth() + 1} onNavigate={chooseMonth} slide={false} compact phoneArrows={false} class="min-w-0" />
             <div class="ml-auto">{@render sourcesMenu()}</div>
         </div>
         <div class="stor-calendar-grid" role="grid" aria-label={`${monthLabel} days`}>
-            <div class="stor-calendar-week stor-calendar-header" role="row">
+            <div class="stor-calendar-week stor-calendar-header stor-glass-strong" role="row">
                     {#each ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as dayName}
                     <div role="columnheader" class="px-0.5 py-2 text-center text-xs font-medium text-[var(--stor-muted-text)] sm:px-2.5 sm:text-xs">{dayName}</div>
                     {/each}
@@ -1096,6 +1096,7 @@
                             store={weeks}
                             opening={monthTarget(shownMonth)}
                             estimate={weekEstimate}
+                            inset={36}
                             revision={revision}
                             home={todayTarget}
                             pick={pick}
@@ -1259,6 +1260,18 @@
         display: grid;
         grid-template-columns: repeat(7, minmax(0, 1fr));
         gap: 2px;
+    }
+    /* The weekday row floats over the weeks as glass; the list starts its weeks below it (`inset`). */
+    .stor-calendar-header.stor-calendar-week {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        z-index: 4;
+        height: 36px;
+        align-items: center;
+        padding-bottom: 0;
+        border-radius: 12px;
     }
     .stor-calendar-week {
         position: relative;

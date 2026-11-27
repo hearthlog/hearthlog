@@ -87,7 +87,7 @@
     </p>
 {/if}
 {#if state?.available}
-    <details class="mb-3 border-b border-[var(--stor-border)] pb-3">
+    <details class="mb-4">
         <summary class="min-h-11 cursor-pointer py-2 text-sm text-[var(--stor-muted-text)]">Log maintenance</summary>
         <div class="flex flex-wrap items-center gap-2 py-2">
             <CommandOnly>

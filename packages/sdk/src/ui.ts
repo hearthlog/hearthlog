@@ -31,6 +31,7 @@ export { default as CommandModal } from '@hearthlog/ui/components/commands/Comma
 export { default as CommandOnly } from '@hearthlog/ui/components/commands/CommandOnly.svelte';
 export { tabIndicator } from '@hearthlog/ui/components/ui/tab-indicator.js';
 export { default as Drawer } from '@hearthlog/ui/components/Drawer.svelte';
+export { default as SelectionDock } from '@hearthlog/ui/components/SelectionDock.svelte';
 export { default as MonthNavigator } from '@hearthlog/ui/components/ui/MonthNavigator.svelte';
 export { default as Label } from '@hearthlog/ui/components/ui/Label.svelte';
 export { default as SyncStateBadge } from '@hearthlog/shell/components/sync/SyncStateBadge.svelte';

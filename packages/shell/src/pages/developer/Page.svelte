@@ -296,7 +296,7 @@
     {#snippet developerScope()}
         <p class="text-sm text-[var(--stor-muted-text)]">This browser · all local logs</p>
     {/snippet}
-    <PageHeader title="Developer" context={developerScope}>
+    <PageHeader title="Developer" context={developerScope} sticky>
         <span class="hidden text-xs text-[var(--stor-muted-text)] sm:inline">Build {buildDate}</span>
     </PageHeader>
 

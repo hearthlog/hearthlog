@@ -269,7 +269,7 @@
                     <Button onclick={() => (view = "create")}><IconPlus class="h-4 w-4" /> New feed</Button>
                 </EmptyState>
             {:else}
-                <ul class="divide-y divide-[var(--stor-border)]">
+                <ul class="flex flex-col gap-0.5">
                     {#each feeds as feed (feed.feedId)}
                         <li class="flex items-center gap-3 py-3">
                             <div class="min-w-0 flex-1">

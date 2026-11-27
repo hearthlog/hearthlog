@@ -1,16 +1,19 @@
 @layer components {
     .stor-page { display: flex; min-width: 0; flex-direction: column; gap: var(--stor-section-gap); }
-    .stor-panel, .stor-today-card { border: 1px solid var(--stor-hairline); border-radius: var(--stor-section-radius); background: var(--stor-surface); box-shadow: var(--stor-elevation-1); }
+    /* A card has no border: it lifts off the page by its shadow and the rim along its top edge. */
+    .stor-panel, .stor-today-card { border-radius: var(--stor-section-radius); background: var(--stor-surface); box-shadow: var(--stor-elevation-1); }
     /* A card that is a link or button lifts on hover; the shadow deepens and the card rises 2px. */
     a.stor-panel, button.stor-panel, .stor-panel[data-interactive], .stor-today-card { transition: transform var(--stor-dur-2) var(--stor-ease-out), box-shadow var(--stor-dur-2) var(--stor-ease-out); }
     a.stor-panel:hover, button.stor-panel:hover, .stor-panel[data-interactive]:hover, a.stor-today-card:hover { transform: translateY(-2px); box-shadow: var(--stor-elevation-1-hover); }
     .stor-panel { overflow: hidden; }
     .stor-panel-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: var(--stor-panel-padding); background: transparent; }
     .stor-panel-body { padding: var(--stor-panel-padding); }
-    /* A section's title-3 header sits over a hairline when a padded body follows it. */
+    /* A section's title-3 header: space, not a rule, separates it from what follows. Over a padded body it keeps no
+       bottom padding, so the body's own padding is the gap. */
     .stor-panel-title { font-size: var(--stor-text-title-3); line-height: var(--stor-text-title-3-line); font-weight: 600; letter-spacing: -.006em; color: var(--stor-ink); }
-    .stor-panel-header-rule, .stor-panel-header:has(+ .stor-panel-body) { padding-block: 16px; border-bottom: 1px solid var(--stor-rule); }
-    .stor-panel-header-flush { padding: 0 0 12px; border-bottom: 1px solid var(--stor-rule); }
+    .stor-panel-header-rule { padding-block: 16px 8px; }
+    .stor-panel-header:has(+ .stor-panel-body) { padding-block: 16px 0; }
+    .stor-panel-header-flush { padding: 0 0 12px; }
     .stor-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
     /* A figure: overline label, the value, an optional sparkline, and one support line (a delta may lead it). */
     .stor-metric { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
@@ -26,17 +29,29 @@
     .stor-well { background: var(--stor-surface-well); box-shadow: var(--stor-well-shadow); }
     .stor-menu { background: var(--stor-surface-overlay); box-shadow: var(--stor-elevation-3); border-radius: 16px; }
     .stor-sheet { background: var(--stor-surface-sheet); box-shadow: var(--stor-elevation-4); }
-    /* Fields: a white (dark: sunken) fill with an inner shade inside the 3:1 outline. Focus keeps the fill with an action border
-       and a 3px soft halo, in place of the global outline (below, outside the layer). */
-    .stor-field-control { border: 1px solid var(--stor-field-border); border-radius: 12px; background: var(--stor-field-fill); box-shadow: var(--stor-field-inset); color: var(--stor-ink); font-weight: 400; letter-spacing: normal; outline: none; transition: background-color var(--stor-dur-1) ease, border-color var(--stor-dur-1) ease, box-shadow var(--stor-dur-1) ease; }
+    /* Fields: a well (dark: sunken) fill with an inner shade and a 3:1 underline, no outline. Focus lifts the fill to
+       the surface, draws the underline in the focus colour and adds a 3px soft halo, in place of the global outline
+       (below, outside the layer). */
+    .stor-field-control { border: 0; border-radius: 12px; background: var(--stor-field-fill); box-shadow: var(--stor-field-inset), inset 0 -1.5px 0 var(--stor-field-line); color: var(--stor-ink); font-weight: 400; letter-spacing: normal; outline: none; transition: background-color var(--stor-dur-1) ease, border-color var(--stor-dur-1) ease, box-shadow var(--stor-dur-1) ease; }
     .stor-field-control::placeholder { color: var(--stor-faint-text); }
-    .stor-field-control:is(:focus, :focus-within, [data-state="open"]) { background: var(--stor-field-fill); border-color: var(--stor-focus); box-shadow: var(--stor-field-inset), 0 0 0 3px var(--stor-accent-soft); }
+    .stor-field-control:is(:focus, :focus-within, [data-state="open"]) { background: var(--stor-surface); box-shadow: inset 0 -2px 0 var(--stor-focus), 0 0 0 3px var(--stor-accent-soft); }
     .stor-field-control:is(:disabled, [data-disabled]) { cursor: not-allowed; opacity: .6; }
     @media (min-width: 640px) { .stor-field-control { border-radius: 10px; } }
     /* Key caps: shortcut hints in buttons and menus. On a filled button the cap is a tint of the label colour. */
-    .stor-kbd { display: inline-flex; flex: none; align-items: center; height: 20px; padding: 0 6px; border-radius: 5px; background: var(--stor-surface-muted); box-shadow: 0 0 0 1px var(--stor-border); color: var(--stor-muted-text); font: 600 11px/1 var(--stor-font-sans); letter-spacing: 0; }
+    .stor-kbd { display: inline-flex; flex: none; align-items: center; height: 20px; padding: 0 6px; border-radius: 5px; background: var(--stor-surface-well); box-shadow: none; color: var(--stor-muted-text); font: 600 11px/1 var(--stor-font-sans); letter-spacing: 0; }
     [data-stor-button-variant="default"] .stor-kbd { background: color-mix(in srgb, currentColor 16%, transparent); box-shadow: none; color: inherit; }
     .stor-page-header { min-width: 0; padding-bottom: 4px; }
+    /* A sticky page header (PageHeader `sticky`, from 768px): its row sticks 10px below the top of the page panel and,
+       once stuck, turns into a glass capsule that names the page. The row keeps the same box in both states, and the
+       title and context above and below it only fade, so nothing on the page moves. */
+    .stor-page-header-condensed { display: none; min-width: 0; align-items: baseline; gap: 10px; padding-left: 10px; }
+    .stor-page-header-condensed .stor-serif-title { font-size: 19px; line-height: 24px; color: var(--stor-ink); white-space: nowrap; }
+    @media (min-width: 768px) {
+        .stor-page-header[data-sticky] { position: sticky; top: calc(10px - var(--stor-header-lead, 0px)); z-index: var(--stor-layer-sticky); }
+        .stor-page-header[data-sticky] > .stor-page-header-row { margin: -6px -8px; padding: 6px 8px; border-radius: 26px; transition: background-color var(--stor-dur-2) ease, box-shadow var(--stor-dur-2) ease; }
+        .stor-page-header[data-stuck] > :not(.stor-page-header-row) { opacity: 0; pointer-events: none; transition: opacity var(--stor-dur-1) ease; }
+        .stor-page-header[data-stuck] .stor-page-header-condensed { display: inline-flex; }
+    }
     .stor-page-header h1, .stor-health-header h1 { font-size: var(--stor-text-title-1); line-height: var(--stor-text-title-1-line); letter-spacing: -.015em; }
     /* Section pages let the navigation name the place: the title is read by
        assistive tech and shown as a compact label on mobile only. */
@@ -95,6 +110,59 @@
     .stor-toast-action:hover, .stor-toast-close:hover { background: color-mix(in srgb, var(--stor-tooltip-text) 12%, transparent); opacity: 1; }
     .stor-toast :is(button):focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--stor-action-inverse); }
     .stor-nav-selected, .stor-nav-indicator { background: var(--stor-surface-raised); box-shadow: var(--stor-nav-card-shadow); }
+    /* Selection dock (SelectionDock.svelte): a glass tray over the bottom of a list while rows are selected. Below
+       1024px it floats above the tab bar and the page action; from 1024px it sticks to the bottom of the list. */
+    .stor-dock-place { z-index: 30; pointer-events: none; }
+    .stor-dock { display: flex; max-width: 100%; flex-direction: column; gap: 14px; padding: 16px; border-radius: 26px; pointer-events: auto; }
+    .stor-dock-what { display: flex; align-items: center; gap: 4px; }
+    .stor-dock-count { display: grid; place-items: center; min-width: 40px; height: 40px; padding: 0 10px; border-radius: 999px; font-size: 16px; font-weight: 700; letter-spacing: -.01em; font-variant-numeric: tabular-nums; color: var(--stor-ink); }
+    .stor-dock-count-all { background: var(--stor-action); color: var(--stor-action-text); box-shadow: var(--stor-action-shadow); }
+    .stor-dock-label, .stor-dock-ask { display: flex; flex-direction: column; padding: 0 10px 0 8px; font-size: 13px; line-height: 18px; white-space: nowrap; }
+    .stor-dock-label > strong, .stor-dock-ask > strong { font-weight: 600; color: var(--stor-ink); }
+    .stor-dock-label > span, .stor-dock-ask > span { font-size: 12px; line-height: 16px; color: var(--stor-muted-text); }
+    .stor-dock-summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 24px; }
+    .stor-dock-figure { display: flex; min-width: 0; flex-direction: column; white-space: nowrap; }
+    .stor-dock-figure > span { font-size: 10.5px; line-height: 14px; font-weight: 600; letter-spacing: .07em; text-transform: uppercase; color: var(--stor-muted-text); }
+    .stor-dock-figure > strong { font-size: 18px; line-height: 22px; font-weight: 600; letter-spacing: -.01em; font-variant-numeric: tabular-nums; color: var(--stor-ink); }
+    .stor-dock-figure > small { font-size: 12px; line-height: 16px; color: var(--stor-warning); }
+    .stor-dock-switch { display: inline-flex; align-self: flex-start; gap: 2px; padding: 3px; border-radius: 999px; background: color-mix(in srgb, var(--stor-ink) 6%, transparent); }
+    .stor-dock-switch > button { height: 30px; padding: 0 11px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; color: var(--stor-muted-text); }
+    .stor-dock-switch > button[aria-pressed="true"] { background: var(--stor-droplet); box-shadow: var(--stor-droplet-edge); color: var(--stor-ink); }
+    .stor-dock-note { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px; border-radius: 999px; background: var(--stor-warning-soft); color: var(--stor-warning); font-size: 12px; font-weight: 600; white-space: nowrap; }
+    .stor-dock-spacer { display: none; }
+    .stor-dock-actions { display: flex; align-items: center; gap: 6px; }
+    .stor-dock-action { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 48px; padding: 0 16px; border-radius: 999px; font-size: 15px; font-weight: 600; white-space: nowrap; color: var(--stor-ink); transition: background-color var(--stor-dur-1) ease, box-shadow var(--stor-dur-1) ease; }
+    .stor-dock-action:hover:not(:disabled) { background: color-mix(in srgb, var(--stor-ink) 7%, transparent); }
+    .stor-dock-action:focus-visible { outline: 2px solid var(--stor-focus); outline-offset: 2px; }
+    .stor-dock-action:disabled { cursor: default; color: var(--stor-faint-text); }
+    .stor-dock-action > svg { width: 16px; height: 16px; flex: none; }
+    .stor-dock-action-primary { flex: 1; background: var(--stor-action); color: var(--stor-action-text); box-shadow: var(--stor-action-shadow); }
+    .stor-dock-action-primary:hover:not(:disabled) { background: var(--stor-action-hover); }
+    .stor-dock-action-primary:disabled { background: color-mix(in srgb, var(--stor-ink) 6%, transparent); box-shadow: none; }
+    .stor-dock-action-danger { color: var(--stor-negative); }
+    .stor-dock-action-confirm { flex: 1; background: var(--stor-negative); color: var(--stor-negative-text); }
+    .stor-dock-action-confirm:hover:not(:disabled) { background: color-mix(in srgb, var(--stor-negative) 88%, var(--stor-ink)); }
+    .stor-dock-ask ~ .stor-dock-actions > .stor-dock-action { flex: 1; }
+    .stor-dock-clear { padding: 0 12px; color: var(--stor-muted-text); }
+    .stor-dock-clear > .stor-kbd { display: none; }
+    @media (max-width: 1023px) {
+        .stor-dock-place { position: fixed; left: 8px; right: 8px; bottom: calc(var(--stor-mobile-bottom-inset) + var(--stor-mobile-nav-height) + 2 * var(--stor-mobile-stack-gap) + var(--stor-mobile-action-height)); }
+    }
+    @media (min-width: 1024px) {
+        .stor-dock-place { position: sticky; bottom: 20px; display: flex; justify-content: center; padding: 8px 20px 20px; }
+        .stor-dock { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 8px 6px; padding: 6px; border-radius: 24px; }
+        .stor-dock-count { height: 44px; min-width: 44px; font-size: 17px; }
+        .stor-dock-switch { align-self: auto; }
+        .stor-dock-summary { display: flex; gap: 6px; padding-inline: 6px; }
+        .stor-dock-figure { padding-inline: 6px; }
+        .stor-dock-figure > strong { font-size: 16px; }
+        .stor-dock-spacer { display: block; flex: 1; min-width: 16px; }
+        .stor-dock-actions { gap: 4px; }
+        .stor-dock-action { height: 40px; padding: 0 14px; font-size: 13px; }
+        .stor-dock-action-primary, .stor-dock-action-confirm, .stor-dock-ask ~ .stor-dock-actions > .stor-dock-action { flex: none; }
+        .stor-dock-clear { padding: 0 10px; }
+        .stor-dock-clear > .stor-kbd { display: inline-flex; }
+    }
     .stor-nav-sliding .stor-nav-selected,
     .stor-tabs-sliding .stor-page-tab:is([data-state="active"], [aria-selected="true"], [aria-current="page"], [aria-current="true"]),
     .stor-tabs-sliding .stor-segmented-option:is([aria-pressed="true"], [data-state="active"], [data-checked="true"]) { background: transparent; box-shadow: none; }
@@ -325,12 +393,12 @@
 }
 
 /* Field states outside the layer, so they beat the global focus outline and a module's utility classes:
-   a field draws its own focus halo, and an invalid one (aria-invalid, or inside a Field with an error) turns
-   negative. */
+   a field draws its own focus halo, and an invalid one (aria-invalid, or inside a Field with an error) draws its
+   underline in the negative colour. */
 
 .stor-field-control:focus-visible { outline: none; }
-.stor-field-control:is([aria-invalid="true"], [data-stor-invalid]), [data-stor-invalid] .stor-field-control { border-color: var(--stor-negative); }
-.stor-field-control:is([aria-invalid="true"], [data-stor-invalid], [data-stor-invalid] *):is(:focus, :focus-within) { box-shadow: 0 0 0 3px var(--stor-negative-soft); }
+.stor-field-control:is([aria-invalid="true"], [data-stor-invalid]), [data-stor-invalid] .stor-field-control { box-shadow: var(--stor-field-inset), inset 0 -2px 0 var(--stor-negative); }
+.stor-field-control:is([aria-invalid="true"], [data-stor-invalid], [data-stor-invalid] *):is(:focus, :focus-within) { box-shadow: inset 0 -2px 0 var(--stor-negative), 0 0 0 3px var(--stor-negative-soft); }
 
 /* Overlay key hints: ⌘↵ on a sheet's primary action (set by its footer, see overlay-keys.ts) and Esc beside
    its close button. Keyboards only: touch screens never show them. */

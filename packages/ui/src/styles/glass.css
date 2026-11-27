@@ -1,0 +1,87 @@
+/*
+ * Glass: only for chrome that content scrolls under (a stuck page header, the calendar's weekday row, the phone
+ * header, tab bar and page action). Cards, rows, tables, forms and dialogs stay solid. Tokens come from
+ * `glassVariables()` in packages/contracts/src/tenant/theme.ts.
+ *
+ * .stor-glass          a tint over a light blur, a rim lit from the top left and the bottom right, an inner glow
+ * .stor-glass-strong   the same with the stronger tint; use it wherever text is read on the glass
+ * .stor-glass-tint     the one primary action on a glass surface: the action colour as glass
+ * .stor-droplet        the selected option inside a glass control: a clearer lens with its own rim
+ *
+ * A glass element needs a positioned box (relative, sticky or fixed) for its rim; `.stor-glass` makes it relative
+ * unless a utility says otherwise. Glass never nests: inside glass, controls are plain or droplets.
+ */
+@layer components {
+    .stor-glass, .stor-glass-strong, .stor-glass-tint {
+        position: relative;
+        isolation: isolate;
+        background: var(--stor-glass-tint);
+        -webkit-backdrop-filter: blur(14px) saturate(1.8) brightness(1.03);
+        backdrop-filter: blur(14px) saturate(1.8) brightness(1.03);
+        box-shadow: var(--stor-glass-edge), var(--stor-glass-drop);
+    }
+    .stor-glass-strong { background: var(--stor-glass-tint-strong); }
+    .stor-glass-tint { background: color-mix(in srgb, var(--stor-action) 82%, transparent); color: var(--stor-action-text); }
+    /* The rim: a 1px gradient ring drawn by masking, so it never takes layout space. */
+    :is(.stor-glass, .stor-glass-strong, .stor-glass-tint)::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        z-index: 3;
+        padding: 1px;
+        border-radius: inherit;
+        background: var(--stor-glass-rim);
+        -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+        -webkit-mask-composite: xor;
+        mask-composite: exclude;
+        pointer-events: none;
+    }
+    /* The sheen: light caught in the top-left corner, behind the content. */
+    :is(.stor-glass, .stor-glass-strong)::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        z-index: -1;
+        border-radius: inherit;
+        background: var(--stor-glass-sheen);
+        pointer-events: none;
+    }
+    .stor-droplet {
+        background: var(--stor-droplet);
+        box-shadow: var(--stor-droplet-edge);
+        color: var(--stor-ink);
+    }
+}
+
+/* Glass turns solid wherever it can't blur, or the reader asks for less transparency or more contrast. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .stor-glass, .stor-glass-strong { background: var(--stor-surface-raised); }
+    .stor-glass-tint { background: var(--stor-action); }
+}
+@media (prefers-reduced-transparency: reduce) {
+    .stor-glass, .stor-glass-strong, .stor-glass-tint {
+        -webkit-backdrop-filter: none;
+        backdrop-filter: none;
+        box-shadow: var(--stor-elevation-3);
+    }
+    .stor-glass, .stor-glass-strong { background: var(--stor-surface-raised); }
+    .stor-glass-tint { background: var(--stor-action); }
+    :is(.stor-glass, .stor-glass-strong, .stor-glass-tint)::before, :is(.stor-glass, .stor-glass-strong)::after { display: none; }
+    .stor-droplet { background: var(--stor-surface-well); box-shadow: none; }
+}
+@media (prefers-contrast: more) {
+    .stor-glass, .stor-glass-strong {
+        -webkit-backdrop-filter: none;
+        backdrop-filter: none;
+        background: var(--stor-surface-raised);
+        outline: 1px solid var(--stor-border-strong);
+        outline-offset: -1px;
+    }
+    .stor-glass-tint { -webkit-backdrop-filter: none; backdrop-filter: none; background: var(--stor-action); }
+    .stor-droplet { background: var(--stor-surface-well); box-shadow: 0 0 0 1px var(--stor-border-strong); }
+}
+@media (forced-colors: active) {
+    .stor-glass, .stor-glass-strong, .stor-glass-tint { border: 1px solid CanvasText; }
+    :is(.stor-glass, .stor-glass-strong, .stor-glass-tint)::before, :is(.stor-glass, .stor-glass-strong)::after { display: none; }
+    .stor-droplet { outline: 2px solid Highlight; }
+}

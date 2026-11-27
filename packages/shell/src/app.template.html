@@ -137,7 +137,7 @@
             })();
         </script>
         <style>
-            :root{--boot-bg:var(--stor-bg);--boot-border:var(--stor-border);--boot-sidebar-width:var(--stor-sidebar-width,224px);--boot-sidebar-margin:0px;--boot-sidebar-radius:0px;--boot-page-margin:12px;--boot-page-radius:20px}
+            :root{--boot-bg:var(--stor-bg);--boot-border:var(--stor-border);--boot-sidebar-width:var(--stor-sidebar-width,224px);--boot-sidebar-margin:0px;--boot-sidebar-radius:0px;--boot-page-margin:12px;--boot-page-radius:22px}
             html[data-sidebar-collapsed="true"]{--boot-sidebar-width:80px}html,body{margin:0;min-width:320px;background:var(--boot-bg)}
             /* Shared with NavBar: branding must keep the same geometry before and after mount. */
             :root{--stor-font-sans:'Inter Variable',ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;--stor-font-mono:'Fira Code Variable',ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,'Liberation Mono','Courier New',monospace}
@@ -163,7 +163,7 @@
             .stor-boot-mark{display:none}
             html[data-sidebar-collapsed="true"] .stor-boot-title{display:none}html[data-sidebar-collapsed="true"] .stor-boot-mark{display:flex}
             .stor-boot-mobile-head,.stor-boot-mobile-nav{display:none}
-            .stor-boot-recovery{display:none;position:absolute;right:24px;bottom:24px;max-width:360px;border:1px solid var(--boot-border);border-radius:16px;background:var(--stor-surface-raised);padding:16px;box-shadow:0 12px 32px var(--stor-overlay)}
+            .stor-boot-recovery{display:none;position:absolute;right:24px;bottom:24px;max-width:360px;border-radius:16px;background:var(--stor-surface-raised);padding:16px;box-shadow:0 12px 32px var(--stor-overlay)}
             .stor-boot-needs-attention .stor-boot-recovery{display:block}.stor-boot-recovery h1{font-size:16px}.stor-boot-recovery p{font-size:13px;line-height:1.5;color:var(--stor-muted-text)}.stor-boot-recovery button{border:0;border-radius:10px;background:var(--stor-action);color:var(--stor-action-text);padding:10px 14px;cursor:pointer}
             .stor-boot-status{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
             /* Mac shell: the web view is transparent over the window's glass; mirrors app.css so the boot frame matches the app. */

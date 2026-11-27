@@ -108,7 +108,7 @@
     {:else if counts.total === 0}
         <p class="mt-1 text-sm text-[var(--stor-muted-text)]">Nothing scheduled</p>
     {:else}
-        <ul class="stor-inset-rows mt-1 text-sm" style="--stor-row-inset: 1.75rem">
+        <ul class="stor-inset-rows mt-1 text-sm">
             {#each counts.sources as entry (entry.sourceKey)}
                 {@const Icon = calendarSourceIcon(calendarSourcePresentation(entry.sourceKey).icon)}
                 <li class="flex items-center gap-3 py-2">

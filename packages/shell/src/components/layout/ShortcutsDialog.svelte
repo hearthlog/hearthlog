@@ -57,7 +57,7 @@
         {#each groups as group}
             <section aria-label={group.title}>
                 <h3 class="stor-overline mb-2">{group.title}</h3>
-                <dl class="divide-y divide-[var(--stor-rule)]">
+                <dl>
                     {#each group.items as item}
                         <div class="flex items-center justify-between gap-4 py-2 text-body">
                             <dt class="text-[var(--stor-ink)]">{item.label}</dt>

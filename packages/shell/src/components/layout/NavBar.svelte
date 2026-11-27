@@ -497,7 +497,7 @@
 
     <nav class="relative min-h-0 flex-1 overflow-y-auto pb-3 pt-2 {collapsed ? 'px-2' : 'px-3'}" aria-label="Main navigation" {@attach navIndicator}>
         {#each navGroups as group, groupIndex}
-            <section class={groupIndex > 0 ? (collapsed ? "mt-2 border-t border-[var(--stor-border)] pt-2" : "mt-3") : ""} aria-label={group.label || "Pages"}>
+            <section class={groupIndex > 0 ? (collapsed ? "mt-4" : "mt-3") : ""} aria-label={group.label || "Pages"}>
                 {#if group.label && !collapsed}<p class="stor-overline px-3 pb-1.5 pt-2">{group.label}</p>{/if}
                 <div class="space-y-0.5">
                     {#each group.links as link}
@@ -508,7 +508,7 @@
         {/each}
         {#if nsfwLinks.length}
             <!-- NSFW sections sit apart, behind one quiet toggle that starts hidden in every new window. -->
-            <section class={collapsed ? "mt-2 border-t border-[var(--stor-border)] pt-2" : "mt-3"} aria-label="NSFW">
+            <section class={collapsed ? "mt-4" : "mt-3"} aria-label="NSFW">
                 {#if collapsed}
                     <Tooltip content={nsfwToggleLabel} side="right" delayDuration={150}>
                         {#snippet trigger({ props })}
@@ -554,7 +554,7 @@
     {/if}
 
     <!-- Places sit above the line; the log, its sync state and the account sit below it. -->
-    <div class="shrink-0 border-t border-[var(--stor-border)] {collapsed ? 'flex flex-col items-center gap-0.5 px-2 py-2.5' : 'space-y-0.5 px-2.5 py-2'}">
+    <div class="shrink-0 {collapsed ? 'flex flex-col items-center gap-0.5 px-2 py-2.5' : 'space-y-0.5 px-2.5 py-2'}">
         <LogStatusChip
             variant={collapsed ? "tile" : "foot"}
             {currentLogName}
@@ -698,7 +698,7 @@
 {/if}
 
 <nav
-    class="stor-mobile-nav fixed z-[55] grid md:hidden"
+    class="stor-mobile-nav stor-glass-strong fixed z-[55] grid md:hidden"
     style={`grid-template-columns: repeat(${mobilePrimaryLinks.length + 1}, minmax(0, 1fr))`}
     aria-label="Mobile navigation"
 >
@@ -713,7 +713,7 @@
             aria-current={active ? "page" : undefined}
             aria-label={badge ? `${link.label}, ${badge.label}` : undefined}
         >
-            <span class="relative flex h-7 min-w-11 items-center justify-center rounded-full transition {active ? 'bg-[var(--stor-accent-soft)]' : 'group-active:bg-[var(--stor-surface-muted)]'}">
+            <span class="relative flex h-7 min-w-11 items-center justify-center rounded-full transition {active ? 'stor-droplet text-[var(--stor-accent-text)]' : 'group-active:bg-[var(--stor-surface-muted)]'}">
                 <Icon class="h-[18px] w-[18px]" />
                 {#if badge}<span class="stor-dock-badge {badge.tone === 'negative' ? 'stor-dock-badge-negative' : 'stor-dock-badge-warning'}" aria-hidden="true">{badge.count}</span>{/if}
             </span>
@@ -728,7 +728,7 @@
         aria-label={moreButtonAriaLabel}
         aria-expanded={isMoreOpen}
     >
-        <span class="relative flex h-7 min-w-11 items-center justify-center rounded-full transition {isMoreActive ? 'bg-[var(--stor-accent-soft)]' : 'group-active:bg-[var(--stor-surface-muted)]'}">
+        <span class="relative flex h-7 min-w-11 items-center justify-center rounded-full transition {isMoreActive ? 'stor-droplet text-[var(--stor-accent-text)]' : 'group-active:bg-[var(--stor-surface-muted)]'}">
             <IconDots class="h-[18px] w-[18px]" />
             {#if showSyncDot}
                 <span class="absolute right-1 top-0.5 h-2 w-2 rounded-full shadow-[0_0_0_2px_var(--stor-surface-raised)] {syncPresentation.tone === 'danger' ? 'bg-[var(--stor-negative)]' : 'bg-[var(--stor-warning)]'}" aria-hidden="true"></span>

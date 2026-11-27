@@ -447,7 +447,7 @@
             <DataValue>{effectiveTotalRows}</DataValue>
             <DataValue>{effectiveTotalRows === 1 ? " record" : " records"}</DataValue>
         {/snippet}
-        <PageHeader title={effectiveEntityType.display_name} context={recordCount} showTitle class="mt-1">
+        <PageHeader title={effectiveEntityType.display_name} context={recordCount} showTitle sticky class="mt-1">
                 <label class="relative min-w-0">
                     <span class="sr-only">Search records</span>
                     <IconMagnify class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--stor-muted-text)]" />
@@ -544,7 +544,7 @@
                 >
                     {#if field.type === "boolean"}
                         <div
-                            class="flex items-center rounded-lg border border-[var(--stor-border)] bg-[var(--stor-surface)] p-3"
+                            class="flex items-center rounded-lg bg-[var(--stor-surface-muted)] p-3"
                         >
                             <Checkbox
                                 id={fieldId}
