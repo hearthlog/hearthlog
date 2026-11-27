@@ -132,7 +132,7 @@
             </div>
             {#if footer}
                 <!-- Stays below the scrolling body; the primary action sits on the right and answers ⌘↵. -->
-                <footer class="stor-drawer-footer shrink-0 border-t border-[var(--stor-border)] px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] lg:pb-5 lg:pl-6 lg:pr-5 lg:pt-4">
+                <footer class="stor-drawer-footer shrink-0 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] lg:pb-5 lg:pl-6 lg:pr-5 lg:pt-4">
                     <div class="flex w-full flex-wrap items-center justify-end gap-2" {@attach markCancel} {@attach primaryShortcut}>{@render footer()}</div>
                 </footer>
             {/if}

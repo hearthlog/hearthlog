@@ -138,7 +138,7 @@
                         {/if}
                     {/if}
                 </nav>
-                <div class="mx-1 my-2 h-px bg-[var(--stor-border)]"></div>
+                <div class="h-2" aria-hidden="true"></div>
             {/if}
 
             <section aria-label="Log and sync" class="grid gap-2">

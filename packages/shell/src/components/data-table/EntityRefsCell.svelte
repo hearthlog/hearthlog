@@ -21,7 +21,7 @@
             class="absolute bottom-full left-0 z-20 mb-2 hidden group-hover/refs:block"
         >
             <div
-                class="stor-menu min-w-[180px] border border-[var(--stor-border)] p-3 text-xs"
+                class="stor-menu min-w-[180px] p-3 text-xs"
             >
                 <div class="mb-2 font-bold text-[var(--stor-ink)]">
                     Referenced by:

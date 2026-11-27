@@ -379,7 +379,7 @@ import IconArrowRight from "~icons/mdi/arrow-right";
                                 {/if}
                             </ul>
 
-                            <div class="mt-4 flex items-center justify-between gap-2 border-t border-[var(--stor-border)] pt-3">
+                            <div class="mt-5 flex items-center justify-between gap-2">
                                 <a
                                     href={entityHref(entityType.name)}
                                     class="group/link inline-flex items-center gap-1 text-sm font-semibold text-[var(--stor-accent-strong)] transition hover:text-[var(--stor-accent)]"
@@ -553,7 +553,7 @@ import IconArrowRight from "~icons/mdi/arrow-right";
                                 >Default</label
                             >
                             <div
-                                class="flex items-center gap-2 px-3 py-2 bg-[var(--stor-surface)] border border-[var(--stor-border)] rounded-lg cursor-pointer hover:bg-[var(--stor-surface-muted)] transition-colors whitespace-nowrap"
+                                class="flex items-center gap-2 px-3 py-2 bg-[var(--stor-surface-muted)] rounded-lg cursor-pointer hover:bg-[var(--stor-surface-muted)] transition-colors whitespace-nowrap"
                             >
                                 <Checkbox
                                     checked={editingField.default ===
@@ -594,7 +594,7 @@ import IconArrowRight from "~icons/mdi/arrow-right";
                     <div class="mt-6 space-y-2">
                         {#each newFields as field, index}
                             <div
-                                class="flex items-center gap-3 p-3 bg-[var(--stor-surface)] border border-[var(--stor-border)] rounded-lg group/item"
+                                class="flex items-center gap-3 p-3 bg-[var(--stor-surface-muted)] rounded-lg group/item"
                                 in:fly={{ x: -10, duration: 200 }}
                             >
                                 <div
@@ -691,7 +691,7 @@ import IconArrowRight from "~icons/mdi/arrow-right";
         <div class="space-y-8">
             <!-- Warning Banner -->
             <div
-                class="px-8 py-4 bg-[var(--stor-warning-soft)] border-b border-[var(--stor-border)] -mx-6 -mt-6 mb-6"
+                class="px-8 py-4 bg-[var(--stor-warning-soft)] -mx-6 -mt-6 mb-6"
             >
                 <div class="flex gap-3 items-start">
                     <svg
@@ -835,7 +835,7 @@ import IconArrowRight from "~icons/mdi/arrow-right";
                                     >Default</label
                                 >
                                 <div
-                                    class="flex items-center gap-2 px-3 py-2 bg-[var(--stor-surface)] border border-[var(--stor-border)] rounded-lg cursor-pointer hover:bg-[var(--stor-surface-muted)] transition-colors whitespace-nowrap"
+                                    class="flex items-center gap-2 px-3 py-2 bg-[var(--stor-surface-muted)] rounded-lg cursor-pointer hover:bg-[var(--stor-surface-muted)] transition-colors whitespace-nowrap"
                                 >
                                     <Checkbox
                                         checked={editingField.default ===
@@ -877,7 +877,7 @@ import IconArrowRight from "~icons/mdi/arrow-right";
                         <div class="mt-6 space-y-2">
                             {#each newFields as field, index}
                                 <div
-                                    class="flex items-center gap-3 p-3 bg-[var(--stor-surface)] border border-[var(--stor-border)] rounded-lg group/item"
+                                    class="flex items-center gap-3 p-3 bg-[var(--stor-surface-muted)] rounded-lg group/item"
                                     in:fly={{ x: -10, duration: 200 }}
                                 >
                                     <div

@@ -544,7 +544,7 @@
                 >
                     {#if field.type === "boolean"}
                         <div
-                            class="flex items-center rounded-lg border border-[var(--stor-border)] bg-[var(--stor-surface)] p-3"
+                            class="flex items-center rounded-lg bg-[var(--stor-surface-muted)] p-3"
                         >
                             <Checkbox
                                 id={fieldId}

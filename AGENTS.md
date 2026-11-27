@@ -434,24 +434,30 @@ never tints a surface, so a tinted surface always means selection); only the acc
 | Canvas / surfaces | `--stor-bg`, `--stor-sidebar`, `--stor-surface`, `--stor-surface-muted`, `--stor-surface-raised`, `--stor-surface-hover` |
 | Text | `--stor-ink` (primary), `--stor-muted-text` (secondary), `--stor-faint-text` (placeholders and disabled text only; below 4.5:1) |
 | Brand / action | `--stor-accent` (the derived action colour for marks: dots, rings, progress; never the raw input), `--stor-accent-text` and `--stor-accent-strong` (links and selected labels, ≥ 4.5:1 on every surface), `--stor-accent-soft`; buttons use `--stor-action`, `--stor-action-text`, `--stor-action-hover`; `--stor-action-inverse` is the action as the other mode draws it, for Undo on the inverse pill (≥ 4.5:1 on `--stor-tooltip`) |
-| Lines / focus | `--stor-border` (hairlines), `--stor-border-strong` (rules that must show), `--stor-field-border`, `--stor-selected`, `--stor-focus`, `--stor-overlay` |
+| Lines / focus | `--stor-border` (the few lines left: tree lines, axes, swatch edges), `--stor-border-strong` (rules that must show, and the edge the contrast mode restores), `--stor-field-border`, `--stor-field-line` (a field's and checkbox's 3:1 underline or inner line on the well), `--stor-selected`, `--stor-focus`, `--stor-overlay` |
 | Now | `--stor-now`, `--stor-now-soft`: ember, for today and now marks only, never text |
 | Status | `--stor-positive`, `--stor-negative`, `--stor-warning`, `--stor-info` (+ `-soft`, `--stor-info-border`, and `-inverse` for status icons on the inverse pill, ≥ 4.5:1 on `--stor-tooltip`) |
 | Charts / code | `--stor-chart-*` (curated families chosen by accent hue), `--stor-code-*` |
 | Health domains | `--stor-health-eat`, `--stor-health-move`, `--stor-health-body` (fixed, the same on every site); `.stor-tone-eat/-move/-body` set `--tone` from them, and tints are `color-mix(in srgb, var(--tone) N%, var(--stor-surface))` |
-| Elevation | `--stor-surface-well/-overlay/-sheet`, `--stor-well-shadow` (flat: `none`), `--stor-elevation-1…4`, `--stor-elevation-pressed`, `--stor-nav-card-shadow`, `--stor-tooltip`; `--stor-shadow-sm/md/lg`, `--stor-panel-shadow`, `--stor-sidebar-shadow` are aliases; `--stor-header-shadow` |
+| Elevation | `--stor-surface-well/-overlay/-sheet`, `--stor-well-shadow` (flat: `none`), `--stor-elevation-1…4`, `--stor-elevation-pressed`, `--stor-nav-card-shadow`, `--stor-rim`, `--stor-tooltip`; `--stor-shadow-sm/md/lg`, `--stor-panel-shadow`, `--stor-sidebar-shadow` are aliases; `--stor-header-shadow` |
 
-**Depth.** Every surface sits on one level of a z scale, lit from above. A component picks a level, never its
-own shadow: well (`.stor-well`: tab and segmented tracks, checkboxes; a flat tone, no inset shadow),
-canvas (`--stor-bg`, which the sidebar sits on), panel (`.stor-panel`, the page panel, dock; `--stor-elevation-1`,
-a hairline and a 4% shadow), raised (`.stor-raised`, the selected pill; level 2, a hairline and
-a 6% shadow), menu (`.stor-menu`: Select, dropdowns, popovers, date picker; level 3), sheet (`.stor-sheet`: Drawer,
-Modal, ConfirmDialog; level 4); only menus and sheets cast a deep shadow. Shadows are warm ink, rgb(34 29 24), with
-no inset rims, and buttons cast none: primary is a flat fill, secondary the raised surface with a 1px border. Dark mode shows height as lighter surfaces: page
-and raised are the hairline alone, menus and sheets add black. The sidebar's current section is a raised card that
-holds its sub-pages (`[data-nav-section][data-active]` and the sliding `.stor-nav-indicator`); it keeps a step more
-lift than raised (`--stor-nav-card-shadow`), so keep that structure. From 768px `[data-stor-main]` is the page panel (`--stor-page` + `--stor-page-shadow`, mirrored by `.stor-boot-page`): inside it `--stor-bg` is the
-panel's surface so sticky headers and fades match it, and `.stor-panel` cards sit on it with a hairline border and `--stor-elevation-1` (`shell.css`). Strength is the single `ELEVATION_STRENGTH` constant in
+**Depth.** Surfaces float: nothing draws a border, a ring or a divider. Every surface sits on one level of a z scale,
+lit from above, and steps off the one below by tone and shadow; space separates what lines used to. A component
+picks a level, never its own shadow: well (`.stor-well`: tab and segmented tracks, fields, checkboxes; a flat tone),
+canvas (`--stor-bg`, one step deeper than the page, which the sidebar sits on), card (`.stor-panel`;
+`--stor-elevation-1`), raised (the selected pill, secondary buttons, chips; level 2), menu (`.stor-menu`: Select,
+dropdowns, popovers, date picker; level 3), sheet (`.stor-sheet`: Drawer, Modal, ConfirmDialog; level 4). Each
+shadow pairs a tight contact layer with a soft ambient one in warm ink, rgb(34 29 24); cards, raised controls, the
+navigation card and the page panel add a 1px rim along the top edge (`--stor-rim`) in place of a ring. Primary
+buttons float on their own colour with a drop tinted by the action. Dark mode shows height as lighter surfaces and
+casts true black. The sidebar's current section is a raised card that holds its sub-pages
+(`[data-nav-section][data-active]` and the sliding `.stor-nav-indicator`); it keeps a step more lift than raised
+(`--stor-nav-card-shadow`), so keep that structure. From 768px `[data-stor-main]` is the page slab (`--stor-page` +
+`--stor-page-shadow`, 22px corners, mirrored by `.stor-boot-page`): inside it `--stor-bg` is the slab's surface so
+sticky headers and fades match it, and `.stor-panel` cards sit on it with `--stor-elevation-1` (`shell.css`).
+Without a border a scrolling parent clips a card's shadow at its edge, so give a scroller that holds cards padding
+on that edge. Rows are separated by a little space and a hover tint, never by a divider; groups in a menu by a 6–8px
+gap. Strength is the single `ELEVATION_STRENGTH` constant in
 `packages/contracts/src/tenant/theme.ts`. Stack with the `--stor-layer-*` tokens
 (`z-[var(--stor-layer-menu)]`), not literal z-index numbers, and do not use raw
 Tailwind `shadow-sm/md/lg/xl`.
@@ -526,13 +532,14 @@ imported through `.generated/module-sources.generated.css` only for tenants that
   `DayPager`, and the week panels beside it), `HealthDayTitle` (a day's serif date), `HealthHead` (title
   and primary action), `HealthRow`, `HealthRing`, `HealthBudgetBar`, and
   `WeekBars` are the shared pieces.
-- Content: `.stor-panel`, `.stor-panel-header` (with `.stor-panel-title`, title-3; it sits over a hairline when a
-  `.stor-panel-body` follows it, or with `.stor-panel-header-rule`), `.stor-panel-body`, `.stor-metric*` (a figure:
+- Content: `.stor-panel`, `.stor-panel-header` (with `.stor-panel-title`, title-3; space, not a rule, separates it
+  from a following `.stor-panel-body` or, with `.stor-panel-header-rule`, other content), `.stor-panel-body`, `.stor-metric*` (a figure:
   overline label, value, support line in small), `.stor-unit` (0.55em after a figure), `.stor-today-card`,
   `.stor-section-link`.
-- Controls: `.stor-field-control` (the field recipe: muted fill in the 3:1 outline; focus lifts it to the surface
-  with a `--stor-focus` border and a 3px `--stor-accent-soft` halo instead of the global outline; `aria-invalid` or
-  a surrounding `[data-stor-invalid]`, which `Field` sets with its error, turns it negative) and `.stor-kbd` (a
+- Controls: `.stor-field-control` (the field recipe: a well fill with a 3:1 `--stor-field-line` underline and no
+  outline; focus lifts it to the surface with a `--stor-focus` underline and a 3px `--stor-accent-soft` halo instead
+  of the global outline; `aria-invalid` or a surrounding `[data-stor-invalid]`, which `Field` sets with its error,
+  draws the underline negative) and `.stor-kbd` (a
   key cap; hidden on touch screens, like every key hint).
 - Reuse these before adding global CSS; complex one-off geometry belongs in the
   owning component's scoped `<style>`.
@@ -541,7 +548,7 @@ imported through `.generated/module-sources.generated.css` only for tenants that
 
 - Primitives in `packages/ui/src/components/ui/`: `Button` (`default | secondary |
   ghost | destructive`; `sm | md | icon`; `busy` keeps its width and shows a spinner, `shortcut` draws a key
-  cap; primary is the flat accent fill, secondary a raised surface with a 1px border, ghost hovers on the neutral
+  cap; primary is the accent fill with a tinted drop, secondary a raised surface one step above its own, ghost hovers on the neutral
   hover surface, destructive is tonal), `Badge` (`default | success | warning | danger | info`; caption text and a
   6px status dot, always with a word), `Input`, `Select`, `Textarea`, `Checkbox`, `Label` (caption, muted),
   `Field` (label above, help or `role="alert"` error below), `AmountField` (a money amount at display size with
@@ -622,7 +629,7 @@ imported through `.generated/module-sources.generated.css` only for tenants that
   respect `env(safe-area-inset-*)`.
 - Log history: show the source log, accepted action, and fork point clearly;
   keep the original log available in the switcher.
-- High contrast: `prefers-contrast: more` swaps hairlines for `--stor-border-strong` and muted and faint text for ink (`base.css`); `forced-colors: active` keeps borders on sections, menus and sheets and an outline on selected pills.
+- High contrast: `prefers-contrast: more` swaps hairlines for `--stor-border-strong`, muted and faint text and the field line for ink, and gives cards, the page slab, the navigation card, menus, sheets, selected pills and secondary buttons a 1px `--stor-border-strong` edge back (`base.css`); `forced-colors: active` keeps borders on sections, the page slab, fields, checkboxes, menus and sheets and an outline on selected pills.
 - Accessibility: focus-visible rings via `--stor-focus`, `aria-label` on
   icon-only controls, `aria-pressed` / `aria-current` / `data-state` on tabs and
   segmented controls, `aria-live`/`role="status"` for status regions, 44px

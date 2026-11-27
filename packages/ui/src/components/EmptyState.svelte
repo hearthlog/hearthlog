@@ -32,7 +32,7 @@
     {#if illustration}
         <div class="flex justify-center text-[var(--stor-muted-text)]" aria-hidden="true">{@render illustration()}</div>
     {:else}
-        <div class="flex h-12 w-12 items-center justify-center rounded-[14px] bg-[var(--stor-surface-muted)] text-[var(--stor-muted-text)] shadow-[inset_0_0_0_1px_var(--stor-border)]" aria-hidden="true">
+        <div class="flex h-12 w-12 items-center justify-center rounded-[14px] bg-[var(--stor-surface-muted)] text-[var(--stor-muted-text)]" aria-hidden="true">
             <Icon class="h-6 w-6" />
         </div>
     {/if}

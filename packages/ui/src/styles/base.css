@@ -332,19 +332,31 @@ html[data-theme="dark"] [class~="border-sky-200"] { border-color: var(--stor-inf
 }
 /* Borderless surfaces: ordinary information stays on the canvas. */
 
-/* More contrast: hairlines become the strong rule colour and secondary text becomes ink. The selector is heavier
-   than the tenant's own theme block, whichever stylesheet comes first. */
+/* More contrast: hairlines become the strong rule colour, secondary text becomes ink, and the surfaces that float
+   without a border get a strong 1px edge back (an inset outline, so their shadows and layout stay as they are). The
+   selector is heavier than the tenant's own theme block, whichever stylesheet comes first. */
 @media (prefers-contrast: more) {
     html:root[data-theme], html:root:not([data-theme]) {
         --stor-border: var(--stor-border-strong);
         --stor-muted-text: var(--stor-ink);
         --stor-faint-text: var(--stor-muted-text);
+        --stor-field-line: var(--stor-ink);
     }
+    .stor-panel, .stor-today-card, .stor-menu, .stor-sheet, .stor-mobile-nav, [data-nav-section][data-active], .stor-nav-indicator,
+    .stor-tab-indicator, [data-stor-button-variant="secondary"] { outline: 1px solid var(--stor-border-strong); outline-offset: -1px; }
 }
-/* Forced colors drop shadows and fills: sections, the selected pill and buttons keep a visible edge. */
+@media (prefers-contrast: more) and (min-width: 768px) {
+    [data-stor-main] { outline: 1px solid var(--stor-border-strong); outline-offset: -1px; }
+}
+/* Forced colors drop shadows and fills: sections, the page slab, fields, the selected pill and buttons keep a
+   visible edge. */
 @media (forced-colors: active) {
-    .stor-panel, .stor-today-card, .stor-menu, .stor-sheet, .stor-toast, .stor-last-change, .stor-skip-link { border: 1px solid CanvasText; }
+    .stor-panel, .stor-today-card, .stor-menu, .stor-sheet, .stor-toast, .stor-last-change, .stor-skip-link, .stor-mobile-nav,
+    .stor-field-control, [data-nav-section][data-active], [role="checkbox"], [role="switch"] > [aria-hidden="true"] { border: 1px solid CanvasText; }
     .stor-tab-indicator, .stor-page-tab:is([data-state="active"], [aria-selected="true"], [aria-current="page"], [aria-current="true"]), .stor-segmented-option:is([aria-pressed="true"], [data-state="active"], [data-checked="true"]) { outline: 2px solid Highlight; }
     [data-stor-button-variant] { border: 1px solid ButtonText; }
     .stor-field-control:is(:focus, :focus-within) { outline: 2px solid Highlight; }
+}
+@media (forced-colors: active) and (min-width: 768px) {
+    [data-stor-main] { border: 1px solid CanvasText; }
 }

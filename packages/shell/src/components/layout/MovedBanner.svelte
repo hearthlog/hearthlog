@@ -34,7 +34,7 @@
 </script>
 
 {#if movedWorkspace.value}
-    <div class="m-2.5 sm:m-3 rounded-xl border border-[var(--stor-border)] bg-[var(--stor-surface-muted)] p-3 text-sm" role="alert">
+    <div class="m-2.5 sm:m-3 rounded-xl bg-[var(--stor-surface-muted)] p-3 text-sm" role="alert">
         <p class="font-medium text-[var(--stor-ink)]">This workspace moved</p>
         <p class="mt-1 text-[var(--stor-muted-text)]">
             {#if destination}It lives at {destination} now.{:else}It lives somewhere else now.{/if}

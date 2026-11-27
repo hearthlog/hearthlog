@@ -78,7 +78,7 @@
                 : variant === 'round'
                   ? 'relative h-10 w-10 shrink-0 justify-center rounded-full'
                 : 'h-9 min-w-0 max-w-full gap-2 rounded-full pl-2.5 pr-2 text-xs font-semibold'} {danger
-            ? 'bg-[var(--stor-negative-soft)] text-[var(--stor-negative)] ring-1 ring-inset ring-[color-mix(in_srgb,var(--stor-negative),transparent_70%)]'
+            ? 'bg-[var(--stor-negative-soft)] text-[var(--stor-negative)]'
             : variant === 'pill' || variant === 'round'
               ? 'bg-[var(--stor-surface-raised)] text-[var(--stor-ink)] shadow-[var(--stor-shadow-sm)] hover:shadow-[var(--stor-control-shadow-hover)]'
               : variant === 'row'

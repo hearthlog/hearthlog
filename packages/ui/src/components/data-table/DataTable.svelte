@@ -113,7 +113,7 @@
                                 scope="col"
                                 class="px-3 align-bottom {quiet
                                     ? 'pb-2 pt-0 text-xs'
-                                    : 'border-b border-[var(--stor-border)] py-2.5'} {header.column.columnDef.meta?.className ?? ''}"
+                                    : 'py-2.5'} {header.column.columnDef.meta?.className ?? ''}"
                             >
                                 {#if !header.isPlaceholder}
                                     <FlexRender {header} />
@@ -123,7 +123,7 @@
                     </tr>
                 {/each}
             </thead>
-            <tbody class={quiet ? "divide-y divide-[color-mix(in_srgb,var(--stor-border)_55%,transparent)]" : "divide-y divide-[var(--stor-border)]"}>
+            <tbody>
                 {#each rows as row (row.id)}
                     <tr class="align-middle transition-colors hover:bg-[var(--stor-surface-muted)]/70 {rowClass ? rowClass(row.original) : ''}">
                         {#each row.getAllCells() as cell (cell.id)}

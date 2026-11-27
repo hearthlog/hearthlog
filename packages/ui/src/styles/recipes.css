@@ -1,16 +1,19 @@
 @layer components {
     .stor-page { display: flex; min-width: 0; flex-direction: column; gap: var(--stor-section-gap); }
-    .stor-panel, .stor-today-card { border: 1px solid var(--stor-hairline); border-radius: var(--stor-section-radius); background: var(--stor-surface); box-shadow: var(--stor-elevation-1); }
+    /* A card has no border: it lifts off the page by its shadow and the rim along its top edge. */
+    .stor-panel, .stor-today-card { border-radius: var(--stor-section-radius); background: var(--stor-surface); box-shadow: var(--stor-elevation-1); }
     /* A card that is a link or button lifts on hover; the shadow deepens and the card rises 2px. */
     a.stor-panel, button.stor-panel, .stor-panel[data-interactive], .stor-today-card { transition: transform var(--stor-dur-2) var(--stor-ease-out), box-shadow var(--stor-dur-2) var(--stor-ease-out); }
     a.stor-panel:hover, button.stor-panel:hover, .stor-panel[data-interactive]:hover, a.stor-today-card:hover { transform: translateY(-2px); box-shadow: var(--stor-elevation-1-hover); }
     .stor-panel { overflow: hidden; }
     .stor-panel-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: var(--stor-panel-padding); background: transparent; }
     .stor-panel-body { padding: var(--stor-panel-padding); }
-    /* A section's title-3 header sits over a hairline when a padded body follows it. */
+    /* A section's title-3 header: space, not a rule, separates it from what follows. Over a padded body it keeps no
+       bottom padding, so the body's own padding is the gap. */
     .stor-panel-title { font-size: var(--stor-text-title-3); line-height: var(--stor-text-title-3-line); font-weight: 600; letter-spacing: -.006em; color: var(--stor-ink); }
-    .stor-panel-header-rule, .stor-panel-header:has(+ .stor-panel-body) { padding-block: 16px; border-bottom: 1px solid var(--stor-rule); }
-    .stor-panel-header-flush { padding: 0 0 12px; border-bottom: 1px solid var(--stor-rule); }
+    .stor-panel-header-rule { padding-block: 16px 8px; }
+    .stor-panel-header:has(+ .stor-panel-body) { padding-block: 16px 0; }
+    .stor-panel-header-flush { padding: 0 0 12px; }
     .stor-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
     /* A figure: overline label, the value, an optional sparkline, and one support line (a delta may lead it). */
     .stor-metric { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
@@ -26,15 +29,16 @@
     .stor-well { background: var(--stor-surface-well); box-shadow: var(--stor-well-shadow); }
     .stor-menu { background: var(--stor-surface-overlay); box-shadow: var(--stor-elevation-3); border-radius: 16px; }
     .stor-sheet { background: var(--stor-surface-sheet); box-shadow: var(--stor-elevation-4); }
-    /* Fields: a white (dark: sunken) fill with an inner shade inside the 3:1 outline. Focus keeps the fill with an action border
-       and a 3px soft halo, in place of the global outline (below, outside the layer). */
-    .stor-field-control { border: 1px solid var(--stor-field-border); border-radius: 12px; background: var(--stor-field-fill); box-shadow: var(--stor-field-inset); color: var(--stor-ink); font-weight: 400; letter-spacing: normal; outline: none; transition: background-color var(--stor-dur-1) ease, border-color var(--stor-dur-1) ease, box-shadow var(--stor-dur-1) ease; }
+    /* Fields: a well (dark: sunken) fill with an inner shade and a 3:1 underline, no outline. Focus lifts the fill to
+       the surface, draws the underline in the focus colour and adds a 3px soft halo, in place of the global outline
+       (below, outside the layer). */
+    .stor-field-control { border: 0; border-radius: 12px; background: var(--stor-field-fill); box-shadow: var(--stor-field-inset), inset 0 -1.5px 0 var(--stor-field-line); color: var(--stor-ink); font-weight: 400; letter-spacing: normal; outline: none; transition: background-color var(--stor-dur-1) ease, border-color var(--stor-dur-1) ease, box-shadow var(--stor-dur-1) ease; }
     .stor-field-control::placeholder { color: var(--stor-faint-text); }
-    .stor-field-control:is(:focus, :focus-within, [data-state="open"]) { background: var(--stor-field-fill); border-color: var(--stor-focus); box-shadow: var(--stor-field-inset), 0 0 0 3px var(--stor-accent-soft); }
+    .stor-field-control:is(:focus, :focus-within, [data-state="open"]) { background: var(--stor-surface); box-shadow: inset 0 -2px 0 var(--stor-focus), 0 0 0 3px var(--stor-accent-soft); }
     .stor-field-control:is(:disabled, [data-disabled]) { cursor: not-allowed; opacity: .6; }
     @media (min-width: 640px) { .stor-field-control { border-radius: 10px; } }
     /* Key caps: shortcut hints in buttons and menus. On a filled button the cap is a tint of the label colour. */
-    .stor-kbd { display: inline-flex; flex: none; align-items: center; height: 20px; padding: 0 6px; border-radius: 5px; background: var(--stor-surface-muted); box-shadow: 0 0 0 1px var(--stor-border); color: var(--stor-muted-text); font: 600 11px/1 var(--stor-font-sans); letter-spacing: 0; }
+    .stor-kbd { display: inline-flex; flex: none; align-items: center; height: 20px; padding: 0 6px; border-radius: 5px; background: var(--stor-surface-well); box-shadow: none; color: var(--stor-muted-text); font: 600 11px/1 var(--stor-font-sans); letter-spacing: 0; }
     [data-stor-button-variant="default"] .stor-kbd { background: color-mix(in srgb, currentColor 16%, transparent); box-shadow: none; color: inherit; }
     .stor-page-header { min-width: 0; padding-bottom: 4px; }
     .stor-page-header h1, .stor-health-header h1 { font-size: var(--stor-text-title-1); line-height: var(--stor-text-title-1-line); letter-spacing: -.015em; }
@@ -325,12 +329,12 @@
 }
 
 /* Field states outside the layer, so they beat the global focus outline and a module's utility classes:
-   a field draws its own focus halo, and an invalid one (aria-invalid, or inside a Field with an error) turns
-   negative. */
+   a field draws its own focus halo, and an invalid one (aria-invalid, or inside a Field with an error) draws its
+   underline in the negative colour. */
 
 .stor-field-control:focus-visible { outline: none; }
-.stor-field-control:is([aria-invalid="true"], [data-stor-invalid]), [data-stor-invalid] .stor-field-control { border-color: var(--stor-negative); }
-.stor-field-control:is([aria-invalid="true"], [data-stor-invalid], [data-stor-invalid] *):is(:focus, :focus-within) { box-shadow: 0 0 0 3px var(--stor-negative-soft); }
+.stor-field-control:is([aria-invalid="true"], [data-stor-invalid]), [data-stor-invalid] .stor-field-control { box-shadow: var(--stor-field-inset), inset 0 -2px 0 var(--stor-negative); }
+.stor-field-control:is([aria-invalid="true"], [data-stor-invalid], [data-stor-invalid] *):is(:focus, :focus-within) { box-shadow: inset 0 -2px 0 var(--stor-negative), 0 0 0 3px var(--stor-negative-soft); }
 
 /* Overlay key hints: ⌘↵ on a sheet's primary action (set by its footer, see overlay-keys.ts) and Esc beside
    its close button. Keyboards only: touch screens never show them. */

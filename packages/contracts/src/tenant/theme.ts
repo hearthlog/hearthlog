@@ -143,6 +143,8 @@ interface Neutrals {
     border: string;
     borderStrong: string;
     field: string;
+    /** The underline a field draws on its well fill: 3:1 against the well, so the field reads without a border. */
+    fieldLine: string;
     ink: string;
     mutedText: string;
     faintText: string;
@@ -150,11 +152,12 @@ interface Neutrals {
 
 /**
  * Warm, low-chroma OKLCH steps (hue 70–80, chroma ≤ 0.013), the same on every site. The accent never tints them,
- * so a tinted surface always means selection. Dark mode shows height as lighter tone.
+ * so a tinted surface always means selection. Dark mode shows height as lighter tone. The canvas sits a step
+ * deeper than the page panel so surfaces lift off it without a border.
  */
 const NEUTRALS: Record<ResolvedTheme, Neutrals> = {
     light: {
-        bg: '#eeeae4',
+        bg: '#e8e3dc',
         page: '#f8f6f3',
         surface: '#ffffff',
         raised: '#ffffff',
@@ -166,12 +169,13 @@ const NEUTRALS: Record<ResolvedTheme, Neutrals> = {
         border: '#e0dcd6',
         borderStrong: '#cecac3',
         field: '#918b84',
+        fieldLine: '#827c75',
         ink: '#221d18',
         mutedText: '#615b54',
         faintText: '#77716a',
     },
     dark: {
-        bg: '#110f0d',
+        bg: '#0c0a09',
         page: '#191614',
         surface: '#221f1b',
         raised: '#2a2622',
@@ -183,6 +187,7 @@ const NEUTRALS: Record<ResolvedTheme, Neutrals> = {
         border: '#3a3531',
         borderStrong: '#49443f',
         field: '#736e67',
+        fieldLine: '#736e67',
         ink: '#ece9e4',
         mutedText: '#b3ada4',
         faintText: '#8f8a82',
@@ -508,9 +513,12 @@ function chartPalette(
 const ELEVATION_STRENGTH = 1;
 
 /**
- * The elevation scale: well (-1), card (1), raised (2), float (3), sheet (4). Cards and the page carry their edge as
- * a real border (`--stor-hairline`), so a scrolling parent never clips it; the shadows below are depth alone. Every
- * shadow pairs a tight contact layer with a soft ambient one. Dark mode adds a top highlight and true black.
+ * The elevation scale: well (-1), card (1), raised (2), float (3), sheet (4). No level draws a ring or a border: a
+ * surface steps off the one below by tone and one light from above. Every shadow pairs a tight contact layer with a
+ * soft ambient one, and cards, raised controls, the navigation card and the page panel add a 1px rim along the top
+ * edge (`--stor-rim`). Dark mode shows height as lighter tone and casts true black. Without a border, a scrolling
+ * parent clips a card's shadow at its edge, so a scroller that holds cards keeps padding on that edge.
+ * `--stor-hairline` and `--stor-rule` stay for the contrast modes and the few rules that remain.
  */
 function elevationVariables(mode: ResolvedTheme): Record<string, string> {
     const dark = mode === 'dark';
@@ -518,36 +526,37 @@ function elevationVariables(mode: ResolvedTheme): Record<string, string> {
     const hair = (alpha: number): string => `rgba(${ink}, ${alpha})`;
     const shade = (alpha: number): string =>
         `rgba(${dark ? '0, 0, 0' : '34, 29, 24'}, ${Math.min(alpha * ELEVATION_STRENGTH, 0.9).toFixed(3)})`;
-    const ring = `0 0 0 1px ${hair(dark ? 0.09 : 0.08)}`;
-    const top = dark ? 'inset 0 1px 0 rgba(255, 255, 255, 0.05), ' : '';
+    const rim = dark ? 'inset 0 1px 0 rgba(255, 244, 230, 0.06)' : 'inset 0 1px 0 rgba(255, 255, 255, 0.85)';
+    const lift = (alpha: number): string => (dark ? `inset 0 1px 0 rgba(255, 244, 230, ${alpha}), ` : '');
     return {
         '--stor-hairline': hair(0.11),
         '--stor-rule': hair(dark ? 0.06 : 0.07),
+        '--stor-rim': rim,
         '--stor-well-shadow': 'none',
         '--stor-elevation-1': dark
-            ? `inset 0 1px 0 rgba(255, 255, 255, 0.035), 0 1px 2px ${shade(0.4)}, 0 4px 14px -6px ${shade(0.5)}`
-            : `0 1px 2px ${shade(0.05)}, 0 2px 8px -3px ${shade(0.07)}`,
+            ? `${rim}, 0 1px 2px ${shade(0.45)}, 0 10px 26px -12px ${shade(0.7)}`
+            : `${rim}, 0 1px 1px ${shade(0.04)}, 0 2px 6px -2px ${shade(0.06)}, 0 12px 28px -14px ${shade(0.16)}`,
         '--stor-elevation-1-hover': dark
-            ? `inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 1px 2px ${shade(0.45)}, 0 16px 32px -12px ${shade(0.75)}`
-            : `0 1px 2px ${shade(0.06)}, 0 12px 26px -10px ${shade(0.24)}`,
-        // Controls (secondary buttons, raised tools, selected pills, chips) share one edge: a ring, a shade along the
-        // bottom (a highlight along the top in dark mode) and a contact shadow. Hover adds a soft drop.
+            ? `${rim}, 0 1px 2px ${shade(0.5)}, 0 18px 36px -12px ${shade(0.8)}`
+            : `${rim}, 0 1px 2px ${shade(0.06)}, 0 14px 30px -12px ${shade(0.24)}`,
+        // Controls (secondary buttons, raised tools, selected pills, chips) sit one step above their surface: a rim,
+        // a contact shadow and a short drop. Hover deepens the drop; pressed sinks into the well.
         '--stor-elevation-2': dark
-            ? `0 0 0 1px ${hair(0.12)}, inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 1px 2px ${shade(0.55)}`
-            : `0 0 0 1px ${hair(0.14)}, inset 0 -1px 0 ${hair(0.05)}, 0 1px 2px ${shade(0.07)}`,
+            ? `${lift(0.07)}0 1px 2px ${shade(0.6)}, 0 4px 10px -4px ${shade(0.6)}`
+            : `${rim}, 0 1px 2px ${shade(0.09)}, 0 4px 10px -4px ${shade(0.14)}`,
         '--stor-control-shadow-hover': dark
-            ? `0 0 0 1px ${hair(0.16)}, inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 1px 2px ${shade(0.55)}, 0 6px 14px -6px ${shade(0.7)}`
-            : `0 0 0 1px ${hair(0.2)}, inset 0 -1px 0 ${hair(0.05)}, 0 1px 2px ${shade(0.08)}, 0 4px 10px -4px ${shade(0.18)}`,
+            ? `${lift(0.09)}0 1px 2px ${shade(0.6)}, 0 8px 18px -6px ${shade(0.75)}`
+            : `${rim}, 0 1px 2px ${shade(0.1)}, 0 8px 18px -6px ${shade(0.22)}`,
         // A sunken track under segmented controls and tabs, and the inset of a field.
         '--stor-well-inset': dark ? `inset 0 1px 2px ${shade(0.5)}` : `inset 0 1px 2px ${shade(0.07)}`,
         '--stor-field-inset': dark ? `inset 0 1px 2px ${shade(0.35)}` : `inset 0 1px 2px ${shade(0.07)}`,
-        '--stor-elevation-pressed': ring,
-        '--stor-elevation-3': `${ring}, 0 4px 10px -2px ${shade(dark ? 0.4 : 0.08)}, 0 22px 44px -12px ${shade(dark ? 0.75 : 0.28)}`,
-        '--stor-elevation-4': `${ring}, 0 8px 16px -4px ${shade(dark ? 0.45 : 0.1)}, 0 32px 72px -16px ${shade(dark ? 0.8 : 0.32)}`,
-        '--stor-nav-card-shadow': `${ring}, ${top}0 1px 2px ${shade(dark ? 0.5 : 0.07)}, 0 10px 22px -12px ${shade(dark ? 0.8 : 0.32)}`,
+        '--stor-elevation-pressed': dark ? `inset 0 1px 3px ${shade(0.6)}` : `inset 0 1px 2px ${shade(0.12)}`,
+        '--stor-elevation-3': `${lift(0.07)}0 2px 6px ${shade(dark ? 0.45 : 0.07)}, 0 20px 44px -14px ${shade(dark ? 0.85 : 0.28)}`,
+        '--stor-elevation-4': `${lift(0.08)}0 4px 14px ${shade(dark ? 0.5 : 0.09)}, 0 40px 90px -24px ${shade(dark ? 0.9 : 0.36)}`,
+        '--stor-nav-card-shadow': `${dark ? 'inset 0 1px 0 rgba(255, 244, 230, 0.07)' : rim}, 0 1px 2px ${shade(dark ? 0.55 : 0.07)}, 0 12px 24px -12px ${shade(dark ? 0.85 : 0.3)}`,
         '--stor-page-shadow': dark
-            ? `0 0 0 1px ${hair(0.06)}, 0 12px 36px -16px ${shade(0.7)}`
-            : `0 0 0 1px ${hair(0.07)}, 0 1px 3px ${shade(0.05)}, 0 10px 30px -14px ${shade(0.2)}`,
+            ? `${rim}, 0 1px 2px ${shade(0.5)}, 0 28px 60px -24px ${shade(0.9)}`
+            : `${rim}, 0 1px 2px ${shade(0.05)}, 0 10px 24px -12px ${shade(0.14)}, 0 34px 70px -30px ${shade(0.26)}`,
     };
 }
 
@@ -610,16 +619,16 @@ export function themePaletteFor(accent = DEFAULT_ACCENT, mode: ResolvedTheme = '
         '--stor-surface': n.surface,
         '--stor-surface-muted': n.muted,
         '--stor-surface-raised': n.raised,
-        // Fields: white on light cards, sunken below the card in dark mode.
-        '--stor-field-fill': dark ? '#1a1714' : n.surface,
+        // Fields: a well in light mode, sunken below the card in dark mode; the underline is their edge.
+        '--stor-field-fill': dark ? '#1a1714' : n.well,
+        '--stor-field-line': n.fieldLine,
         '--stor-surface-hover': n.hover,
         '--stor-surface-well': n.well,
         '--stor-surface-overlay': n.overlay,
         '--stor-surface-sheet': n.sheet,
         ...elevationVariables(mode),
         // Aliases: the older shadow names point at the scale.
-        // Legacy boxes with no border of their own take the hairline as a ring; .stor-panel uses a real border.
-        '--stor-panel-shadow': '0 0 0 1px var(--stor-hairline), var(--stor-elevation-1)',
+        '--stor-panel-shadow': 'var(--stor-elevation-1)',
         '--stor-sidebar-shadow': 'none',
         '--stor-shadow-sm': 'var(--stor-elevation-2)',
         '--stor-shadow-md': 'var(--stor-elevation-3)',
@@ -638,10 +647,10 @@ export function themePaletteFor(accent = DEFAULT_ACCENT, mode: ResolvedTheme = '
         '--stor-action': roles.action,
         '--stor-action-text': roles.actionText,
         '--stor-action-hover': roles.actionHover,
-        // The primary button's edge: a darker rim of the action, a top highlight and a contact shadow.
+        // The primary button floats on its own colour: a top highlight, a contact shadow and a drop tinted by the action.
         '--stor-action-shadow': dark
-            ? `0 0 0 1px color-mix(in srgb, ${roles.action} 70%, #000), inset 0 1px 0 rgba(255, 255, 255, 0.3), 0 1px 2px rgba(0, 0, 0, 0.5)`
-            : `0 0 0 1px color-mix(in srgb, ${roles.action} 78%, #000), inset 0 1px 0 rgba(255, 255, 255, 0.16), 0 1px 2px rgba(34, 29, 24, 0.18), 0 3px 8px -4px color-mix(in srgb, ${roles.action} 55%, transparent)`,
+            ? `inset 0 1px 0 rgba(255, 255, 255, 0.3), 0 1px 2px rgba(0, 0, 0, 0.6), 0 8px 20px -8px color-mix(in srgb, ${roles.action} 45%, transparent)`
+            : `inset 0 1px 0 rgba(255, 255, 255, 0.18), 0 1px 2px rgba(34, 29, 24, 0.2), 0 8px 16px -8px color-mix(in srgb, ${roles.action} 60%, transparent)`,
         '--stor-focus': roles.focus,
         '--stor-accent-strong': roles.text,
         '--stor-accent-soft': roles.soft,

@@ -60,7 +60,7 @@
                 checked={appearance.preference === option.value}
                 onchange={() => appearance.setPreference(option.value)}
             />
-            <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--stor-surface-raised)] text-[var(--stor-accent-strong)] ring-1 ring-[var(--stor-border)]">
+            <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--stor-surface-raised)] text-[var(--stor-accent-strong)] shadow-[var(--stor-elevation-2)]">
                 <Icon class="h-4 w-4" />
             </span>
             <span class="min-w-0">

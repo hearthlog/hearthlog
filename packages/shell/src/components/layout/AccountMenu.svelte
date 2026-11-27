@@ -115,7 +115,7 @@
                 </button>
             {/if}
             {#if canLogOut}
-                <div class="mx-1 my-2 h-px bg-[var(--stor-border)]"></div>
+                <div class="h-2" aria-hidden="true"></div>
                 <a
                     href={ACCESS_LOGOUT_ENDPOINT}
                     onclick={logout}

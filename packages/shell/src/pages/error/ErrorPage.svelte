@@ -132,7 +132,7 @@
             {/if}
         </div>
         {#if localStoreFailed}
-            <p class="mt-5 border-t border-[var(--stor-border)] pt-4 text-xs leading-5 text-[var(--stor-muted-text)]">
+            <p class="mt-6 text-xs leading-5 text-[var(--stor-muted-text)]">
                 {recoverySummary.pending ?? "Unknown"} pending events · {recoverySummary.blocked ?? "Unknown"} blocked operations. Reset removes them from this device; remote events return through normal sync after reload.
             </p>
             {#if recoveryMessage}<p class="mt-3 text-xs font-medium text-[var(--stor-ink)]">{recoveryMessage}</p>{/if}

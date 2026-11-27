@@ -35,7 +35,7 @@
         <span class="block text-body font-medium text-[var(--stor-ink)]">{label}</span>
         {#if hint}<span class="block text-caption text-[var(--stor-muted-text)]">{hint}</span>{/if}
     </span>{/if}
-    <span class="relative h-6 w-10 shrink-0 rounded-full transition-colors duration-[var(--stor-dur-2)] {checked ? 'bg-[var(--stor-action)]' : 'bg-[var(--stor-surface-well)] shadow-[inset_0_0_0_1px_var(--stor-field-border)]'}" aria-hidden="true">
+    <span class="relative h-6 w-10 shrink-0 rounded-full transition-colors duration-[var(--stor-dur-2)] {checked ? 'bg-[var(--stor-action)]' : 'bg-[var(--stor-surface-well)] shadow-[inset_0_0_0_1.5px_var(--stor-field-line)]'}" aria-hidden="true">
         <span class="absolute top-[3px] h-[18px] w-[18px] rounded-full shadow-[0_1px_2px_rgb(0_0_0/.2)] transition-[left] duration-[var(--stor-dur-2)] {checked ? 'left-[19px] bg-[var(--stor-action-text)]' : 'left-[3px] bg-[var(--stor-surface-raised)]'}"></span>
     </span>
 </button>
