@@ -1082,7 +1082,7 @@
             <div class="ml-auto">{@render sourcesMenu()}</div>
         </div>
         <div class="stor-calendar-grid" role="grid" aria-label={`${monthLabel} days`}>
-            <div class="stor-calendar-week stor-calendar-header" role="row">
+            <div class="stor-calendar-week stor-calendar-header stor-glass-strong" role="row">
                     {#each ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as dayName}
                     <div role="columnheader" class="px-0.5 py-2 text-center text-xs font-medium text-[var(--stor-muted-text)] sm:px-2.5 sm:text-xs">{dayName}</div>
                     {/each}
@@ -1096,6 +1096,7 @@
                             store={weeks}
                             opening={monthTarget(shownMonth)}
                             estimate={weekEstimate}
+                            inset={36}
                             revision={revision}
                             home={todayTarget}
                             pick={pick}
@@ -1259,6 +1260,18 @@
         display: grid;
         grid-template-columns: repeat(7, minmax(0, 1fr));
         gap: 2px;
+    }
+    /* The weekday row floats over the weeks as glass; the list starts its weeks below it (`inset`). */
+    .stor-calendar-header.stor-calendar-week {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        z-index: 4;
+        height: 36px;
+        align-items: center;
+        padding-bottom: 0;
+        border-radius: 12px;
     }
     .stor-calendar-week {
         position: relative;

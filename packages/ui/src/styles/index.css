@@ -1,6 +1,6 @@
 /*
  * The design system's stylesheet: fonts, design tokens, base styles, the dark-mode remap of literal
- * palette classes, and the generic recipes (panel, page, metric, menu, sheet, tabs, drawer...).
+ * palette classes, the generic recipes (panel, page, metric, menu, sheet, tabs, drawer...), and glass.
  * Import it once, after Tailwind:
  *
  *     @import 'tailwindcss' source('./');
@@ -8,6 +8,7 @@
  */
 @import './base.css';
 @import './recipes.css';
+@import './glass.css';
 
 /* The package's own components use Tailwind classes; scan them wherever the host's source root is. */
 @source '../';

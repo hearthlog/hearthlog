@@ -519,8 +519,18 @@ The design system's own (panel, page, metric, menu, sheet, tabs, drawer, buttons
 `packages/shell/src/styles/shell.css`, and a module's own recipes are in its `src/styles.css` (manifest `styles`),
 imported through `.generated/module-sources.generated.css` only for tenants that enable the module.
 
-- Shell: `.stor-mobile-header`, `.stor-mobile-nav` (frosted translucent glass when `backdrop-filter` is supported, opaque surface fallback otherwise), `.stor-mobile-action`,
+- Shell: `.stor-mobile-header` (on the canvas at the top of the page, glass once content scrolls under it:
+  `html[data-stor-scrolled]`, set from `[data-stor-main]` in the layout), `.stor-mobile-nav` (glass, the selected
+  tab's icon in a droplet), `.stor-mobile-action`,
   `.stor-backdrop`, `.stor-drawer*`, `.stor-dialog`, `.stor-bottom-sheet`, `.stor-skip-link`, `.stor-notifications`.
+- Glass (`glass.css`): only for chrome that content scrolls under; cards, rows, tables, forms and dialogs stay
+  solid. `.stor-glass` (a tint over a light blur, a lit rim, an inner glow), `.stor-glass-strong` (the stronger tint,
+  wherever text is read on it), `.stor-glass-tint` (the one primary action on glass), `.stor-droplet` (the selected
+  option inside a glass control). Glass never nests, and it turns solid without `backdrop-filter`, under
+  `prefers-reduced-transparency` and `prefers-contrast: more`, and draws a border under forced colours. Tokens:
+  `--stor-glass-*` and `--stor-droplet*` (`glassVariables()` in `theme.ts`). `scrollEdge()`
+  (`@hearthlog/ui/utils/scroll-edge.js`) tells chrome when content is under it (`data-scrolled`, or `data-stuck` for
+  a sticky element), so glass appears only then.
 - Page structure: `.stor-page`, `.stor-page-header`, `.stor-toolbar`,
   `.stor-page-tabs` / `.stor-page-tab` (one capsule track with a raised
   selected pill that slides between triggers; `.stor-primary-tabs` is the
@@ -566,7 +576,8 @@ imported through `.generated/module-sources.generated.css` only for tenants that
 - Data surfaces: `DataTable` (TanStack Table, `variant="quiet"` inside panels)
   with SQL-backed manual pagination/sorting, `EndlessList` (TanStack Virtual)
   for endless date blocks read from SQL as they scroll into view (Finance
-  months, Calendar weeks, Gallery months), `DayPager` for Health days one at a
+  months, Calendar weeks, Gallery months; `inset` leaves room for a glass header floating over its top, as the
+  Calendar's weekday row does), `DayPager` for Health days one at a
   time, `EmptyState`,
   `DataPlaceholder`, `DataValue`, `DataRegion`, `PageDataStatus`,
   `NotificationCenter`.
@@ -577,7 +588,10 @@ imported through `.generated/module-sources.generated.css` only for tenants that
   `PageHeader` (one `h1`, actions, context/tabs), `PageDataStatus`, then
   content sections. Section pages hide the title visually (mobile label only,
   `showTitle` off) because navigation names the place; detail pages that name
-  their subject pass `showTitle`. `PageHeader` has no description prop.
+  their subject pass `showTitle`. `PageHeader` has no description prop. A page that scrolls the page itself can
+  pass `sticky`: from 768px the header row stays 10px below the top of the page panel and, once stuck, becomes a
+  glass capsule with the page's name and an optional `condensed` snippet (one short figure); a page whose list
+  scrolls on its own keeps its header above the list.
 - Loading: `PageDataStatus` at page level, `DataRegion` + `DataPlaceholder` per
   region, `DataValue` for single values, table skeletons for lists. All
   skeletons pair `role="status"` with `motion-safe:animate-pulse`.

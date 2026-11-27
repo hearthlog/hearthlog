@@ -557,6 +557,39 @@ function elevationVariables(mode: ResolvedTheme): Record<string, string> {
         '--stor-page-shadow': dark
             ? `${rim}, 0 1px 2px ${shade(0.5)}, 0 28px 60px -24px ${shade(0.9)}`
             : `${rim}, 0 1px 2px ${shade(0.05)}, 0 10px 24px -12px ${shade(0.14)}, 0 34px 70px -30px ${shade(0.26)}`,
+        ...glassVariables(mode),
+    };
+}
+
+/**
+ * Glass: chrome that content scrolls under (a stuck page header, the calendar's weekday row, the phone header,
+ * tab bar and page action). A tint over a light blur, a rim lit from the top left and the bottom right, a soft inner
+ * glow for thickness and a float shadow. Text sits only on the strong tint. The selected option in a glass control
+ * is the droplet, a clearer lens with its own rim. `glass.css` turns all of it solid where blur is missing or the
+ * reader asks for less transparency or more contrast.
+ */
+function glassVariables(mode: ResolvedTheme): Record<string, string> {
+    if (mode === 'dark') {
+        return {
+            '--stor-glass-tint': 'rgba(30, 26, 23, 0.5)',
+            '--stor-glass-tint-strong': 'rgba(34, 30, 27, 0.7)',
+            '--stor-glass-rim': 'linear-gradient(150deg, rgba(255, 255, 255, 0.45), rgba(255, 255, 255, 0.07) 28%, rgba(255, 255, 255, 0) 50%, rgba(255, 255, 255, 0.06) 76%, rgba(255, 255, 255, 0.3))',
+            '--stor-glass-sheen': 'radial-gradient(140% 90% at 12% -12%, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0) 55%)',
+            '--stor-glass-edge': 'inset 0 1px 1px rgba(255, 255, 255, 0.14), inset 0 -1px 2px rgba(255, 255, 255, 0.05), inset 0 0 20px rgba(255, 255, 255, 0.035)',
+            '--stor-glass-drop': '0 2px 4px rgba(0, 0, 0, 0.35), 0 20px 44px -14px rgba(0, 0, 0, 0.8)',
+            '--stor-droplet': 'rgba(255, 255, 255, 0.13)',
+            '--stor-droplet-edge': 'inset 0 1px 1px rgba(255, 255, 255, 0.28), inset 0 -1px 1px rgba(255, 255, 255, 0.08), 0 3px 10px -3px rgba(0, 0, 0, 0.6)',
+        };
+    }
+    return {
+        '--stor-glass-tint': 'rgba(252, 250, 247, 0.56)',
+        '--stor-glass-tint-strong': 'rgba(253, 252, 250, 0.74)',
+        '--stor-glass-rim': 'linear-gradient(150deg, rgba(255, 255, 255, 1), rgba(255, 255, 255, 0.22) 26%, rgba(255, 255, 255, 0) 50%, rgba(255, 255, 255, 0.28) 78%, rgba(255, 255, 255, 0.95))',
+        '--stor-glass-sheen': 'radial-gradient(140% 90% at 12% -12%, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0) 55%), linear-gradient(0deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0) 32%)',
+        '--stor-glass-edge': 'inset 0 1px 1px rgba(255, 255, 255, 0.9), inset 0 -1px 2px rgba(255, 255, 255, 0.35), inset 0 0 20px rgba(255, 255, 255, 0.16)',
+        '--stor-glass-drop': '0 1px 2px rgba(34, 29, 24, 0.07), 0 10px 24px -10px rgba(34, 29, 24, 0.22), 0 24px 48px -24px rgba(34, 29, 24, 0.2)',
+        '--stor-droplet': 'rgba(255, 255, 255, 0.58)',
+        '--stor-droplet-edge': 'inset 0 1px 1px rgba(255, 255, 255, 0.95), inset 0 -1px 1px rgba(255, 255, 255, 0.45), 0 0 0 0.5px rgba(255, 255, 255, 0.55), 0 3px 10px -3px rgba(34, 29, 24, 0.28)',
     };
 }
 

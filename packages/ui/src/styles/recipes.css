@@ -41,6 +41,17 @@
     .stor-kbd { display: inline-flex; flex: none; align-items: center; height: 20px; padding: 0 6px; border-radius: 5px; background: var(--stor-surface-well); box-shadow: none; color: var(--stor-muted-text); font: 600 11px/1 var(--stor-font-sans); letter-spacing: 0; }
     [data-stor-button-variant="default"] .stor-kbd { background: color-mix(in srgb, currentColor 16%, transparent); box-shadow: none; color: inherit; }
     .stor-page-header { min-width: 0; padding-bottom: 4px; }
+    /* A sticky page header (PageHeader `sticky`, from 768px): its row sticks 10px below the top of the page panel and,
+       once stuck, turns into a glass capsule that names the page. The row keeps the same box in both states, and the
+       title and context above and below it only fade, so nothing on the page moves. */
+    .stor-page-header-condensed { display: none; min-width: 0; align-items: baseline; gap: 10px; padding-left: 10px; }
+    .stor-page-header-condensed .stor-serif-title { font-size: 19px; line-height: 24px; color: var(--stor-ink); white-space: nowrap; }
+    @media (min-width: 768px) {
+        .stor-page-header[data-sticky] { position: sticky; top: calc(10px - var(--stor-header-lead, 0px)); z-index: var(--stor-layer-sticky); }
+        .stor-page-header[data-sticky] > .stor-page-header-row { margin: -6px -8px; padding: 6px 8px; border-radius: 26px; transition: background-color var(--stor-dur-2) ease, box-shadow var(--stor-dur-2) ease; }
+        .stor-page-header[data-stuck] > :not(.stor-page-header-row) { opacity: 0; pointer-events: none; transition: opacity var(--stor-dur-1) ease; }
+        .stor-page-header[data-stuck] .stor-page-header-condensed { display: inline-flex; }
+    }
     .stor-page-header h1, .stor-health-header h1 { font-size: var(--stor-text-title-1); line-height: var(--stor-text-title-1-line); letter-spacing: -.015em; }
     /* Section pages let the navigation name the place: the title is read by
        assistive tech and shown as a compact label on mobile only. */

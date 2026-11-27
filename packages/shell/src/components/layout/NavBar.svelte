@@ -698,7 +698,7 @@
 {/if}
 
 <nav
-    class="stor-mobile-nav fixed z-[55] grid md:hidden"
+    class="stor-mobile-nav stor-glass-strong fixed z-[55] grid md:hidden"
     style={`grid-template-columns: repeat(${mobilePrimaryLinks.length + 1}, minmax(0, 1fr))`}
     aria-label="Mobile navigation"
 >
@@ -713,7 +713,7 @@
             aria-current={active ? "page" : undefined}
             aria-label={badge ? `${link.label}, ${badge.label}` : undefined}
         >
-            <span class="relative flex h-7 min-w-11 items-center justify-center rounded-full transition {active ? 'bg-[var(--stor-accent-soft)]' : 'group-active:bg-[var(--stor-surface-muted)]'}">
+            <span class="relative flex h-7 min-w-11 items-center justify-center rounded-full transition {active ? 'stor-droplet text-[var(--stor-accent-text)]' : 'group-active:bg-[var(--stor-surface-muted)]'}">
                 <Icon class="h-[18px] w-[18px]" />
                 {#if badge}<span class="stor-dock-badge {badge.tone === 'negative' ? 'stor-dock-badge-negative' : 'stor-dock-badge-warning'}" aria-hidden="true">{badge.count}</span>{/if}
             </span>
@@ -728,7 +728,7 @@
         aria-label={moreButtonAriaLabel}
         aria-expanded={isMoreOpen}
     >
-        <span class="relative flex h-7 min-w-11 items-center justify-center rounded-full transition {isMoreActive ? 'bg-[var(--stor-accent-soft)]' : 'group-active:bg-[var(--stor-surface-muted)]'}">
+        <span class="relative flex h-7 min-w-11 items-center justify-center rounded-full transition {isMoreActive ? 'stor-droplet text-[var(--stor-accent-text)]' : 'group-active:bg-[var(--stor-surface-muted)]'}">
             <IconDots class="h-[18px] w-[18px]" />
             {#if showSyncDot}
                 <span class="absolute right-1 top-0.5 h-2 w-2 rounded-full shadow-[0_0_0_2px_var(--stor-surface-raised)] {syncPresentation.tone === 'danger' ? 'bg-[var(--stor-negative)]' : 'bg-[var(--stor-warning)]'}" aria-hidden="true"></span>

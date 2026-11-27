@@ -22,6 +22,7 @@
     import Announcer from "@hearthlog/ui/components/Announcer.svelte";
     import MovedBanner from "@hearthlog/shell/components/layout/MovedBanner.svelte";
     import { notify } from "@hearthlog/ui/state/notifications.svelte.js";
+    import { scrollEdge } from "@hearthlog/ui/utils/scroll-edge.js";
     import { recordTiming, measurementMetadata, beginNavigationTiming } from "@hearthlog/runtime/utils/perf.js";
     import { workspaceReadiness, workspaceIsReady } from "@hearthlog/ui/state/readiness.js";
     import ErrorPage from "../error/ErrorPage.svelte";
@@ -409,6 +410,7 @@
         id="stor-main-content"
         tabindex="-1"
         data-stor-main
+        {@attach scrollEdge({ threshold: 0, onChange: (scrolled) => document.documentElement.toggleAttribute("data-stor-scrolled", scrolled) })}
         class="min-h-0 flex-1 overflow-y-auto pt-[var(--stor-mobile-header-height)] focus:outline-none lg:pt-0"
         data-page-fit={pageFitsScreen(page.url.pathname) ? "" : undefined}
     >
