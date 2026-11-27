@@ -581,6 +581,13 @@ imported through `.generated/module-sources.generated.css` only for tenants that
   time, `EmptyState`,
   `DataPlaceholder`, `DataValue`, `DataRegion`, `PageDataStatus`,
   `NotificationCenter`.
+- Selection: `SelectionDock` (SDK) is the glass tray at the bottom of a list while rows are selected: the count
+  (a droplet, solid when the selection reaches past the rows on screen), what is selected and what it covers
+  (`scope`), an optional switch (`controls`, `.stor-dock-switch` with `aria-pressed`), figures (`summary`,
+  `.stor-dock-figure`) and the batch actions (`actions`, `.stor-dock-action` plus `-primary` or `-danger`; a warning
+  as `.stor-dock-note`). From 1024px it sticks to the bottom of the list's scroller; below that it floats above the
+  tab bar and the page action. A destructive batch action confirms inside the dock (`confirm`) rather than in a
+  dialog, and a new selection withdraws the question. Invoices uses it.
 
 ### UX conventions
 
