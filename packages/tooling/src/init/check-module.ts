@@ -12,7 +12,7 @@
  */
 
 import { spawnSync } from "node:child_process";
-import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { createRequire } from "node:module";
 import { dirname, join, resolve } from "node:path";
@@ -136,6 +136,29 @@ function linkGenerated(directory: string, work: string): string {
     return link;
 }
 
+/**
+ * Lines the floating shell draws with space and shadow instead: a 1px border, a divider or a ring in the hairline, rule
+ * or border colour. A warning, not a failure, so older modules still check; tree lines, axes and swatch edges that
+ * need a line can ignore it.
+ */
+export function borderWarnings(directory: string): string[] {
+    const patterns = [
+        /border(?:-(?:top|bottom|left|right|block|inline))?:\s*1px\s+solid\s+var\(--stor-(?:hairline|rule|border)\b/,
+        /(?:^|[\s"'`{])(?:[\w:[\]&+>-]*:)?(?:border-[tblrxy]|border|divide-[xy])\s+(?:[\w:[\]&+>-]*:)?(?:border|divide)-\[var\(--stor-(?:hairline|rule|border)\)\]/,
+        /inset[ _]0[ _]0[ _]0[ _]1px[ _]var\(--stor-(?:hairline|border)\)/,
+    ];
+    const source = join(resolve(directory), "src");
+    if (!existsSync(source)) return [];
+    const warnings: string[] = [];
+    for (const entry of readdirSync(source, { recursive: true }) as string[]) {
+        if (!/\.(?:svelte|css)$/.test(entry)) continue;
+        readFileSync(join(source, entry), "utf8").split("\n").forEach((line, index) => {
+            if (patterns.some((pattern) => pattern.test(line))) warnings.push(`src/${entry}:${index + 1}`);
+        });
+    }
+    return warnings;
+}
+
 export function checkModule(options: CheckModuleOptions): void {
     const work = options.work ? resolve(options.work) : mkdtempSync(join(tmpdir(), "hearthlog-check-module-"));
     try {
@@ -143,6 +166,8 @@ export function checkModule(options: CheckModuleOptions): void {
         run(process.execPath, [createRequire(import.meta.url).resolve("tsx/cli"), fileURLToPath(new URL("../native/apple-types.ts", import.meta.url)), resolve(options.directory), "--check"], resolve(options.directory));
         const name = assembleCheckSite({ directory: options.directory, work, overrides: options.overrides });
         console.log(`Checking ${name} in a throwaway site at ${work}`);
+        const borders = borderWarnings(options.directory);
+        if (borders.length) console.warn(`Warning: ${borders.length} line(s) draw a border or divider the floating shell replaces with space and shadow (AGENTS.md, Depth):\n  ${borders.slice(0, 20).join("\n  ")}${borders.length > 20 ? `\n  and ${borders.length - 20} more` : ""}`);
         run("pnpm", ["install", "--no-frozen-lockfile"], work);
         run("pnpm", ["build"], work);
         console.log(`${name} composes into a site and builds.`);

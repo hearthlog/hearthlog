@@ -457,7 +457,7 @@ casts true black. The sidebar's current section is a raised card that holds its 
 sticky headers and fades match it, and `.stor-panel` cards sit on it with `--stor-elevation-1` (`shell.css`).
 Without a border a scrolling parent clips a card's shadow at its edge, so give a scroller that holds cards padding
 on that edge. Rows are separated by a little space and a hover tint, never by a divider; groups in a menu by a 6–8px
-gap. Strength is the single `ELEVATION_STRENGTH` constant in
+gap. `hearthlog check-module` warns about borders, dividers and rings in a module's `src/`. Strength is the single `ELEVATION_STRENGTH` constant in
 `packages/contracts/src/tenant/theme.ts`. Stack with the `--stor-layer-*` tokens
 (`z-[var(--stor-layer-menu)]`), not literal z-index numbers, and do not use raw
 Tailwind `shadow-sm/md/lg/xl`.
